@@ -550,13 +550,13 @@ export default function App(){
 
       {/* ══════ ROSTER TAB ══════ */}
       {view==="roster"?(<div>
-        {[{title:"Boys Team",list:boys,clr:C.greenLight},{title:"Girls Team",list:girls,clr:C.gold}].map(function(sec){return(<div key={sec.title} style={{marginBottom:24}}><div style={{fontSize:13,fontWeight:700,color:sec.clr,textTransform:"uppercase",letterSpacing:1.5,fontFamily:"monospace",marginBottom:10,paddingBottom:6,borderBottom:"1px solid "+C.bd}}>{sec.title} ({sec.list.length})</div>{sec.list.length===0?<div style={{fontSize:11,color:_tm,fontStyle:"italic"}}>No athletes yet.</div>:null}{sec.list.map(function(a){
+        {[{title:"Boys Team",list:boys,clr:C.greenLight},{title:"Girls Team",list:girls,clr:C.gold}].map(function(sec){return(<div key={sec.title} style={{marginBottom:24}}><div style={{fontSize:13,fontWeight:700,color:sec.clr,textTransform:"uppercase",letterSpacing:1.5,fontFamily:"monospace",marginBottom:10,paddingBottom:6,borderBottom:"1px solid "+C.bd}}>{sec.title} ({sec.list.length})</div>{sec.list.length===0?<div style={{fontSize:11,color:_tm,fontStyle:"italic"}}>No athletes yet.</div>:null}<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:10,alignItems:"start"}}>{sec.list.map(function(a){
           var hp=a.paces&&(a.paces.thrSafe||a.paces.cv);
           var isEx=paceAth===a.id;
           var isMe=myAth===a.id;
           var hasPBs=a.pbs&&Object.values(a.pbs).some(function(v){return v;});
           var accentClr=a.team==="boys"?C.greenLight:C.gold;
-          return(<div key={a.id} style={{marginBottom:10,borderRadius:12,border:isMe?"2px solid "+C.gold+"66":isEx?"2px solid "+accentClr+"66":"1px solid "+C.bd,background:isMe?(lt?"rgba(212,160,23,0.04)":"rgba(212,160,23,0.06)"):(lt?"#fff":"rgba(255,255,255,0.02)"),overflow:"hidden"}}>
+          return(<div key={a.id} style={{marginBottom:10,borderRadius:12,border:isMe?"2px solid "+C.gold+"66":isEx?"2px solid "+accentClr+"66":"1px solid "+C.bd,background:isMe?(lt?"rgba(212,160,23,0.04)":"rgba(212,160,23,0.06)"):(lt?"#fff":"rgba(255,255,255,0.02)"),overflow:"hidden",gridColumn:isEx?"1/-1":undefined}}>
 {/* ── Card Header (always visible) ── */}
             <div style={{padding:"12px 14px",display:"flex",alignItems:"stretch",gap:12,cursor:"pointer"}} onClick={function(){setPaceAth(isEx?null:a.id);}}>
               {/* Photo or initial */}
@@ -844,7 +844,7 @@ export default function App(){
               </div>):null}
             </div>):null}
           </div>);
-        })}</div>);})}
+        })}</div></div>);})}
 
         {/* TRAINING GROUPS */}
         <div style={{marginBottom:20,borderRadius:10,border:"1px solid "+C.bd,background:lt?"#fff":"rgba(255,255,255,0.03)",overflow:"hidden"}}>
