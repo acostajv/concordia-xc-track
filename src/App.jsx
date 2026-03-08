@@ -73,7 +73,7 @@ var DEFAULT_MEETS=[
 /* ─── EDITOR MODAL ─── */
 function Editor(props){
   var e=props.entry;var v=function(k){return e&&e[k]?e[k]:"";};
-  var s1=useState(v("category"));var cat0=s1[0];var setCat=s1[1];
+  var _eLt=props.lt||false;var _modalBg=_eLt?"#fff":"#111f14";  var s1=useState(v("category"));var cat0=s1[0];var setCat=s1[1];
   var s2=useState(v("preset"));var pre=s2[0];var setPre=s2[1];
   var s3=useState(v("customWorkout"));var cw=s3[0];var setCw=s3[1];
   var s4=useState(e&&e.runMode?e.runMode:"distance");var rm=s4[0];var setRm=s4[1];
@@ -157,7 +157,7 @@ function Card(props){
       </div>
       {dm.map(function(m,mi){return <div key={mi} style={{padding:"5px 8px",marginBottom:5,borderRadius:5,background:"#0D47A122",border:"1px solid #0D47A144"}}><div style={{fontSize:10,fontWeight:700,color:"#6494D4",textTransform:"uppercase"}}>MEET: {m.name}</div><div style={{fontSize:10,color:_ctm}}>{m.time?m.time+" | ":""}{m.location}</div></div>;})}
       {arr.length>0?(<div>{arr.map(function(w,i){var cat=gc(w.category);if(!cat)return null;var txt=w.customWorkout||w.preset||"";var myW=meId&&w.athletes&&w.athletes.indexOf(meId)!==-1;var athN=w.athletes&&w.athletes.length>0?w.athletes.map(function(id){var a=roster.find(function(x){return x.id===id;});return a?(id===meId?"You":a.name.split(" ")[0]):null;}).filter(Boolean):[];return(<div key={i} onClick={function(){if(props.cm)props.onEdit(i);else if(props.onDetail)props.onDetail(w);}} style={{cursor:"pointer",padding:"4px 0",borderBottom:i<arr.length-1?"1px solid rgba(255,255,255,0.05)":"none"}}><div style={{display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:10,fontWeight:700,color:cat.color,textTransform:"uppercase"}}>{cat.label}</span>{myW?<span style={{fontSize:10,padding:"1px 5px",borderRadius:3,background:C.gold+"22",color:C.gold,fontWeight:700}}>Your workout</span>:null}</div>{txt?<div style={{fontSize:12,color:myW?_ctp:_cts,fontWeight:myW?600:400,lineHeight:1.45,display:"-webkit-box",WebkitLineClamp:1,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{txt}</div>:null}<div style={{display:"flex",gap:3,marginTop:2,flexWrap:"wrap"}}>{w.pace?<span style={tg}>{w.pace}</span>:null}{athN.length>0?<span style={Object.assign({},tg,{background:C.gold+"15",color:C.gold})}>{athN.length<=3?athN.join(", "):athN.length+" athletes"}</span>:null}</div></div>);})}
-      {props.cm?<button onClick={function(){props.onEdit(null);}} style={{marginTop:5,padding:"4px 8px",borderRadius:5,background:_lt?"#fff":"rgba(255,255,255,0.03)",border:"1px dashed "+C.bd,color:_ctm,fontSize:10,cursor:"pointer",width:"100%"}}>+ Add</button>:null}</div>):(<div style={{fontSize:11,color:_ctm,fontStyle:"italic"}}>{props.cm?"Tap to add workout":"No workout scheduled"}</div>)}
+      {props.cm?<button onClick={function(){props.onEdit(null);}} style={{marginTop:5,padding:"4px 8px",borderRadius:5,background:_lt?"#fff":"rgba(255,255,255,0.03)",border:"1px dashed "+C.bd,color:_ctm,fontSize:10,cursor:"pointer",width:"100%"}}>+ Add</button>:null}</div>):(<div onClick={function(){if(props.cm)props.onEdit(null);}} style={{fontSize:11,color:_ctm,fontStyle:"italic",cursor:props.cm?"pointer":"default"}}>{props.cm?"Tap to add workout":"No workout scheduled"}</div>)}
       {/* Inline log entries */}
       {wLogs.length>0?<div style={{marginTop:6,borderTop:"1px solid "+(_lt?"rgba(0,0,0,0.06)":"rgba(255,255,255,0.05)"),paddingTop:4}}>{wLogs.slice(0,3).map(function(l,li){var ath=roster.find(function(x){return x.id===l.athId;});var dc=(l.difficulty||0)<=4?"#27AE60":(l.difficulty||0)<=6?"#D4A017":(l.difficulty||0)<=8?"#E67E22":"#E74C3C";return <div key={li} style={{fontSize:10,color:_cts,marginBottom:2,display:"flex",gap:4,alignItems:"center"}}><span style={{color:dc,fontWeight:700}}>{l.difficulty}/10</span><span style={{fontWeight:600,color:_ctm}}>{ath?ath.name.split(" ")[0]:"?"}</span>{l.mileage?<span style={{fontFamily:"monospace"}}>{l.mileage}mi</span>:null}{l.notes?<span style={{opacity:0.7,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:80}}>{l.notes}</span>:null}</div>;})}{wLogs.length>3?<div style={{fontSize:10,color:_ctm}}>+{wLogs.length-3} more</div>:null}</div>:null}
     </div>
@@ -1705,7 +1705,7 @@ export default function App(){
           <button onClick={function(){setCShow(false);}} style={{marginTop:8,background:"none",border:"none",color:_tm,fontSize:12,cursor:"pointer"}}>Cancel</button>
         </div>
       </div>):null}
-      {ed?<Editor entry={editEntry} editIdx={ed.idx} dateLabel={ed.lb} roster={roster} templates={templates} onSaveTemplate={saveTemplate} onDeleteTemplate={deleteTemplate} onClose={function(){setEd(null);}} onSave={handleSave} onDelete={handleDelete}/>:null}
+      {ed?<Editor lt={lt} entry={editEntry} editIdx={ed.idx} dateLabel={ed.lb} roster={roster} templates={templates} onSaveTemplate={saveTemplate} onDeleteTemplate={deleteTemplate} onClose={function(){setEd(null);}} onSave={handleSave} onDelete={handleDelete}/>:null}
     </div>
   );
 }
