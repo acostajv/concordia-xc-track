@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { loadData, saveData, IS_COACH_BUILD } from "./firebase.js";
+import { loadData, saveData, loadAthleteData, saveAthleteData, IS_COACH_BUILD } from "./firebase.js";
 
 var C={green:"#1B5E20",greenLight:"#2E7D32",greenDark:"#0D3B12",gold:"#D4A017",goldLight:"#F0C040",goldBg:"rgba(212,160,23,0.08)",white:"#FFF",tp:"#F0F0EA",ts:"#A8B5A0",tm:"#6B7F65",bgD:"#081208",bgC:"rgba(255,255,255,0.03)",bgH:"rgba(255,255,255,0.07)",bd:"rgba(255,255,255,0.08)"};
 var LS={display:"block",fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:C.tm,marginBottom:5,marginTop:14,fontFamily:"monospace"};
@@ -290,10 +290,11 @@ export default function App(){
     /* Load local data immediately */
     var localTheme=ldLocal(THK);if(localTheme)setTheme(localTheme);
     var localMyAth=ldLocal(MYK);if(localMyAth)setMyAth(localMyAth);
-    var localWlog=ldLocal(WLK);if(localWlog)setWlog(localWlog);
     /* Load team data from Firebase */
-    Promise.all([ld1(SK),ld1(RK),ld1(MK),ld1(AK),ld1(TK),ld1(SRK)]).then(function(r){
-      setSch(r[0]||{});setRoster(r[1]||[]);setMeets(r[2]||DEFAULT_MEETS);setAnnounce(r[3]||"");setTemplates(r[4]||[]);setSchoolRecs(r[5]||{});setLoaded(true);
+    Promise.all([ld1(SK),ld1(RK),ld1(MK),ld1(AK),ld1(TK),ld1(SRK),loadAthleteData(WLK)]).then(function(r){
+      setSch(r[0]||{});setRoster(r[1]||[]);setMeets(r[2]||DEFAULT_MEETS);setAnnounce(r[3]||"");setTemplates(r[4]||[]);setSchoolRecs(r[5]||{});
+      var wlogData=null;try{wlogData=r[6]?JSON.parse(r[6]):null;}catch(e){}setWlog(wlogData||{});
+      setLoaded(true);
     });
   },[]);
   var dates=wkd(wOff);var today=fd(new Date());
@@ -304,7 +305,7 @@ export default function App(){
   function upM(nm){setMeets(nm);sv1(MK,nm);}
   function upAnn(t){setAnnounce(t);sv1(AK,t);}
   function upSR(nr){setSchoolRecs(nr);sv1(SRK,nr);}
-  function upWL(nr){setWlog(nr);svLocal(WLK,nr);}
+  function upWL(nr){setWlog(nr);saveAthleteData(WLK,JSON.stringify(nr));}
   function addLog(dk,entry){var n=Object.assign({},wlog);if(!n[dk])n[dk]=[];n[dk]=n[dk].concat([entry]);upWL(n);}
   function rmLog(dk,idx){var n=Object.assign({},wlog);if(!n[dk])return;n[dk]=n[dk].slice();n[dk].splice(idx,1);if(n[dk].length===0)delete n[dk];upWL(n);}
   function openLogModal(dk,lb){setLogMod({dateKey:dk,dateLbl:lb});setLogAth(myAth||"");setLogDiff(5);setLogMi("");setLogSpl("");setLogNt("");}
@@ -386,7 +387,7 @@ export default function App(){
     var csv=rows.map(function(r){return r.join(",");}).join("\n");
     var b=new Blob([csv],{type:"text/csv"});var u=URL.createObjectURL(b);var a=document.createElement("a");a.href=u;a.download="race-results.csv";a.click();URL.revokeObjectURL(u);
   }
-  function doImport(ev){var f=ev.target.files[0];if(!f)return;var r=new FileReader();r.onload=function(e2){try{var d=JSON.parse(e2.target.result);if(d.schedule){setSch(d.schedule);sv1(SK,d.schedule);}if(d.roster){setRoster(d.roster);sv1(RK,d.roster);}if(d.meets){setMeets(d.meets);sv1(MK,d.meets);}if(d.announce!==undefined){setAnnounce(d.announce);sv1(AK,d.announce);}if(d.templates){setTemplates(d.templates);sv1(TK,d.templates);}if(d.schoolRecs){setSchoolRecs(d.schoolRecs);sv1(SRK,d.schoolRecs);}if(d.wlog){setWlog(d.wlog);svLocal(WLK,d.wlog);}}catch(err){alert("Invalid");}};r.readAsText(f);}
+  function doImport(ev){var f=ev.target.files[0];if(!f)return;var r=new FileReader();r.onload=function(e2){try{var d=JSON.parse(e2.target.result);if(d.schedule){setSch(d.schedule);sv1(SK,d.schedule);}if(d.roster){setRoster(d.roster);sv1(RK,d.roster);}if(d.meets){setMeets(d.meets);sv1(MK,d.meets);}if(d.announce!==undefined){setAnnounce(d.announce);sv1(AK,d.announce);}if(d.templates){setTemplates(d.templates);sv1(TK,d.templates);}if(d.schoolRecs){setSchoolRecs(d.schoolRecs);sv1(SRK,d.schoolRecs);}if(d.wlog){setWlog(d.wlog);saveAthleteData(WLK,JSON.stringify(d.wlog));}}catch(err){alert("Invalid");}};r.readAsText(f);}
   /* Roster helpers */
   function rAdd(){if(!rN.trim())return;var nr=roster.slice();if(rEid){nr=nr.map(function(a){return a.id===rEid?Object.assign({},a,{name:rN,team:rT,grade:rG,events:rE}):a;});}else{nr.push({id:Date.now().toString(),name:rN,team:rT,grade:rG,events:rE,paces:{},pbs:{},sbs:{},photo:null});}upR(nr);setRN("");setRG("");setRE("");setREid(null);setRFormOpen(false);}
   function rCSV(ev){var f=ev.target.files[0];if(!f)return;var r=new FileReader();r.onload=function(e2){var lines=e2.target.result.split("\n");var nr=roster.slice();for(var i=0;i<lines.length;i++){var l=lines[i].trim();if(!l||l.toLowerCase().startsWith("name"))continue;var p=l.split(",");if(p.length<2)continue;var nm=p[0].trim(),tm=(p[1]||"").trim().toLowerCase();if(tm!=="boys"&&tm!=="girls")tm="boys";nr.push({id:Date.now().toString()+i,name:nm,team:tm,grade:(p[2]||"").trim(),events:(p[3]||"").trim(),paces:{}});}upR(nr);};r.readAsText(f);}

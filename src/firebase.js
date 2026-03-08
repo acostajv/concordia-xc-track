@@ -6,21 +6,20 @@ import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
 // ║  (Project Settings → Your apps → Web app config)        ║
 // ╚══════════════════════════════════════════════════════════╝
 const firebaseConfig = {
-  apiKey: "AIzaSyCf35hn2_sdafpeA7Q6OXoODX8Fo2bS3g8",
-  authDomain: "concordia-xc-track.firebaseapp.com",
-  projectId: "concordia-xc-track",
-  storageBucket: "concordia-xc-track.firebasestorage.app",
-  messagingSenderId: "320762362045",
-  appId: "1:320762362045:web:d25d9a482a14470a179fd4"
+  apiKey: "PASTE_YOUR_API_KEY_HERE",
+  authDomain: "PASTE_YOUR_AUTH_DOMAIN_HERE",
+  projectId: "PASTE_YOUR_PROJECT_ID_HERE",
+  storageBucket: "PASTE_YOUR_STORAGE_BUCKET_HERE",
+  messagingSenderId: "PASTE_YOUR_SENDER_ID_HERE",
+  appId: "PASTE_YOUR_APP_ID_HERE"
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Coach token from Netlify environment variable
-// Only exists on the coach build — athlete build gets null
 const COACH_TOKEN = import.meta.env.VITE_COACH_TOKEN || null;
 
+// Coach data (schedule, roster, meets, etc.) — requires token
 export async function loadData(key) {
   try {
     const snap = await getDoc(doc(db, 'appData', key));
@@ -41,6 +40,27 @@ export async function saveData(key, value) {
     return true;
   } catch (e) {
     console.error('Firebase save error:', e);
+    return false;
+  }
+}
+
+// Athlete data (workout logs, check-ins) — anyone can read and write
+export async function loadAthleteData(key) {
+  try {
+    const snap = await getDoc(doc(db, 'athleteData', key));
+    return snap.exists() ? snap.data().value : null;
+  } catch (e) {
+    console.error('Firebase athlete load error:', e);
+    return null;
+  }
+}
+
+export async function saveAthleteData(key, value) {
+  try {
+    await setDoc(doc(db, 'athleteData', key), { value });
+    return true;
+  } catch (e) {
+    console.error('Firebase athlete save error:', e);
     return false;
   }
 }
