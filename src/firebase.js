@@ -6,12 +6,12 @@ import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
 // ║  (Project Settings → Your apps → Web app config)        ║
 // ╚══════════════════════════════════════════════════════════╝
 const firebaseConfig = {
-  apiKey: "PASTE_YOUR_API_KEY_HERE",
-  authDomain: "PASTE_YOUR_AUTH_DOMAIN_HERE",
-  projectId: "PASTE_YOUR_PROJECT_ID_HERE",
-  storageBucket: "PASTE_YOUR_STORAGE_BUCKET_HERE",
-  messagingSenderId: "PASTE_YOUR_SENDER_ID_HERE",
-  appId: "PASTE_YOUR_APP_ID_HERE"
+  apiKey: "AIzaSyCf35hn2_sdafpeA7Q6OXoODX8Fo2bS3g8",
+  authDomain: "concordia-xc-track.firebaseapp.com",
+  projectId: "concordia-xc-track",
+  storageBucket: "concordia-xc-track.firebasestorage.app",
+  messagingSenderId: "320762362045",
+  appId: "1:320762362045:web:d25d9a482a14470a179fd4"
 };
 
 const app = initializeApp(firebaseConfig);
