@@ -131,35 +131,24 @@ function Editor(props){
 /* ─── DAY CARD ─── */
 function Card(props){
   var arr=props.workouts;var roster=props.roster||[];var dm=props.meets||[];var hasMeet=dm.length>0;
-  var logs=props.logs||[];var meId=props.myAth||"";
-  var wLogs=logs.filter(function(e){return e.type!=="readiness";});
-  var rdLogs=logs.filter(function(e){return e.type==="readiness";});
+  var meId=props.myAth||"";
   var amAssigned=meId&&arr.some(function(w){return w.athletes&&w.athletes.indexOf(meId)!==-1;});
   var _lt=props.lt;var _ctp=_lt?"#111a11":C.tp;var _cts=_lt?"#34432f":C.ts;var _ctm=_lt?"#556b50":C.tm;
   var bg=hasMeet?(_lt?"rgba(13,71,161,0.06)":"linear-gradient(135deg,rgba(13,71,161,0.12),rgba(13,71,161,0.04))"):amAssigned?(_lt?"rgba(212,160,23,0.06)":"linear-gradient(135deg,rgba(212,160,23,0.10),rgba(212,160,23,0.03))"):props.today?(_lt?"rgba(27,94,32,0.06)":"linear-gradient(135deg,rgba(27,94,32,0.15),rgba(27,94,32,0.05))"):(_lt?"#fff":C.bgC);
   var bd=hasMeet?"1px solid rgba(13,71,161,"+(_lt?"0.2":"0.4")+")":amAssigned?"1px solid rgba(212,160,23,"+(_lt?"0.25":"0.4")+")":props.today?"1px solid rgba(27,94,32,"+(_lt?"0.2":"0.4")+")":"1px solid "+(_lt?"rgba(0,0,0,0.1)":C.bd);
   var tg={fontSize:10,padding:"2px 5px",borderRadius:3,background:_lt?"#f0f1ec":"rgba(255,255,255,0.06)",color:_cts,fontFamily:"monospace"};
-  var avgDiff=wLogs.length>0?Math.round(wLogs.reduce(function(s,l){return s+(l.difficulty||0);},0)/wLogs.length*10)/10:null;
-  var diffClr=avgDiff===null?"":avgDiff<=4?"#27AE60":avgDiff<=6?"#D4A017":avgDiff<=8?"#E67E22":"#E74C3C";
-  var RD_CLR={"ready":"#27AE60","tired":"#D4A017","sore":"#E67E22","pain":"#E74C3C"};
-  var RD_EM={"ready":"\u{1F44D}","tired":"\u{1F634}","sore":"\u{1F915}","pain":"\u{1F6D1}"};
   return(
     <div style={{background:bg,border:bd,borderRadius:12,padding:14,minHeight:100,position:"relative",overflow:"hidden"}} onMouseEnter={function(ev){ev.currentTarget.style.background=C.bgH;}} onMouseLeave={function(ev){ev.currentTarget.style.background=bg;}}>
       {hasMeet?<div style={{position:"absolute",top:0,left:0,right:0,height:3,background:"#0D47A1"}}/>:arr.length>0?(function(){var f=gc(arr[0].category);return f?<div style={{position:"absolute",top:0,left:0,right:0,height:3,background:f.color}}/>:null;})():null}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
         <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,color:props.today?C.greenLight:_ctm,fontFamily:"monospace"}}>{props.day} <span style={{fontWeight:400,opacity:0.7}}>{fs(props.date)}</span></div>
         <div style={{display:"flex",gap:3,alignItems:"center"}}>
-          {rdLogs.length>0?rdLogs.slice(0,4).map(function(r,ri){return <span key={"r"+ri} style={{fontSize:14,flexShrink:0}} title={r.status}>{RD_EM[r.status]||"?"}</span>;}):null}
-          {avgDiff!==null?<span style={{fontSize:10,padding:"1px 5px",borderRadius:3,background:diffClr+"22",color:diffClr,fontWeight:700}}>{avgDiff}/10</span>:null}
-          {wLogs.length>0?<span style={{fontSize:10,padding:"1px 5px",borderRadius:3,background:"#9B59B622",color:"#9B59B6",fontWeight:600}}>{wLogs.length} log{wLogs.length>1?"s":""}</span>:null}
           {arr.map(function(w,i){var c=gc(w.category);return c?<span key={i} style={{width:18,height:18,borderRadius:3,background:c.color+"22",color:c.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,fontFamily:"monospace"}}>{c.icon}</span>:null;})}
         </div>
       </div>
       {dm.map(function(m,mi){return <div key={mi} style={{padding:"5px 8px",marginBottom:5,borderRadius:5,background:"#0D47A122",border:"1px solid #0D47A144"}}><div style={{fontSize:10,fontWeight:700,color:"#6494D4",textTransform:"uppercase"}}>MEET: {m.name}</div><div style={{fontSize:10,color:_ctm}}>{m.time?m.time+" | ":""}{m.location}</div></div>;})}
       {arr.length>0?(<div>{arr.map(function(w,i){var cat=gc(w.category);if(!cat)return null;var txt=w.customWorkout||w.preset||"";var myW=meId&&w.athletes&&w.athletes.indexOf(meId)!==-1;var athN=w.athletes&&w.athletes.length>0?w.athletes.map(function(id){var a=roster.find(function(x){return x.id===id;});return a?(id===meId?"You":a.name.split(" ")[0]):null;}).filter(Boolean):[];return(<div key={i} onClick={function(){if(props.cm)props.onEdit(i);else if(props.onDetail)props.onDetail(w);}} style={{cursor:"pointer",padding:"4px 0",borderBottom:i<arr.length-1?"1px solid rgba(255,255,255,0.05)":"none"}}><div style={{display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:10,fontWeight:700,color:cat.color,textTransform:"uppercase"}}>{cat.label}</span>{myW?<span style={{fontSize:10,padding:"1px 5px",borderRadius:3,background:C.gold+"22",color:C.gold,fontWeight:700}}>Your workout</span>:null}</div>{txt?<div style={{fontSize:12,color:myW?_ctp:_cts,fontWeight:myW?600:400,lineHeight:1.45,display:"-webkit-box",WebkitLineClamp:1,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{txt}</div>:null}<div style={{display:"flex",gap:3,marginTop:2,flexWrap:"wrap"}}>{w.pace?<span style={tg}>{w.pace}</span>:null}{athN.length>0?<span style={Object.assign({},tg,{background:C.gold+"15",color:C.gold})}>{athN.length<=3?athN.join(", "):athN.length+" athletes"}</span>:null}</div></div>);})}
       {props.cm?<button onClick={function(){props.onEdit(null);}} style={{marginTop:5,padding:"4px 8px",borderRadius:5,background:_lt?"#fff":"rgba(255,255,255,0.03)",border:"1px dashed "+C.bd,color:_ctm,fontSize:10,cursor:"pointer",width:"100%"}}>+ Add</button>:null}</div>):(<div onClick={function(){if(props.cm)props.onEdit(null);}} style={{fontSize:11,color:_ctm,fontStyle:"italic",cursor:props.cm?"pointer":"default"}}>{props.cm?"Tap to add workout":"No workout scheduled"}</div>)}
-      {/* Inline log entries */}
-      {wLogs.length>0?<div style={{marginTop:6,borderTop:"1px solid "+(_lt?"rgba(0,0,0,0.06)":"rgba(255,255,255,0.05)"),paddingTop:4}}>{wLogs.slice(0,3).map(function(l,li){var ath=roster.find(function(x){return x.id===l.athId;});var dc=(l.difficulty||0)<=4?"#27AE60":(l.difficulty||0)<=6?"#D4A017":(l.difficulty||0)<=8?"#E67E22":"#E74C3C";return <div key={li} style={{fontSize:10,color:_cts,marginBottom:2,display:"flex",gap:4,alignItems:"center"}}><span style={{color:dc,fontWeight:700}}>{l.difficulty}/10</span><span style={{fontWeight:600,color:_ctm}}>{ath?ath.name.split(" ")[0]:"?"}</span>{l.mileage?<span style={{fontFamily:"monospace"}}>{l.mileage}mi</span>:null}{l.notes?<span style={{opacity:0.7,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:80}}>{l.notes}</span>:null}</div>;})}{wLogs.length>3?<div style={{fontSize:10,color:_ctm}}>+{wLogs.length-3} more</div>:null}</div>:null}
     </div>
   );
 }
@@ -509,7 +498,7 @@ export default function App(){
         {/* WEEK VIEW */}
         {schedMode==="week"?(<div>
           <Summary sch={sch} dates={dates}/>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:8}}>{dates.map(function(d,i){var k=fd(d);var arr=getDayArr(sch,k);var dm=meets.filter(function(m){return m.date===k;});return <Card key={k} date={d} day={DAYS[i]} workouts={arr} roster={roster} meets={dm} today={k===today} cm={cm} lt={lt} logs={wlog[k]||[]} myAth={myAth} onEdit={function(idx){if(cm)setEd({dk:k,lb:FDAYS[i]+", "+fs(d),idx:idx});}} onDetail={function(w){setDetail(w);}}/>;})}</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:8}}>{dates.map(function(d,i){var k=fd(d);var arr=getDayArr(sch,k);var dm=meets.filter(function(m){return m.date===k;});return <Card key={k} date={d} day={DAYS[i]} workouts={arr} roster={roster} meets={dm} today={k===today} cm={cm} lt={lt} myAth={myAth} onEdit={function(idx){if(cm)setEd({dk:k,lb:FDAYS[i]+", "+fs(d),idx:idx});}} onDetail={function(w){setDetail(w);}}/>;})}</div>
         </div>):null}
 
         {/* MONTH VIEW */}
