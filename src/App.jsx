@@ -602,7 +602,6 @@ export default function App(){
                 </div>);
               })()}
             </div>
-            </div>
 
             {/* ── Expanded Card ── */}
             {isEx?(<div style={{padding:"0 14px 16px",borderTop:"1px solid "+C.bd}}>
