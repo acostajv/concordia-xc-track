@@ -52,6 +52,7 @@ function fr(ds){return MO[ds[0].getMonth()]+" "+ds[0].getDate()+" - "+MO[ds[6].g
 function gc(id){for(var i=0;i<CATS.length;i++){if(CATS[i].id===id)return CATS[i];}return null;}
 function getDayArr(sch,k){var v=sch[k];if(!v)return[];if(Array.isArray(v))return v;return[v];}
 function ini(name){var p=name.trim().split(/\s+/);return p.length>=2?p[0].charAt(0)+p[p.length-1].charAt(0):p[0].charAt(0);}
+function genPin(){return String(Math.floor(1000+Math.random()*9000));}
 function fmtMD(ds){var p=ds.split("-");var d=new Date(parseInt(p[0]),parseInt(p[1])-1,parseInt(p[2]));return["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d.getDay()]+", "+MO[d.getMonth()]+" "+d.getDate();}
 
 var SK="track-v14",RK="roster-v3",MK="meets-v2",AK="announce-v1",TK="templates-v1",THK="theme-v1",MYK="mypaces-v1",SRK="schoolrecs-v1",WLK="wlog-v1";
@@ -266,6 +267,9 @@ export default function App(){
   var _re=useState("");var rE=_re[0];var setRE=_re[1];
   var _ri=useState(null);var rEid=_ri[0];var setREid=_ri[1];
   var _rgrp=useState("long");var rGrp=_rgrp[0];var setRGrp=_rgrp[1];
+  var _rpin=useState("");var rPin=_rpin[0];var setRPin=_rpin[1];
+  var _pinEntry=useState("");var pinEntry=_pinEntry[0];var setPinEntry=_pinEntry[1];
+  var _pinErr=useState("");var pinErr=_pinErr[0];var setPinErr=_pinErr[1];
   /* meets edit state */
   var _mn=useState("");var mN=_mn[0];var setMN=_mn[1];
   var _md=useState("");var mD=_md[0];var setMD=_md[1];
@@ -307,6 +311,7 @@ export default function App(){
   function upTpl(t){setTemplates(t);sv1(TK,t);}
   function togTheme(){var n=theme==="dark"?"light":"dark";setTheme(n);svLocal(THK,n);}
   function saveMyAth(id){setMyAth(id);svLocal(MYK,id);}
+  function pinLogin(){var match=roster.find(function(a){return a.pin&&a.pin===pinEntry;});if(match){saveMyAth(match.id);setPinEntry("");setPinErr("");setMyShow(false);}else{setPinErr("Invalid PIN. Try again or ask your coach.");}}
   function saveTemplate(wo){var nm=prompt("Template name:");if(!nm)return;var t=templates.slice();t.push(Object.assign({},wo,{_tplName:nm,_tplId:"t"+Date.now()}));upTpl(t);}
   function deleteTemplate(id){upTpl(templates.filter(function(t){return t._tplId!==id;}));}
   function saveMeetResult(meetId,evtName,athId,time){
@@ -383,8 +388,8 @@ export default function App(){
   }
   function doImport(ev){var f=ev.target.files[0];if(!f)return;var r=new FileReader();r.onload=function(e2){try{var d=JSON.parse(e2.target.result);if(d.schedule){setSch(d.schedule);sv1(SK,d.schedule);}if(d.roster){setRoster(d.roster);sv1(RK,d.roster);}if(d.meets){setMeets(d.meets);sv1(MK,d.meets);}if(d.announce!==undefined){setAnnounce(d.announce);sv1(AK,d.announce);}if(d.templates){setTemplates(d.templates);sv1(TK,d.templates);}if(d.schoolRecs){setSchoolRecs(d.schoolRecs);sv1(SRK,d.schoolRecs);}if(d.wlog){setWlog(d.wlog);saveAthleteData(WLK,JSON.stringify(d.wlog));}}catch(err){alert("Invalid");}};r.readAsText(f);}
   /* Roster helpers */
-  function rAdd(){if(!rN.trim())return;var nr=roster.slice();if(rEid){nr=nr.map(function(a){return a.id===rEid?Object.assign({},a,{name:rN,team:rT,grade:rG,events:rE,group:rGrp}):a;});}else{nr.push({id:Date.now().toString(),name:rN,team:rT,grade:rG,events:rE,group:rGrp,paces:{},pbs:{},sbs:{},photo:null});}upR(nr);setRN("");setRG("");setRE("");setRGrp("long");setREid(null);setRFormOpen(false);}
-  function rCSV(ev){var f=ev.target.files[0];if(!f)return;var r=new FileReader();r.onload=function(e2){var lines=e2.target.result.split("\n");var nr=roster.slice();for(var i=0;i<lines.length;i++){var l=lines[i].trim();if(!l||l.toLowerCase().startsWith("name"))continue;var p=l.split(",");if(p.length<2)continue;var nm=p[0].trim(),tm=(p[1]||"").trim().toLowerCase();if(tm!=="boys"&&tm!=="girls")tm="boys";var gr=(p[4]||"").trim().toLowerCase();if(gr!=="mid"&&gr!=="long")gr="long";nr.push({id:Date.now().toString()+i,name:nm,team:tm,grade:(p[2]||"").trim(),events:(p[3]||"").trim(),group:gr,paces:{}});}upR(nr);};r.readAsText(f);}
+  function rAdd(){if(!rN.trim())return;var nr=roster.slice();if(rEid){nr=nr.map(function(a){return a.id===rEid?Object.assign({},a,{name:rN,team:rT,grade:rG,events:rE,group:rGrp,pin:rPin||a.pin||genPin()}):a;});}else{nr.push({id:Date.now().toString(),name:rN,team:rT,grade:rG,events:rE,group:rGrp,pin:rPin||genPin(),paces:{},pbs:{},sbs:{},photo:null});}upR(nr);setRN("");setRG("");setRE("");setRGrp("long");setRPin("");setREid(null);setRFormOpen(false);}
+  function rCSV(ev){var f=ev.target.files[0];if(!f)return;var r=new FileReader();r.onload=function(e2){var lines=e2.target.result.split("\n");var nr=roster.slice();for(var i=0;i<lines.length;i++){var l=lines[i].trim();if(!l||l.toLowerCase().startsWith("name"))continue;var p=l.split(",");if(p.length<2)continue;var nm=p[0].trim(),tm=(p[1]||"").trim().toLowerCase();if(tm!=="boys"&&tm!=="girls")tm="boys";var gr=(p[4]||"").trim().toLowerCase();if(gr!=="mid"&&gr!=="long")gr="long";nr.push({id:Date.now().toString()+i,name:nm,team:tm,grade:(p[2]||"").trim(),events:(p[3]||"").trim(),group:gr,pin:genPin(),paces:{}});}upR(nr);};r.readAsText(f);}
   /* Meets helpers */
   function mAdd(){if(!mN.trim()||!mD)return;var nm=meets.slice();if(mEid){nm=nm.map(function(m){return m.id===mEid?Object.assign({},m,{name:mN,date:mD,time:mTi,location:mL,notes:mNo,type:mTy}):m;});}else{nm.push({id:"m"+Date.now(),name:mN,date:mD,time:mTi,location:mL,notes:mNo,type:mTy});}upM(nm);setMN("");setMD("");setMTi("");setML("");setMNo("");setMTy("meet");setMEid(null);setMFormOpen(false);}
   function mStartEdit(m){setMEid(m.id);setMN(m.name);setMD(m.date);setMTi(m.time||"");setML(m.location||"");setMNo(m.notes||"");setMTy(m.type||"meet");setMFormOpen(true);}
@@ -424,10 +429,10 @@ export default function App(){
           </div>
           <div style={{display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
             <button onClick={togTheme} style={Object.assign({},hB,{fontSize:14,padding:"6px 10px"})}>{theme==="dark"?"*":"D"}</button>
-            {myAth?(function(){var me=roster.find(function(x){return x.id===myAth;});if(!me)return <button onClick={function(){setMyShow(true);}} style={Object.assign({},hB,{color:C.goldLight})}>Select Yourself</button>;var clr=me.team==="boys"?C.greenLight:C.gold;return(<button onClick={function(){setMyShow(true);}} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 10px 4px 4px",borderRadius:8,background:clr+"18",border:"1px solid "+clr+"33",cursor:"pointer",color:clr}}>
+            {myAth?(function(){var me=roster.find(function(x){return x.id===myAth;});if(!me)return <button onClick={function(){setMyShow(true);}} style={Object.assign({},hB,{color:C.goldLight})}>Log In</button>;var clr=me.team==="boys"?C.greenLight:C.gold;return(<button onClick={function(){setMyShow(true);}} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 10px 4px 4px",borderRadius:8,background:clr+"18",border:"1px solid "+clr+"33",cursor:"pointer",color:clr}}>
               {me.photo?<img src={me.photo} style={{width:24,height:30,borderRadius:5,objectFit:"cover"}}/>:<div style={{width:24,height:30,borderRadius:5,background:clr+"33",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800}}>{ini(me.name)}</div>}
               <span style={{fontSize:12,fontWeight:700}}>{me.name.split(" ")[0]}</span>
-            </button>);})():<button onClick={function(){setMyShow(true);}} style={{padding:"6px 14px",borderRadius:8,background:"linear-gradient(135deg,"+C.gold+"33,"+C.gold+"11)",border:"1px solid "+C.gold+"44",color:C.gold,fontSize:12,fontWeight:700,cursor:"pointer"}}>Who Are You?</button>}
+            </button>);})():<button onClick={function(){setMyShow(true);}} style={{padding:"6px 14px",borderRadius:8,background:"linear-gradient(135deg,"+C.gold+"33,"+C.gold+"11)",border:"1px solid "+C.gold+"44",color:C.gold,fontSize:12,fontWeight:700,cursor:"pointer"}}>Log In</button>}
             {cm?(<div style={{display:"flex",gap:5,alignItems:"center"}}><span style={{fontSize:10,padding:"4px 10px",borderRadius:4,background:C.greenLight+"22",color:C.greenLight,fontWeight:700,fontFamily:"monospace"}}>COACH</span><button onClick={doExport} style={hB}>Export</button><button onClick={function(){impRef.current.click();}} style={hB}>Import</button><input ref={impRef} type="file" accept=".json" onChange={doImport} style={{display:"none"}}/><button onClick={coachLogout} style={Object.assign({},hB,{color:"#ef4444",border:"1px solid rgba(239,68,68,0.3)"})}>Logout</button></div>):IS_COACH_BUILD?(<button onClick={function(){setCShow(true);}} style={Object.assign({},hB,{color:C.goldLight})}>Coach Login</button>):null}
           </div>
         </div>
@@ -460,9 +465,9 @@ export default function App(){
         {!myAth&&!cm?(<div style={{padding:"12px 16px",marginBottom:12,borderRadius:10,background:"linear-gradient(135deg,"+C.gold+"15,"+C.gold+"08)",border:"1px solid "+C.gold+"33",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
           <div style={{flex:1,minWidth:200}}>
             <div style={{fontSize:13,fontWeight:700,color:C.gold,marginBottom:2}}>Welcome to Beacons Distance Training!</div>
-            <div style={{fontSize:11,color:_tm,lineHeight:1.5}}>Select yourself to see your assigned workouts highlighted, auto-fill check-ins, and view your paces.</div>
+            <div style={{fontSize:11,color:_tm,lineHeight:1.5}}>Enter your PIN to see your assigned workouts, log check-ins, and view your paces.</div>
           </div>
-          <button onClick={function(){setMyShow(true);}} style={{padding:"8px 18px",borderRadius:8,background:"linear-gradient(135deg,"+C.gold+","+C.goldLight+")",border:"none",color:"#fff",fontWeight:700,fontSize:12,cursor:"pointer",whiteSpace:"nowrap"}}>Select Yourself</button>
+          <button onClick={function(){setMyShow(true);}} style={{padding:"8px 18px",borderRadius:8,background:"linear-gradient(135deg,"+C.gold+","+C.goldLight+")",border:"none",color:"#fff",fontWeight:700,fontSize:12,cursor:"pointer",whiteSpace:"nowrap"}}>Log In</button>
         </div>):null}
         {/* Nav + print */}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8}}>
@@ -566,6 +571,7 @@ export default function App(){
                 <div style={{fontSize:14,fontWeight:700,color:_tp}}>{a.name} {a.grade?<span style={{fontSize:11,fontWeight:500,color:_tm}}>({a.grade})</span>:null} {isMe?<span style={{fontSize:10,padding:"2px 6px",borderRadius:3,background:C.gold+"22",color:C.gold,fontWeight:700}}>You</span>:null}</div>
                 {a.events?<div style={{fontSize:11,color:_tm,marginTop:1}}>{a.events}</div>:null}
                 {a.group==="mid"?<span style={{fontSize:10,padding:"1px 6px",borderRadius:3,background:"#E67E2218",color:"#E67E22",fontWeight:600,marginTop:2,display:"inline-block"}}>Mid-Distance</span>:<span style={{fontSize:10,padding:"1px 6px",borderRadius:3,background:"#3498DB18",color:"#3498DB",fontWeight:600,marginTop:2,display:"inline-block"}}>Long Distance</span>}
+                {cm&&a.pin?<span style={{fontSize:10,padding:"1px 6px",borderRadius:3,background:"rgba(255,255,255,0.06)",border:"1px dashed "+C.bd,color:_tm,fontFamily:"monospace",letterSpacing:1,marginLeft:4,display:"inline-block",marginTop:2}}>PIN:{a.pin}</span>:null}
                 {/* Compact pace + PB badges */}
                 <div style={{display:"flex",gap:4,marginTop:5,flexWrap:"wrap"}}>
                   {hp?[{l:"LT",v:a.paces.thrSafe,c:"#8E44AD"},{l:"CV",v:a.paces.cv,c:"#3498DB"},{l:"VO2",v:a.paces.vo2Safe,c:"#27AE60"}].map(function(b){return b.v?<span key={b.l} style={{fontSize:10,padding:"2px 6px",borderRadius:3,background:b.c+"18",color:b.c,fontFamily:"monospace",fontWeight:600}}>{b.l}:{b.v}</span>:null;}):<span style={{fontSize:10,color:C.gold}}>No paces</span>}
@@ -579,7 +585,7 @@ export default function App(){
                 athRd.sort(function(x,y){return(y.ts||0)-(x.ts||0);});
                 athWL.sort(function(x,y){return(y.ts||0)-(x.ts||0);});
                 var hasAny=athRd.length>0||athWL.length>0;
-                if(!hasAny)return <div style={{display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"flex-end",gap:4}}><div style={{display:"flex",gap:4,alignItems:"center"}}>{cm?<button onClick={function(ev){ev.stopPropagation();setREid(a.id);setRN(a.name);setRT(a.team);setRG(a.grade||"");setRE(a.events||"");setRGrp(a.group||"long");setRFormOpen(true);}} style={{background:lt?"#f0f1ec":"rgba(255,255,255,0.06)",border:"none",color:_ts,borderRadius:4,padding:"4px 8px",cursor:"pointer",fontSize:10}}>Edit</button>:null}{cm?<button onClick={function(ev){ev.stopPropagation();upR(roster.filter(function(x){return x.id!==a.id;}));}} style={{background:"rgba(239,68,68,0.1)",border:"none",color:"#ef4444",borderRadius:4,padding:"4px 8px",cursor:"pointer",fontSize:10}}>X</button>:null}<span style={{color:_tm,fontSize:10}}>{isEx?"[-]":"[+]"}</span></div></div>;
+                if(!hasAny)return <div style={{display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"flex-end",gap:4}}><div style={{display:"flex",gap:4,alignItems:"center"}}>{cm?<button onClick={function(ev){ev.stopPropagation();setREid(a.id);setRN(a.name);setRT(a.team);setRG(a.grade||"");setRE(a.events||"");setRGrp(a.group||"long");setRPin(a.pin||"");setRFormOpen(true);}} style={{background:lt?"#f0f1ec":"rgba(255,255,255,0.06)",border:"none",color:_ts,borderRadius:4,padding:"4px 8px",cursor:"pointer",fontSize:10}}>Edit</button>:null}{cm?<button onClick={function(ev){ev.stopPropagation();upR(roster.filter(function(x){return x.id!==a.id;}));}} style={{background:"rgba(239,68,68,0.1)",border:"none",color:"#ef4444",borderRadius:4,padding:"4px 8px",cursor:"pointer",fontSize:10}}>X</button>:null}<span style={{color:_tm,fontSize:10}}>{isEx?"[-]":"[+]"}</span></div></div>;
                 return(<div style={{display:"flex",flexDirection:"column",justifyContent:"space-between",alignItems:"flex-end",minWidth:110}}>
                   {/* Latest readiness */}
                   {athRd.length>0?(function(){var r=athRd[0];var rc={"ready":"#27AE60","tired":"#D4A017","sore":"#E67E22","pain":"#E74C3C"}[r.status]||_tm;var dp=r.date.split("-");return <div style={{display:"flex",gap:4,alignItems:"center",marginBottom:2}}><span style={{fontSize:16}}>{RD_EMOJI[r.status]||"?"}</span><div style={{textAlign:"right"}}><div style={{fontSize:10,fontWeight:700,color:rc}}>{r.status}</div><div style={{fontSize:10,color:_tm}}>{parseInt(dp[1])+"/"+parseInt(dp[2])}</div></div></div>;})():null}
@@ -587,7 +593,7 @@ export default function App(){
                   {athWL.length>0?(function(){var l=athWL[0];var dc=(l.difficulty||0)<=4?"#27AE60":(l.difficulty||0)<=6?"#D4A017":(l.difficulty||0)<=8?"#E67E22":"#E74C3C";var dp=l.date.split("-");return <div style={{display:"flex",gap:4,alignItems:"center"}}><div style={{width:22,height:22,borderRadius:5,background:dc+"22",color:dc,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800}}>{l.difficulty}</div><div style={{textAlign:"right"}}><div style={{fontSize:10,fontWeight:600,color:_ts}}>{l.mileage?l.mileage+"mi":""}</div><div style={{fontSize:10,color:_tm}}>{parseInt(dp[1])+"/"+parseInt(dp[2])}</div></div></div>;})():null}
                   {/* Buttons */}
                   <div style={{display:"flex",gap:4,alignItems:"center",marginTop:2}}>
-                    {cm?<button onClick={function(ev){ev.stopPropagation();setREid(a.id);setRN(a.name);setRT(a.team);setRG(a.grade||"");setRE(a.events||"");setRGrp(a.group||"long");setRFormOpen(true);}} style={{background:lt?"#f0f1ec":"rgba(255,255,255,0.06)",border:"none",color:_ts,borderRadius:4,padding:"4px 8px",cursor:"pointer",fontSize:10}}>Edit</button>:null}
+                    {cm?<button onClick={function(ev){ev.stopPropagation();setREid(a.id);setRN(a.name);setRT(a.team);setRG(a.grade||"");setRE(a.events||"");setRGrp(a.group||"long");setRPin(a.pin||"");setRFormOpen(true);}} style={{background:lt?"#f0f1ec":"rgba(255,255,255,0.06)",border:"none",color:_ts,borderRadius:4,padding:"4px 8px",cursor:"pointer",fontSize:10}}>Edit</button>:null}
                     {cm?<button onClick={function(ev){ev.stopPropagation();upR(roster.filter(function(x){return x.id!==a.id;}));}} style={{background:"rgba(239,68,68,0.1)",border:"none",color:"#ef4444",borderRadius:4,padding:"4px 8px",cursor:"pointer",fontSize:10}}>X</button>:null}
                     <span style={{color:_tm,fontSize:10}}>{isEx?"[-]":"[+]"}</span>
                   </div>
@@ -928,12 +934,12 @@ export default function App(){
             </div>
             {rFormOpen||rEid?(
               <div style={{padding:"0 14px 14px",borderTop:"1px solid "+C.bd}}>
-                <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:10}}><input value={rN} onChange={function(ev){setRN(ev.target.value);}} placeholder="Name" style={Object.assign({},IS,{flex:"2 1 160px"})}/><select value={rT} onChange={function(ev){setRT(ev.target.value);}} style={Object.assign({},IS,{flex:"0 1 90px"})}><option value="boys">Boys</option><option value="girls">Girls</option></select><select value={rGrp} onChange={function(ev){setRGrp(ev.target.value);}} style={Object.assign({},IS,{flex:"0 1 120px"})}><option value="mid">Mid-Distance</option><option value="long">Long Distance</option></select><input value={rG} onChange={function(ev){setRG(ev.target.value);}} placeholder="Grade" style={Object.assign({},IS,{flex:"0 1 60px"})}/><input value={rE} onChange={function(ev){setRE(ev.target.value);}} placeholder="Events" style={Object.assign({},IS,{flex:"2 1 140px"})}/><button onClick={rAdd} style={{padding:"10px 16px",borderRadius:8,background:"linear-gradient(135deg,"+C.green+","+C.greenLight+")",border:"none",color:C.white,fontWeight:700,fontSize:12,cursor:"pointer"}}>{rEid?"Update":"Add"}</button>{rEid?<button onClick={function(){setREid(null);setRN("");setRFormOpen(false);}} style={{padding:"10px 12px",borderRadius:8,background:lt?"#f0f1ec":"rgba(255,255,255,0.06)",border:"1px solid "+C.bd,color:_ts,fontSize:12,cursor:"pointer"}}>Cancel</button>:null}</div>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:10}}><input value={rN} onChange={function(ev){setRN(ev.target.value);}} placeholder="Name" style={Object.assign({},IS,{flex:"2 1 160px"})}/><select value={rT} onChange={function(ev){setRT(ev.target.value);}} style={Object.assign({},IS,{flex:"0 1 90px"})}><option value="boys">Boys</option><option value="girls">Girls</option></select><select value={rGrp} onChange={function(ev){setRGrp(ev.target.value);}} style={Object.assign({},IS,{flex:"0 1 120px"})}><option value="mid">Mid-Distance</option><option value="long">Long Distance</option></select><input value={rG} onChange={function(ev){setRG(ev.target.value);}} placeholder="Grade" style={Object.assign({},IS,{flex:"0 1 60px"})}/><input value={rE} onChange={function(ev){setRE(ev.target.value);}} placeholder="Events" style={Object.assign({},IS,{flex:"2 1 140px"})}/><input value={rPin} onChange={function(ev){setRPin(ev.target.value);}} placeholder="PIN (auto)" style={Object.assign({},IS,{flex:"0 1 80px",fontFamily:"monospace",letterSpacing:2,textAlign:"center"})}/><button onClick={rAdd} style={{padding:"10px 16px",borderRadius:8,background:"linear-gradient(135deg,"+C.green+","+C.greenLight+")",border:"none",color:C.white,fontWeight:700,fontSize:12,cursor:"pointer"}}>{rEid?"Update":"Add"}</button>{rEid?<button onClick={function(){setREid(null);setRN("");setRFormOpen(false);}} style={{padding:"10px 12px",borderRadius:8,background:lt?"#f0f1ec":"rgba(255,255,255,0.06)",border:"1px solid "+C.bd,color:_ts,fontSize:12,cursor:"pointer"}}>Cancel</button>:null}</div>
               </div>
             ):null}
           </div>
         ):null}
-        {cm?(<div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}><button onClick={function(){csvRef.current.click();}} style={hB}>Import CSV</button><input ref={csvRef} type="file" accept=".csv,.txt" onChange={rCSV} style={{display:"none"}}/><div style={{fontSize:10,color:_tm,display:"flex",alignItems:"center"}}>CSV: Name, Team, Grade, Events, Group (mid/long)</div></div>):null}
+        {cm?(<div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}><button onClick={function(){csvRef.current.click();}} style={hB}>Import CSV</button><input ref={csvRef} type="file" accept=".csv,.txt" onChange={rCSV} style={{display:"none"}}/>{roster.some(function(a){return!a.pin;})?<button onClick={function(){upR(roster.map(function(a){return a.pin?a:Object.assign({},a,{pin:genPin()});}));}} style={Object.assign({},hB,{color:C.gold,border:"1px solid "+C.gold+"33"})}>Generate Missing PINs</button>:null}<div style={{fontSize:10,color:_tm,display:"flex",alignItems:"center"}}>CSV: Name, Team, Grade, Events, Group (mid/long)</div></div>):null}
       </div>):null}
 
       {/* ══════ PACE CALC TAB ══════ */}
@@ -1550,20 +1556,31 @@ export default function App(){
       {myShow?(<div style={{position:"fixed",inset:0,zIndex:1050,background:lt?"rgba(255,255,255,0.85)":"rgba(8,18,8,0.85)",backdropFilter:"blur(10px)",display:"flex",alignItems:"center",justifyContent:"center"}} onClick={function(){setMyShow(false);}}>
         <div onClick={function(ev){ev.stopPropagation();}} style={{background:_modalBg,borderRadius:16,padding:"24px",width:"min(440px,92vw)",maxHeight:"85vh",overflow:"auto",border:"1px solid "+C.bd}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-            <div style={{fontSize:16,fontWeight:700,color:_tp}}>My Profile</div>
-            <button onClick={function(){setMyShow(false);}} style={{background:lt?"#f0f1ec":"rgba(255,255,255,0.06)",border:"none",color:_ts,width:32,height:32,borderRadius:8,cursor:"pointer",fontSize:16}}>X</button>
+            <div style={{fontSize:16,fontWeight:700,color:_tp}}>{myAth?"My Profile":"Athlete Login"}</div>
+            <button onClick={function(){setMyShow(false);setPinEntry("");setPinErr("");}} style={{background:lt?"#f0f1ec":"rgba(255,255,255,0.06)",border:"none",color:_ts,width:32,height:32,borderRadius:8,cursor:"pointer",fontSize:16}}>X</button>
           </div>
-          <div style={{fontSize:11,color:_tm,marginBottom:10}}>Select yourself from the roster. The app will remember you and personalize your experience.</div>
-          <select value={myAth} onChange={function(ev){saveMyAth(ev.target.value);}} style={IS}>
-            <option value="">-- Select yourself --</option>
-            {roster.map(function(a){return <option key={a.id} value={a.id}>{a.name} ({a.team})</option>;})}
-          </select>
+          {!myAth?(<div>
+            <div style={{textAlign:"center",marginBottom:20}}>
+              <div style={{width:56,height:56,borderRadius:14,background:"linear-gradient(135deg,"+C.gold+"33,"+C.gold+"11)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,margin:"0 auto 12px"}}>*</div>
+              <div style={{fontSize:13,color:_ts}}>Enter the 4-digit PIN your coach gave you</div>
+            </div>
+            <input value={pinEntry} onChange={function(ev){setPinEntry(ev.target.value.replace(/[^0-9]/g,"").slice(0,4));setPinErr("");}} onKeyDown={function(ev){if(ev.key==="Enter")pinLogin();}} placeholder="- - - -" type="tel" inputMode="numeric" maxLength="4" style={Object.assign({},IS,{textAlign:"center",fontSize:28,fontWeight:800,letterSpacing:12,fontFamily:"monospace",padding:"16px"})}/>
+            {pinErr?<div style={{fontSize:12,color:"#E74C3C",marginTop:8,textAlign:"center"}}>{pinErr}</div>:null}
+            <button onClick={pinLogin} disabled={pinEntry.length<4} style={{width:"100%",marginTop:14,padding:"14px",borderRadius:10,background:pinEntry.length>=4?"linear-gradient(135deg,"+C.gold+","+C.goldLight+")":"rgba(255,255,255,0.06)",border:"none",color:pinEntry.length>=4?"#000":_tm,fontWeight:700,fontSize:14,cursor:pinEntry.length>=4?"pointer":"default",opacity:pinEntry.length>=4?1:0.5}}>Log In</button>
+            {cm?(<div style={{marginTop:16,borderTop:"1px solid "+C.bd,paddingTop:12}}>
+              <div style={{fontSize:10,color:_tm,marginBottom:6}}>Coach override: select directly</div>
+              <select value={myAth} onChange={function(ev){saveMyAth(ev.target.value);}} style={IS}>
+                <option value="">-- Select athlete --</option>
+                {roster.map(function(a){return <option key={a.id} value={a.id}>{a.name} ({a.team}) PIN:{a.pin||"none"}</option>;})}
+              </select>
+            </div>):null}
+          </div>):null}
           {myAth?(function(){var a=roster.find(function(x){return x.id===myAth;});if(!a)return null;
             var accentClr=a.team==="boys"?C.greenLight:C.gold;
             var hp=a.paces&&(a.paces.thrSafe||a.paces.cv);
             var hasPBs=a.pbs&&Object.values(a.pbs).some(function(v){return v;});
             var hasSBs=a.sbs&&Object.values(a.sbs).some(function(v){return v;});
-            return(<div style={{marginTop:16}}>
+            return(<div>
               {/* Identity card */}
               <div style={{display:"flex",gap:14,alignItems:"center",marginBottom:16,padding:"14px",borderRadius:12,background:accentClr+"08",border:"1px solid "+accentClr+"22"}}>
                 {a.photo?<img src={a.photo} style={{width:64,height:80,borderRadius:10,objectFit:"cover",border:"2px solid "+accentClr+"33"}}/>:<div style={{width:64,height:80,borderRadius:10,background:"linear-gradient(135deg,"+accentClr+"33,"+accentClr+"11)",color:accentClr,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,fontWeight:800}}>{ini(a.name)}</div>}
@@ -1601,10 +1618,10 @@ export default function App(){
               </div>):null}
               {/* Quick stats */}
               {(function(){
-                var allLogs=[];Object.keys(wlog).forEach(function(dk){(wlog[dk]||[]).forEach(function(e){if(e.athId===a.id)allLogs.push(e);});});
+                var allLogs=[];Object.keys(wlog).forEach(function(dk){(wlog[dk]||[]).forEach(function(e){if(e.athId===a.id&&e.type!=="readiness")allLogs.push(e);});});
                 if(allLogs.length===0)return null;
                 var totalMi=allLogs.reduce(function(s,l){return s+(l.mileage||0);},0);
-                var avgDiff=Math.round(allLogs.reduce(function(s,l){return s+l.difficulty;},0)/allLogs.length*10)/10;
+                var avgDiff=Math.round(allLogs.reduce(function(s,l){return s+(l.difficulty||0);},0)/allLogs.length*10)/10;
                 var diffClr=avgDiff<=4?"#27AE60":avgDiff<=6?"#D4A017":avgDiff<=8?"#E67E22":"#E74C3C";
                 return(<div>
                   <div style={{fontSize:12,fontWeight:700,color:_tp,marginBottom:8}}>Season Stats</div>
@@ -1615,12 +1632,12 @@ export default function App(){
                   </div>
                 </div>);
               })()}
-              {/* Switch identity */}
-              <button onClick={function(){saveMyAth("");}} style={{marginTop:14,width:"100%",padding:"8px",borderRadius:6,background:"none",border:"1px solid "+C.bd,color:_tm,fontSize:11,cursor:"pointer"}}>Switch Athlete</button>
+              <button onClick={function(){saveMyAth("");setPinEntry("");}} style={{marginTop:14,width:"100%",padding:"10px",borderRadius:8,background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.3)",color:"#ef4444",fontSize:12,fontWeight:600,cursor:"pointer"}}>Log Out</button>
             </div>);
           })():null}
         </div>
       </div>):null}
+
 
       {/* WORKOUT DETAIL MODAL (athlete view) */}
       {detail?(<div style={{position:"fixed",inset:0,zIndex:1050,background:lt?"rgba(255,255,255,0.85)":"rgba(8,18,8,0.85)",backdropFilter:"blur(10px)",display:"flex",alignItems:"center",justifyContent:"center"}} onClick={function(){setDetail(null);}}>
@@ -1717,7 +1734,7 @@ export default function App(){
             <div><div style={{fontSize:10,fontWeight:600,textTransform:"uppercase",letterSpacing:1.5,color:"#27AE60",fontFamily:"monospace"}}>Pre-Practice Check-in</div><div style={{fontSize:16,fontWeight:700,color:_tp,marginTop:2}}>{rdMod.dateLbl}</div></div>
             <button onClick={function(){setRdMod(null);}} style={{background:lt?"#f0f1ec":"rgba(255,255,255,0.06)",border:"none",color:_ts,width:32,height:32,borderRadius:8,cursor:"pointer",fontSize:16}}>X</button>
           </div>
-          {!myAth?<div style={{fontSize:12,color:C.gold,marginBottom:12}}>Select yourself first using the button in the header.</div>:null}
+          {!myAth?<div style={{fontSize:12,color:C.gold,marginBottom:12}}>Log in first using the button in the header.</div>:null}
           {myAth?(<div>
             {(function(){
               var existing=getReadiness(rdMod.dateKey).find(function(r){return r.athId===myAth;});
