@@ -264,8 +264,8 @@ export default function App(){
   var _lbType=useState("sb");var lbType=_lbType[0];var setLbType=_lbType[1];
   var _recSec=useState({lb:true,hl:true,sr:true});var recSec=_recSec[0];var setRecSec=_recSec[1];
   function togRecSec(k){var n=Object.assign({},recSec);n[k]=!n[k];setRecSec(n);}
-  var LB_EVENTS=["800","1600","mile","3200","5k"];
-  var SR_EVENTS=[{ev:"800",label:"800m"},{ev:"1600",label:"1600m"},{ev:"mile",label:"Mile"},{ev:"3200",label:"3200m"},{ev:"5k",label:"5k"},{ev:"4x800",label:"4x800 Relay"},{ev:"4x400",label:"4x400 Relay"}];
+  var LB_EVENTS=["800","1600","3200","5k"];
+  var SR_EVENTS=[{ev:"800",label:"800m"},{ev:"1600",label:"1600m"},{ev:"3200",label:"3200m"},{ev:"5k",label:"5k"},{ev:"4x800",label:"4x800 Relay"}];
   function getSRList(key){var v=schoolRecs[key];if(!v)return[];if(Array.isArray(v))return v;return[v];}
   function setSREntry(key,idx,field,val){var n=Object.assign({},schoolRecs);var list=getSRList(key).slice();while(list.length<=idx)list.push({});list[idx]=Object.assign({},list[idx]);list[idx][field]=val;list=list.filter(function(e){return e.time||e.name||e.year;});n[key]=list;upSR(n);}
   function addSREntry(key){var n=Object.assign({},schoolRecs);var list=getSRList(key).slice();if(list.length>=5)return;list.push({time:"",name:"",year:""});n[key]=list;upSR(n);}
@@ -448,7 +448,8 @@ export default function App(){
   function submitRd(){if(!rdMod||!myAth)return;addReadiness(rdMod.dateKey,myAth,rdStat,rdNote);setRdMod(null);}
   /* Inline calc for roster */
   function rosterCalc(id,dist,minStr,secStr){var m=parseFloat(minStr)||0;var s=parseFloat(secStr)||0;var tot=m*60+s;if(tot<=0)return;var r=davisCalc(dist,tot);if(!r)return;upR(roster.map(function(a){if(a.id!==id)return a;return Object.assign({},a,{paces:{thrSafe:davisPace(r.cm10,"/mi"),thrMed:davisPace(r.cm50,"/mi"),cv:davisPace(r.c50,"/mi"),vo2Safe:davisPace(r.cp90,"/mi"),vo2Med:davisPace(r.cp50,"/mi")}});}));}
-  var PB_DISTS=["800","1600","mile","3200","5k"];
+  var PB_DISTS=["800","1600","3200","5k"];
+  var PB_CLR={"800":"#F39C12","1600":"#D4A017","3200":"#2ECC71","5k":"#27AE60"};
   function doExport(){var b=new Blob([JSON.stringify({schedule:sch,roster:roster,meets:meets,announce:announce,templates:templates,schoolRecs:schoolRecs,wlog:wlog},null,2)],{type:"application/json"});var u=URL.createObjectURL(b);var a=document.createElement("a");a.href=u;a.download="training-data.json";a.click();URL.revokeObjectURL(u);}
   function exportResultsCSV(){
     var rows=[["Meet","Date","Location","Event","Athlete","Team","Grade","Events","Result","Threshold (Safe)","CV Pace","VO2max (Safe)"]];
@@ -663,7 +664,7 @@ export default function App(){
               </div>
               {/* PBs */}
               {hasPBs?<div style={{flex:"1 1 200px"}}>
-                <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{PB_DISTS.filter(function(d){return a.pbs&&a.pbs[d];}).map(function(d){return <span key={d} style={{fontSize:10,padding:"2px 6px",borderRadius:3,background:"#F0C04022",border:"1px solid #F0C04044",fontFamily:"monospace",fontWeight:700,display:"flex",alignItems:"center",gap:3}}><span style={{background:"#D4A017",color:"#fff",fontSize:9,padding:"1px 4px",borderRadius:2,fontWeight:800}}>PB</span><span style={{color:lt?"#8B6914":"#F0C040"}}>{d}:{a.pbs[d]}</span></span>;})}</div>
+                <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{PB_DISTS.filter(function(d){return a.pbs&&a.pbs[d];}).map(function(d){var ec=PB_CLR[d]||"#D4A017";return <span key={d} style={{fontSize:10,padding:"2px 6px",borderRadius:3,background:ec+"15",border:"1px solid "+ec+"33",fontFamily:"monospace",fontWeight:700,display:"flex",alignItems:"center",gap:3}}><span style={{background:ec,color:"#fff",fontSize:9,padding:"1px 4px",borderRadius:2,fontWeight:800}}>{d}</span><span style={{color:lt?"#222":_tp,fontWeight:800}}>{a.pbs[d]}</span></span>;})}</div>
               </div>:null}
             </div>
             <button onClick={function(){setPaceAth(paceAth===a.id?null:a.id);}} style={{marginTop:12,padding:"8px 16px",borderRadius:8,background:C.gold+"18",border:"1px solid "+C.gold+"33",color:C.gold,fontSize:11,fontWeight:700,cursor:"pointer",width:"100%"}}>{paceAth===a.id?"Collapse Full Card":"View Full Card"}</button>
@@ -690,7 +691,7 @@ export default function App(){
                 <div style={{display:"flex",gap:4,marginTop:5,flexWrap:"wrap"}}>
                   {hp?[{l:"LT",v:a.paces.thrSafe,c:"#8E44AD"},{l:"CV",v:a.paces.cv,c:"#3498DB"},{l:"VO2",v:a.paces.vo2Safe,c:"#27AE60"}].map(function(b){return b.v?<span key={b.l} style={{fontSize:10,padding:"2px 6px",borderRadius:3,background:b.c+"18",color:b.c,fontFamily:"monospace",fontWeight:600}}>{b.l}:{b.v}</span>:null;}):<span style={{fontSize:10,color:C.gold}}>No paces</span>}
                 </div>
-                {hasPBs?<div style={{display:"flex",gap:4,marginTop:4,flexWrap:"wrap"}}>{PB_DISTS.filter(function(d){return a.pbs&&a.pbs[d];}).map(function(d){return <span key={d} style={{fontSize:10,padding:"2px 6px",borderRadius:3,background:"#F0C04022",border:"1px solid #F0C04044",fontFamily:"monospace",fontWeight:700,display:"flex",alignItems:"center",gap:3}}><span style={{background:"#D4A017",color:"#fff",fontSize:9,padding:"1px 4px",borderRadius:2,fontWeight:800}}>PB</span><span style={{color:lt?"#8B6914":"#F0C040"}}>{d}:{a.pbs[d]}</span></span>;})}</div>:null}
+                {hasPBs?<div style={{display:"flex",gap:4,marginTop:4,flexWrap:"wrap"}}>{PB_DISTS.filter(function(d){return a.pbs&&a.pbs[d];}).map(function(d){var ec=PB_CLR[d]||"#D4A017";return <span key={d} style={{fontSize:10,padding:"2px 6px",borderRadius:3,background:ec+"15",border:"1px solid "+ec+"33",fontFamily:"monospace",fontWeight:700,display:"flex",alignItems:"center",gap:3}}><span style={{background:ec,color:"#fff",fontSize:9,padding:"1px 4px",borderRadius:2,fontWeight:800}}>{d}</span><span style={{color:lt?"#222":_tp,fontWeight:800}}>{a.pbs[d]}</span></span>;})}</div>:null}
               </div>
               {/* Recent check-ins column */}
               {(function(){
