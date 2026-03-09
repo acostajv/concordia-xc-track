@@ -641,6 +641,36 @@ export default function App(){
 
       {/* ══════ ROSTER TAB ══════ */}
       {view==="roster"?(<div>
+        {/* My Card - pinned at top for logged-in athlete */}
+        {myAth&&!cm?(function(){
+          var a=roster.find(function(x){return x.id===myAth;});
+          if(!a)return null;
+          var accentClr=a.team==="boys"?C.greenLight:C.gold;
+          var hp=a.paces&&(a.paces.thrSafe||a.paces.cv);
+          var hasPBs=a.pbs&&Object.values(a.pbs).some(function(v){return v;});
+          return(<div style={{marginBottom:20,padding:"16px",borderRadius:14,background:"linear-gradient(135deg,"+C.gold+"12,"+C.gold+"04)",border:"2px solid "+C.gold+"44"}}>
+            <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:C.gold,fontFamily:"monospace",marginBottom:10}}>My Card</div>
+            <div style={{display:"flex",gap:14,alignItems:"flex-start",flexWrap:"wrap"}}>
+              {/* Photo + name */}
+              <div style={{display:"flex",gap:12,alignItems:"center",flex:"1 1 250px"}}>
+                {a.photo?<img src={a.photo} style={{width:64,height:80,borderRadius:10,objectFit:"cover",border:"2px solid "+C.gold+"55"}}/>:<div style={{width:64,height:80,borderRadius:10,background:"linear-gradient(135deg,"+accentClr+"33,"+accentClr+"11)",color:accentClr,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,fontWeight:800,border:"2px solid "+C.gold+"44"}}>{ini(a.name)}</div>}
+                <div>
+                  <div style={{fontSize:18,fontWeight:800,color:_tp}}>{a.name} <span style={{fontSize:10,padding:"2px 6px",borderRadius:3,background:C.gold+"22",color:C.gold,fontWeight:700}}>You</span></div>
+                  <div style={{fontSize:12,color:_tm}}>{a.grade?"Grade "+a.grade:""}{a.grade&&a.events?" | ":""}{a.events||""}</div>
+                  {a.group==="mid"?<span style={{fontSize:10,padding:"1px 6px",borderRadius:3,background:"#E67E2218",color:"#E67E22",fontWeight:600,marginTop:3,display:"inline-block"}}>Mid-Distance</span>:<span style={{fontSize:10,padding:"1px 6px",borderRadius:3,background:"#3498DB18",color:"#3498DB",fontWeight:600,marginTop:3,display:"inline-block"}}>Long Distance</span>}
+                  <div style={{display:"flex",gap:4,marginTop:6,flexWrap:"wrap"}}>
+                    {hp?[{l:"LT",v:a.paces.thrSafe,c:"#8E44AD"},{l:"CV",v:a.paces.cv,c:"#3498DB"},{l:"VO2",v:a.paces.vo2Safe,c:"#27AE60"}].map(function(b){return b.v?<span key={b.l} style={{fontSize:10,padding:"2px 6px",borderRadius:3,background:b.c+"18",color:b.c,fontFamily:"monospace",fontWeight:600}}>{b.l}:{b.v}</span>:null;}):null}
+                  </div>
+                </div>
+              </div>
+              {/* PBs */}
+              {hasPBs?<div style={{flex:"1 1 200px"}}>
+                <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{PB_DISTS.filter(function(d){return a.pbs&&a.pbs[d];}).map(function(d){return <span key={d} style={{fontSize:10,padding:"2px 6px",borderRadius:3,background:"#F0C04022",border:"1px solid #F0C04044",fontFamily:"monospace",fontWeight:700,display:"flex",alignItems:"center",gap:3}}><span style={{background:"#D4A017",color:"#fff",fontSize:9,padding:"1px 4px",borderRadius:2,fontWeight:800}}>PB</span><span style={{color:lt?"#8B6914":"#F0C040"}}>{d}:{a.pbs[d]}</span></span>;})}</div>
+              </div>:null}
+            </div>
+            <button onClick={function(){setPaceAth(paceAth===a.id?null:a.id);}} style={{marginTop:12,padding:"8px 16px",borderRadius:8,background:C.gold+"18",border:"1px solid "+C.gold+"33",color:C.gold,fontSize:11,fontWeight:700,cursor:"pointer",width:"100%"}}>{paceAth===a.id?"Collapse Full Card":"View Full Card"}</button>
+          </div>);
+        })():null}
         {[{title:"Boys Team",list:boys,clr:C.greenLight},{title:"Girls Team",list:girls,clr:C.gold}].map(function(sec){return(<div key={sec.title} style={{marginBottom:24}}><div style={{fontSize:13,fontWeight:700,color:sec.clr,textTransform:"uppercase",letterSpacing:1.5,fontFamily:"monospace",marginBottom:10,paddingBottom:6,borderBottom:"1px solid "+C.bd}}>{sec.title} ({sec.list.length})</div>{sec.list.length===0?<div style={{fontSize:11,color:_tm,fontStyle:"italic"}}>No athletes yet.</div>:null}<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:10,alignItems:"start"}}>{sec.list.map(function(a){
           var hp=a.paces&&(a.paces.thrSafe||a.paces.cv);
           var isEx=paceAth===a.id;
