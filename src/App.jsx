@@ -222,7 +222,7 @@ function Card(props){
         </div>
       </div>
       {dm.map(function(m,mi){return <div key={mi} style={{padding:"5px 8px",marginBottom:5,borderRadius:5,background:"#0D47A122",border:"1px solid #0D47A144"}}><div style={{fontSize:10,fontWeight:700,color:"#6494D4",textTransform:"uppercase"}}>MEET: {m.name}</div><div style={{fontSize:10,color:_ctm}}>{m.time?m.time+" | ":""}{m.location}</div></div>;})}
-      {arr.length>0?(<div>{arr.map(function(w,i){var cat=gc(w.category);if(!cat)return null;var txt=w.customWorkout||w.preset||"";var myW=meId&&w.athletes&&w.athletes.indexOf(meId)!==-1;var athN=w.athletes&&w.athletes.length>0?w.athletes.map(function(id){var a=roster.find(function(x){return x.id===id;});return a?(id===meId?"You":a.name.split(" ")[0]):null;}).filter(Boolean):[];var distTxt=w.distance?(w.distance+(w.distanceUnit==="km"?" km":" mi")):w.duration?w.duration:"";return(<div key={i} onClick={function(){if(props.cm)props.onEdit(i);else if(props.onDetail)props.onDetail(w);}} style={{cursor:"pointer",padding:"4px 0",borderBottom:i<arr.length-1?"1px solid rgba(255,255,255,0.05)":"none"}}><div style={{display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:10,fontWeight:700,color:cat.color,textTransform:"uppercase"}}>{cat.label}</span>{myW?<span style={{fontSize:10,padding:"1px 5px",borderRadius:3,background:C.gold+"22",color:C.gold,fontWeight:700}}>Your workout</span>:null}</div>{txt?<div style={{fontSize:12,color:myW?_ctp:_cts,fontWeight:myW?600:400,lineHeight:1.45}}>{txt}</div>:null}<div style={{display:"flex",gap:3,marginTop:2,flexWrap:"wrap"}}>{distTxt?<span style={tg}>{distTxt}</span>:null}{w.pace?<span style={tg}>{w.pace}</span>:null}{athN.length>0?<span style={Object.assign({},tg,{background:C.gold+"15",color:C.gold})}>{athN.length<=3?athN.join(", "):athN.length+" athletes"}</span>:null}</div>{w.warmup||w.cooldown?<div style={{fontSize:10,color:_ctm,marginTop:2}}>{w.warmup?"WU: "+w.warmup:""}{w.warmup&&w.cooldown?" | ":""}{w.cooldown?"CD: "+w.cooldown:""}</div>:null}{w.preRun?<div style={{fontSize:10,color:_ctm,marginTop:1}}>Pre: {w.preRun}</div>:null}{w.postRun?<div style={{fontSize:10,color:_ctm,marginTop:1}}>Post: {w.postRun}</div>:null}{w.notes?<div style={{fontSize:10,color:_ctm,fontStyle:"italic",marginTop:1}}>{w.notes}</div>:null}</div>);})}
+      {arr.length>0?(<div>{arr.map(function(w,i){var cat=gc(w.category);if(!cat)return null;var txt=w.customWorkout||w.preset||"";var myW=meId&&w.athletes&&w.athletes.indexOf(meId)!==-1;var athN=w.athletes&&w.athletes.length>0?w.athletes.map(function(id){var a=roster.find(function(x){return x.id===id;});return a?(id===meId?"You":a.name.split(" ")[0]):null;}).filter(Boolean):[];var distTxt=w.distance?(w.distance+(w.distanceUnit==="km"?" km":" mi")):w.duration?w.duration:"";return(<div key={i} onClick={function(){if(props.cm)props.onEdit(i);else if(props.onDetail)props.onDetail(w);}} style={{cursor:"pointer",padding:"4px 0",borderBottom:i<arr.length-1?"1px solid rgba(255,255,255,0.05)":"none"}}><div style={{display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:10,fontWeight:700,color:cat.color,textTransform:"uppercase"}}>{cat.label}</span>{myW?<span style={{fontSize:10,padding:"1px 5px",borderRadius:3,background:C.gold+"22",color:C.gold,fontWeight:700}}>Your workout</span>:null}</div>{txt?<div style={{fontSize:12,color:myW?_ctp:_cts,fontWeight:myW?600:400,lineHeight:1.45}}>{txt}</div>:null}<div style={{display:"flex",gap:3,marginTop:2,flexWrap:"wrap"}}>{distTxt?<span style={tg}>{distTxt}</span>:null}{w.pace?<span style={tg}>{w.pace}</span>:null}{athN.length>0?<span style={Object.assign({},tg,{background:C.gold+"15",color:C.gold})}>{athN.length<=3?athN.join(", "):athN.length+" athletes"}</span>:null}</div>{w.warmup||w.cooldown?<div style={{fontSize:10,marginTop:2}}>{w.warmup?<span><span style={{fontWeight:700,color:"#1ABC9C"}}>WU: </span><span style={{color:_cts}}>{w.warmup}</span></span>:null}{w.warmup&&w.cooldown?<span style={{color:_ctm}}> | </span>:null}{w.cooldown?<span><span style={{fontWeight:700,color:"#1ABC9C"}}>CD: </span><span style={{color:_cts}}>{w.cooldown}</span></span>:null}</div>:null}{w.preRun?<div style={{fontSize:10,marginTop:1}}><span style={{fontWeight:700,color:"#3498DB"}}>Pre: </span><span style={{color:_cts}}>{w.preRun}</span></div>:null}{w.postRun?<div style={{fontSize:10,marginTop:1}}><span style={{fontWeight:700,color:"#8E44AD"}}>Post: </span><span style={{color:_cts}}>{w.postRun}</span></div>:null}{w.notes?<div style={{fontSize:10,marginTop:1}}><span style={{fontWeight:700,color:"#D4A017"}}>Note: </span><span style={{color:_cts,fontStyle:"italic"}}>{w.notes}</span></div>:null}</div>);})}
       {props.cm?<button onClick={function(){props.onEdit(null);}} style={{marginTop:5,padding:"4px 8px",borderRadius:5,background:_lt?"#fff":"rgba(255,255,255,0.03)",border:"1px dashed "+C.bd,color:_ctm,fontSize:10,cursor:"pointer",width:"100%"}}>+ Add</button>:null}</div>):(<div onClick={function(){if(props.cm)props.onEdit(null);}} style={{fontSize:11,color:_ctm,fontStyle:"italic",cursor:props.cm?"pointer":"default"}}>{props.cm?"Tap to add workout":"No workout scheduled"}</div>)}
     </div>
   );
@@ -1302,133 +1302,11 @@ export default function App(){
 
       </div>):null}
       {/* ══════ GUIDE TAB ══════ */}
-      {view==="guide"?((function(){
-        var SEASONS=[
-          {key:"early",phase:"Early Season",short:"Early",desc:"Base & general fitness. Flatter intensity distribution -- moderate runs between low-volume quality sessions.",color:C.greenLight,ids:["aerobic","threshold","cv","5kpace","sprint","evaluation","easy"]},
-          {key:"mid",phase:"Mid Season",short:"Mid",desc:"Race-supportive training begins. Race-specific paces introduced while maintaining aerobic/threshold base.",color:C.gold,ids:["800pace","1600pace","3200pace","5kpace","cv","threshold","faster800","sprint","meet"]},
-          {key:"late",phase:"Late Season",short:"Late",desc:"Race-specific & sharpening. More true rest days. Add-ons like 4-6x200m at mile pace after other workouts.",color:"#E74C3C",ids:["800pace","1600pace","3200pace","faster800","sprint","prerace","meet","rest"]}
-        ];
-        var CONCEPTS=[
-          {id:"psych_load",title:"Psychological Training Load",icon:"P",color:"#9B59B6",content:"Davis defines psychological training load as the mental and emotional effects of training -- both short-term cognitive state and longer-term motivation. He writes that much of his work as a coach involves managing athlete psychology and mindset, figuring out how to do workouts as well as what workouts to do. For HS athletes, this is especially important because school stress, social dynamics, and inexperience all add to the psychological burden of hard training.",tips:["Track workout difficulty on a 0-10 scale to monitor psychological load","Periodize difficulty: moderate-difficulty sessions early season, bigger/tougher sessions later with more recovery","Watch for long strings of 9-10/10 difficulty sessions -- this signals psychological depletion","External stress (school, family, exams) adds to psychological load even if the workout itself is moderate"],ref:{t:"Psychological training load for runners",u:"https://runningwritings.com/2025/11/psychological-training-load-for-runners.html"}},
-          {id:"psych_levers",title:"Draining vs. Regenerating Energy",icon:"E",color:"#3498DB",content:"Davis identifies many factors that increase or decrease the psychological demands of training -- independent of the physiological stimulus. Mentally demanding workouts tend to be long, precisely paced, and rigidly structured. Mentally refreshing workouts tend to be effort-based, on scenic routes, and allow for flexibility. He writes that it is very possible to create workouts that actively regenerate psychological energy instead of draining it.",tips:["Increases psych load: track workouts, checking splits often, running by pace, running alone, high expectations, bad weather, workout uncertainty","Decreases psych load: cross-country terrain, running by effort, running by time instead of distance, progressive/cut-down workouts, running with teammates, ignoring the watch, Swedish-style fartleks","After a big race or tough stretch, use effort-based fartleks, progression runs, and scenic routes to regenerate mental energy","For HS: running with teammates is one of the most powerful ways to lower psychological training load"],ref:{t:"Psychological training load for runners",u:"https://runningwritings.com/2025/11/psychological-training-load-for-runners.html"}},
-          {id:"difficulty",title:"Workout Difficulty Scale (0-10)",icon:"D",color:"#E67E22",content:"Davis designed a qualitative difficulty scale that expands the middle range. The jump from 8/10 to 9/10 is psychologically much larger than from 5/10 to 6/10. Having athletes rate difficulty helps spot when psychological energy is depleted.",tips:["1-2/10: Very easy jogging or recovery. No fatigue.","3-4/10: Easy to moderate run. Could keep going a long time.","5/10: Controlled, steady session. Finished feeling good.","6/10: Pushed a bit but finished fully within abilities.","7/10: Good training stimulus but still relatively fresh.","8/10: Challenging workout with real fatigue.","9/10: Very tough. Had to push hard. Glad it was over.","10/10: All-out race or hardest workout ever."],ref:{t:"Psychological training load for runners",u:"https://runningwritings.com/2025/11/psychological-training-load-for-runners.html"}},
-          {id:"tissue",title:"Injury Prevention & Tissue Loading",icon:"I",color:"#E74C3C",content:"Davis explains that every step creates a loading cycle on bones, tendons, and joints. Each cycle causes tiny tissue damage. If damage accumulates faster than the body repairs it, the result is an overuse injury -- the same process as bending a paperclip until it breaks. A 10% increase in Achilles tendon strain leads to roughly a 2.4-fold increase in damage per step.",tips:["Distance adds damage linearly, but speed adds damage exponentially","A 3000m race may do as much tissue damage as 10+ miles of easy running","Rest days are when tissue repair happens -- without them, damage accumulates toward injury","Varying surfaces (grass, trails, track) distributes loading across different tissues"],ref:{t:"Tissue loading, tissue damage, and running injuries",u:"https://runningwritings.com/2025/12/tissue-loading-and-damage-in-running-injuries.html"}},
-          {id:"biomech",title:"Speed, Damage & Easy Runs",icon:"B",color:"#27AE60",content:"Davis's biomechanical analysis shows running at 5:20/mi pace does roughly 5.7x as much tissue damage per mile as running at 9:00/mi. Easy running is not just physiologically beneficial -- it is biomechanically protective, allowing you to accumulate volume at a fraction of the tissue cost.",tips:["Easy runs are the safest miles you can run","When returning from injury, start very slow -- tissue damage at slow paces is dramatically lower","Mileage (distance) is a better proxy for biomechanical load than time"],ref:{t:"Tissue loading, tissue damage, and running injuries",u:"https://runningwritings.com/2025/12/tissue-loading-and-damage-in-running-injuries.html"}},
-          {id:"resilience",title:"Physiological Resilience",icon:"R",color:"#1ABC9C",content:"Resilience is your body's ability to resist fitness deterioration during prolonged effort. VO2max can drop ~6% and running economy worsen 2-10% during sustained hard effort, varying widely between athletes. For HS 3200m runners on their feet 9-12+ minutes at high intensity, maintaining efficiency matters.",tips:["Resilience is an independent fitness component beyond VO2max, economy, and threshold","It varies from person to person and appears to be trainable","General aerobic development and threshold work may build resilience","This is why aerobic base matters even for 800m/1600m runners"],ref:{t:"Physiological resilience",u:"https://runningwritings.com/2024/11/discovery-of-resilience.html"}}
-        ];
-        /* Build flat nav items */
-        var navItems=[];
-        SEASONS.forEach(function(s){s.ids.forEach(function(id){var c=gc(id);if(c&&!navItems.some(function(n){return n.id===id;}))navItems.push({id:id,label:c.label,icon:c.icon,color:c.color,type:"workout",data:c});});});
-        CONCEPTS.forEach(function(c){navItems.push({id:c.id,label:c.title,icon:c.icon,color:c.color,type:"concept",data:c});});
-        /* Selected item */
-        var sel=guideExp?navItems.find(function(n){return n.id===guideExp;}):null;
-        var selCat=sel&&sel.type==="workout"?sel.data:null;
-        var selCon=sel&&sel.type==="concept"?sel.data:null;
-        /* Which seasons contain selected workout */
-        var selSeasons=selCat?SEASONS.filter(function(s){return s.ids.indexOf(guideExp)>=0;}).map(function(s){return s;}):[]; 
-        return(
-          <div>
-            <div style={{padding:"10px 14px",background:C.goldBg,borderRadius:8,borderLeft:"3px solid "+C.gold+"66",fontSize:11,lineHeight:1.6,color:_ts,marginBottom:16}}><strong style={{color:C.gold}}>Sources: </strong>John Davis, Running Writings. Threshold (CS-) ~90% of 5k | CV (CS) ~96% of 5k | VO2max (CS+) ~100% of 5k. <a href="https://runningwritings.com/2024/11/threshold-cv-vo2max-from-5k.html" target="_blank" rel="noopener noreferrer" style={{color:C.goldLight,textDecoration:"underline"}}>Full article</a></div>
-
-            <div style={{display:"flex",gap:16,alignItems:"flex-start",minHeight:400}}>
-              {/* ── LEFT NAV ── */}
-              <div style={{width:220,minWidth:180,flexShrink:0,position:"sticky",top:10,maxHeight:"80vh",overflowY:"auto"}}>
-                {/* Season sections */}
-                {SEASONS.map(function(s){var isOpen=gSec[s.key]!==false;return(
-                  <div key={s.phase} style={{marginBottom:8}}>
-                    <div onClick={function(){togGSec(s.key);}} style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:s.color,fontFamily:"monospace",marginBottom:isOpen?4:0,paddingBottom:3,borderBottom:"1px solid "+s.color+"33",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                      <span>{s.phase}</span>
-                      <span style={{fontSize:10,color:_tm,fontWeight:400}}>{isOpen?"[-]":"[+]"}</span>
-                    </div>
-                    {isOpen?s.ids.map(function(id){var c=gc(id);if(!c)return null;var isA=guideExp===id;return(
-                      <div key={id} onClick={function(){setGuideExp(isA?"":id);}} style={{padding:"6px 8px",marginBottom:1,borderRadius:6,cursor:"pointer",display:"flex",alignItems:"center",gap:6,background:isA?c.color+"18":"transparent",borderLeft:isA?"3px solid "+c.color:"3px solid transparent"}}>
-                        <span style={{width:20,height:20,borderRadius:4,background:c.color+"22",color:c.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,fontFamily:"monospace",flexShrink:0}}>{c.icon}</span>
-                        <span style={{fontSize:11,fontWeight:isA?700:500,color:isA?c.color:_ts,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.label}</span>
-                      </div>
-                    );}):null}
-                  </div>
-                );})}
-                {/* Concepts section */}
-                <div style={{marginBottom:8}}>
-                  <div onClick={function(){togGSec("concepts");}} style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:_tp,fontFamily:"monospace",marginBottom:gSec.concepts!==false?4:0,paddingBottom:3,borderBottom:"1px solid "+C.bd,cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                    <span>Beyond Workouts</span>
-                    <span style={{fontSize:10,color:_tm,fontWeight:400}}>{gSec.concepts!==false?"[-]":"[+]"}</span>
-                  </div>
-                  {gSec.concepts!==false?CONCEPTS.map(function(c){var isA=guideExp===c.id;return(
-                    <div key={c.id} onClick={function(){setGuideExp(isA?"":c.id);}} style={{padding:"6px 8px",marginBottom:1,borderRadius:6,cursor:"pointer",display:"flex",alignItems:"center",gap:6,background:isA?c.color+"18":"transparent",borderLeft:isA?"3px solid "+c.color:"3px solid transparent"}}>
-                      <span style={{width:20,height:20,borderRadius:4,background:c.color+"22",color:c.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,fontFamily:"monospace",flexShrink:0}}>{c.icon}</span>
-                      <span style={{fontSize:11,fontWeight:isA?700:500,color:isA?c.color:_ts,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.title}</span>
-                    </div>
-                  );}):null}
-                </div>
-              </div>
-
-              {/* ── RIGHT DETAIL PANEL ── */}
-              <div style={{flex:1,minWidth:0}}>
-                {!sel?(
-                  <div style={{padding:"40px 20px",textAlign:"center",color:_tm}}>
-                    <div style={{fontSize:32,marginBottom:12,opacity:0.3}}>RW</div>
-                    <div style={{fontSize:14,fontWeight:600,marginBottom:6}}>Select a topic from the left</div>
-                    <div style={{fontSize:12}}>Click any workout type or training concept to see the full explanation, example workouts, and source articles.</div>
-                  </div>
-                ):null}
-
-                {/* Workout detail */}
-                {selCat?(
-                  <div>
-                    <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
-                      <span style={{width:36,height:36,borderRadius:8,background:selCat.color+"22",color:selCat.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:800,fontFamily:"monospace"}}>{selCat.icon}</span>
-                      <div>
-                        <div style={{fontSize:18,fontWeight:800,color:selCat.color}}>{selCat.label}</div>
-                        {selCat.freq?<div style={{fontSize:11,color:_tm,marginTop:2}}>{selCat.freq}</div>:null}
-                      </div>
-                    </div>
-                    {selSeasons.length>0?(<div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>{selSeasons.map(function(s){return <span key={s.phase} style={{fontSize:10,padding:"3px 8px",borderRadius:4,background:s.color+"18",color:s.color,fontWeight:600}}>{s.phase}</span>;})}</div>):null}
-                    <div style={{fontSize:13,lineHeight:1.8,color:_ts,padding:"14px 16px",background:lt?"#fff":"rgba(255,255,255,0.03)",borderRadius:10,marginBottom:14,border:"1px solid "+(lt?"rgba(0,0,0,0.06)":C.bd)}}>{selCat.why}</div>
-                    {selCat.presets&&selCat.presets.length>0?(
-                      <div style={{marginBottom:14}}>
-                        <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:_tm,fontFamily:"monospace",marginBottom:8}}>Example Workouts</div>
-                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-                          {selCat.presets.map(function(p,pi){return <div key={pi} style={{padding:"8px 10px",borderRadius:6,background:selCat.color+"08",border:"1px solid "+selCat.color+"22",fontSize:12,color:_ts,lineHeight:1.4}}>{p}</div>;})}
-                        </div>
-                      </div>
-                    ):null}
-                    {selCat.refs&&selCat.refs.length>0?(
-                      <div style={{padding:"10px 12px",background:lt?"#fafbf8":"rgba(255,255,255,0.02)",borderRadius:8,borderLeft:"3px solid "+C.gold+"44"}}>
-                        <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:_tm,fontFamily:"monospace",marginBottom:6}}>Read More (Running Writings)</div>
-                        {selCat.refs.map(function(r,ri){return <a key={ri} href={r.u} target="_blank" rel="noopener noreferrer" style={{display:"block",fontSize:12,color:C.goldLight,textDecoration:"underline",marginBottom:4}}>{r.t}</a>;})}
-                      </div>
-                    ):null}
-                  </div>
-                ):null}
-
-                {/* Concept detail */}
-                {selCon?(
-                  <div>
-                    <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
-                      <span style={{width:36,height:36,borderRadius:8,background:selCon.color+"22",color:selCon.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:800,fontFamily:"monospace"}}>{selCon.icon}</span>
-                      <div style={{fontSize:18,fontWeight:800,color:selCon.color}}>{selCon.title}</div>
-                    </div>
-                    <div style={{fontSize:13,lineHeight:1.8,color:_ts,padding:"14px 16px",background:lt?"#fff":"rgba(255,255,255,0.03)",borderRadius:10,marginBottom:14,border:"1px solid "+(lt?"rgba(0,0,0,0.06)":C.bd)}}>{selCon.content}</div>
-                    {selCon.tips&&selCon.tips.length>0?(
-                      <div style={{marginBottom:14}}>
-                        <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:_tm,fontFamily:"monospace",marginBottom:8}}>Key Takeaways</div>
-                        {selCon.tips.map(function(tip,ti){return <div key={ti} style={{padding:"8px 12px",marginBottom:4,borderRadius:6,background:selCon.color+"08",borderLeft:"3px solid "+selCon.color+"33",fontSize:12,color:_ts,lineHeight:1.6}}>{tip}</div>;})}
-                      </div>
-                    ):null}
-                    {selCon.ref?(
-                      <div style={{padding:"10px 12px",background:lt?"#fafbf8":"rgba(255,255,255,0.02)",borderRadius:8,borderLeft:"3px solid "+C.gold+"44"}}>
-                        <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:_tm,fontFamily:"monospace",marginBottom:4}}>Source (Running Writings)</div>
-                        <a href={selCon.ref.u} target="_blank" rel="noopener noreferrer" style={{fontSize:12,color:C.goldLight,textDecoration:"underline"}}>{selCon.ref.t}</a>
-                      </div>
-                    ):null}
-                  </div>
-                ):null}
-              </div>
-            </div>
-          </div>
-        );
-      })()):null}
+      {view==="guide"?(<div style={{textAlign:"center",padding:"60px 20px"}}>
+        <div style={{fontSize:48,marginBottom:16}}>*</div>
+        <div style={{fontSize:20,fontWeight:800,color:_tp,marginBottom:8}}>Training Guide</div>
+        <div style={{fontSize:14,color:_tm,lineHeight:1.6,maxWidth:400,margin:"0 auto"}}>This section is currently under construction and will be updated soon. Check back later for detailed training information and workout guides.</div>
+      </div>):null}
 
       {/* ══════ MEETS TAB ══════ */}
       {view==="meets"?(<div>
@@ -1791,11 +1669,13 @@ export default function App(){
           </div>
           {/* Athlete select */}
           <div style={{marginBottom:12}}>
-            <div style={{fontSize:10,fontWeight:700,color:_tm,fontFamily:"monospace",marginBottom:3}}>WHO ARE YOU?</div>
-            <select value={logAth} onChange={function(ev){setLogAth(ev.target.value);}} style={IS}>
-              <option value="">-- Select yourself --</option>
-              {roster.map(function(a){return <option key={a.id} value={a.id}>{a.name} ({a.team})</option>;})}
-            </select>
+            {myAth&&!cm?(function(){var me=roster.find(function(x){return x.id===myAth;});return me?<div style={{padding:"10px 12px",borderRadius:8,background:C.gold+"12",border:"1px solid "+C.gold+"33",display:"flex",alignItems:"center",gap:8}}>{me.photo?<img src={me.photo} style={{width:24,height:30,borderRadius:5,objectFit:"cover"}}/>:null}<span style={{fontSize:13,fontWeight:700,color:_tp}}>{me.name}</span><span style={{fontSize:10,color:_tm}}>({me.team})</span></div>:null;})():(<div>
+              <div style={{fontSize:10,fontWeight:700,color:_tm,fontFamily:"monospace",marginBottom:3}}>ATHLETE</div>
+              <select value={logAth} onChange={function(ev){setLogAth(ev.target.value);}} style={IS}>
+                <option value="">-- Select athlete --</option>
+                {roster.map(function(a){return <option key={a.id} value={a.id}>{a.name} ({a.team})</option>;})}
+              </select>
+            </div>)}
           </div>
           {/* Difficulty slider */}
           <div style={{marginBottom:14}}>
