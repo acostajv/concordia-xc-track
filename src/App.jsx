@@ -58,7 +58,12 @@ function ini(name){var p=name.trim().split(/\s+/);return p.length>=2?p[0].charAt
 function genPin(){return String(Math.floor(1000+Math.random()*9000));}
 function fmtMD(ds){var p=ds.split("-");var d=new Date(parseInt(p[0]),parseInt(p[1])-1,parseInt(p[2]));return["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d.getDay()]+", "+MO[d.getMonth()]+" "+d.getDate();}
 
-var SK="track-v14",RK="roster-v3",MK="meets-v2",AK="announce-v1",TK="templates-v1",THK="theme-v1",MYK="mypaces-v1",SRK="schoolrecs-v1",WLK="wlog-v1",CPK="custompresets-v1";
+var SK="track-v14",RK="roster-v3",MK="meets-v2",AK="announce-v1",TK="templates-v1",THK="theme-v1",MYK="mypaces-v1",SRK="schoolrecs-v1",WLK="wlog-v1",CPK="custompresets-v1",RTK="routines-v1";
+var ROUTINE_CATS=[
+  {id:"core",label:"Core",icon:"\uD83E\uDDBB",color:"#E74C3C",desc:"Core strength and stability exercises"},
+  {id:"hip",label:"Hip Strength",icon:"\uD83E\uDDBF",color:"#3498DB",desc:"Hip and glute strengthening for injury prevention"},
+  {id:"plyo",label:"Plyometrics",icon:"\u26A1",color:"#F39C12",desc:"Explosive power and neuromuscular training"}
+];
 async function ld1(k){try{var val=await loadData(k);return val?JSON.parse(val):null;}catch(e){return null;}}
 async function sv1(k,d){if(!IS_COACH_BUILD)return;try{await saveData(k,JSON.stringify(d));}catch(e){console.error(e);}}
 /* Local-only storage for per-device data (theme, athlete identity, workout logs) */
@@ -237,7 +242,15 @@ function Card(props){
         </div>
       </div>
       {dm.map(function(m,mi){return <div key={mi} style={{padding:"5px 8px",marginBottom:5,borderRadius:5,background:"#0D47A122",border:"1px solid #0D47A144"}}><div style={{fontSize:10,fontWeight:700,color:"#6494D4",textTransform:"uppercase"}}>MEET: {m.name}</div><div style={{fontSize:10,color:_ctm}}>{m.time?m.time+" | ":""}{m.location}</div></div>;})}
-      {arr.length>0?(<div>{arr.map(function(w,i){var cat=gc(w.category);if(!cat)return null;var txt=w.customWorkout||w.preset||"";var myW=meId&&w.athletes&&w.athletes.indexOf(meId)!==-1;var athN=w.athletes&&w.athletes.length>0?w.athletes.map(function(id){var a=roster.find(function(x){return x.id===id;});return a?(id===meId?"You":a.name.split(" ")[0]):null;}).filter(Boolean):[];var distTxt=w.distance?(w.distance+(w.distanceUnit==="km"?" km":" mi")):w.duration?w.duration:"";return(<div key={i} onClick={function(){if(props.cm)props.onEdit(i);else if(props.onDetail)props.onDetail(w);}} style={{cursor:"pointer",padding:"4px 0",borderBottom:i<arr.length-1?"1px solid rgba(255,255,255,0.05)":"none"}}><div style={{display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:10,fontWeight:700,color:cat.color,textTransform:"uppercase"}}>{cat.label}</span>{myW?<span style={{fontSize:10,padding:"1px 5px",borderRadius:3,background:C.gold+"22",color:C.gold,fontWeight:700}}>Your workout</span>:null}</div>{txt?<div style={{fontSize:12,color:myW?_ctp:_cts,fontWeight:myW?600:400,lineHeight:1.45}}>{txt}</div>:null}<div style={{display:"flex",gap:3,marginTop:2,flexWrap:"wrap"}}>{distTxt?<span style={tg}>{distTxt}</span>:null}{w.pace?<span style={tg}>{w.pace}</span>:null}{athN.length>0?<span style={Object.assign({},tg,{background:C.gold+"15",color:C.gold})}>{athN.length<=3?athN.join(", "):athN.length+" athletes"}</span>:null}</div>{w.warmup||w.cooldown?<div style={{fontSize:10,marginTop:2}}>{w.warmup?<span><span style={{fontWeight:700,color:"#1ABC9C"}}>WU: </span><span style={{color:_cts}}>{w.warmup}</span></span>:null}{w.warmup&&w.cooldown?<span style={{color:_ctm}}> | </span>:null}{w.cooldown?<span><span style={{fontWeight:700,color:"#1ABC9C"}}>CD: </span><span style={{color:_cts}}>{w.cooldown}</span></span>:null}</div>:null}{w.preRun?<div style={{fontSize:10,marginTop:1}}><span style={{fontWeight:700,color:"#3498DB"}}>Pre: </span><span style={{color:_cts}}>{w.preRun}</span></div>:null}{w.postRun?<div style={{fontSize:10,marginTop:1}}><span style={{fontWeight:700,color:"#8E44AD"}}>Post: </span><span style={{color:_cts}}>{w.postRun}</span></div>:null}{w.notes?<div style={{fontSize:10,marginTop:1}}><span style={{fontWeight:700,color:"#D4A017"}}>Note: </span><span style={{color:_cts,fontStyle:"italic"}}>{w.notes}</span></div>:null}</div>);})}
+      {arr.length>0?(<div>{arr.map(function(w,i){var cat=gc(w.category);if(!cat)return null;var txt=w.customWorkout||w.preset||"";var myW=meId&&w.athletes&&w.athletes.indexOf(meId)!==-1;var athN=w.athletes&&w.athletes.length>0?w.athletes.map(function(id){var a=roster.find(function(x){return x.id===id;});return a?(id===meId?"You":a.name.split(" ")[0]):null;}).filter(Boolean):[];var distTxt=w.distance?(w.distance+(w.distanceUnit==="km"?" km":" mi")):w.duration?w.duration:"";return(<div key={i}
+        draggable={props.cm&&arr.length>1?"true":undefined}
+        onDragStart={props.cm?function(ev){ev.dataTransfer.setData("text/plain",String(i));ev.dataTransfer.effectAllowed="move";ev.currentTarget.style.opacity="0.4";}:undefined}
+        onDragEnd={props.cm?function(ev){ev.currentTarget.style.opacity="1";}:undefined}
+        onDragOver={props.cm?function(ev){ev.preventDefault();ev.dataTransfer.dropEffect="move";ev.currentTarget.style.borderTop="2px solid "+C.greenLight;}:undefined}
+        onDragLeave={props.cm?function(ev){ev.currentTarget.style.borderTop="none";}:undefined}
+        onDrop={props.cm?function(ev){ev.preventDefault();ev.currentTarget.style.borderTop="none";var from=parseInt(ev.dataTransfer.getData("text/plain"));if(isNaN(from)||from===i)return;var na=arr.slice();var item=na.splice(from,1)[0];na.splice(i,0,item);if(props.onReorder)props.onReorder(na);}:undefined}
+        onClick={function(){if(props.cm)props.onEdit(i);else if(props.onDetail)props.onDetail(w);}}
+        style={{cursor:props.cm?"grab":"pointer",padding:"6px 8px",marginBottom:4,borderRadius:6,background:props.cm&&arr.length>1?(myW?C.gold+"08":"rgba(255,255,255,0.03)"):"transparent",border:props.cm&&arr.length>1?"1px solid "+(myW?C.gold+"22":"rgba(255,255,255,0.06)"):"none"}}><div style={{display:"flex",alignItems:"center",gap:4}}>{props.cm&&arr.length>1?<span style={{color:_ctm,fontSize:10,cursor:"grab",userSelect:"none"}}>⠿</span>:null}<span style={{fontSize:10,fontWeight:700,color:cat.color,textTransform:"uppercase"}}>{cat.label}</span>{myW?<span style={{fontSize:10,padding:"1px 5px",borderRadius:3,background:C.gold+"22",color:C.gold,fontWeight:700}}>Your workout</span>:null}</div>{txt?<div style={{fontSize:12,color:myW?_ctp:_cts,fontWeight:myW?600:400,lineHeight:1.45}}>{txt}</div>:null}<div style={{display:"flex",gap:3,marginTop:2,flexWrap:"wrap"}}>{distTxt?<span style={tg}>{distTxt}</span>:null}{w.pace?<span style={tg}>{w.pace}</span>:null}{athN.length>0?<span style={Object.assign({},tg,{background:C.gold+"15",color:C.gold})}>{athN.length<=3?athN.join(", "):athN.length+" athletes"}</span>:null}</div>{w.warmup||w.cooldown?<div style={{fontSize:10,marginTop:2}}>{w.warmup?<span><span style={{fontWeight:700,color:"#1ABC9C"}}>WU: </span><span style={{color:_cts}}>{w.warmup}</span></span>:null}{w.warmup&&w.cooldown?<span style={{color:_ctm}}> | </span>:null}{w.cooldown?<span><span style={{fontWeight:700,color:"#1ABC9C"}}>CD: </span><span style={{color:_cts}}>{w.cooldown}</span></span>:null}</div>:null}{w.preRun?<div style={{fontSize:10,marginTop:1}}><span style={{fontWeight:700,color:"#3498DB"}}>Pre: </span><span style={{color:_cts}}>{w.preRun}</span></div>:null}{w.postRun?<div style={{fontSize:10,marginTop:1}}><span style={{fontWeight:700,color:"#8E44AD"}}>Post: </span><span style={{color:_cts}}>{w.postRun}</span></div>:null}{w.notes?<div style={{fontSize:10,marginTop:1}}><span style={{fontWeight:700,color:"#D4A017"}}>Note: </span><span style={{color:_cts,fontStyle:"italic"}}>{w.notes}</span></div>:null}</div>);})}
       {props.cm?<button onClick={function(){props.onEdit(null);}} style={{marginTop:5,padding:"4px 8px",borderRadius:5,background:_lt?"#fff":"rgba(255,255,255,0.03)",border:"1px dashed "+C.bd,color:_ctm,fontSize:10,cursor:"pointer",width:"100%"}}>+ Add</button>:null}</div>):(<div onClick={function(){if(props.cm)props.onEdit(null);}} style={{fontSize:11,color:_ctm,fontStyle:"italic",cursor:props.cm?"pointer":"default"}}>{props.cm?"Tap to add workout":"No workout scheduled"}</div>)}
     </div>
   );
@@ -287,6 +300,8 @@ export default function App(){
   function rmSREntry(key,idx){var n=Object.assign({},schoolRecs);var list=getSRList(key).slice();list.splice(idx,1);n[key]=list;upSR(n);}
   var _tpl=useState([]);var templates=_tpl[0];var setTemplates=_tpl[1];
   var _cp=useState({});var customPresets=_cp[0];var setCustomPresets=_cp[1];
+  var _rt=useState({});var routines=_rt[0];var setRoutines=_rt[1];
+  var _rv=useState(null);var routineView=_rv[0];var setRoutineView=_rv[1];
   var _dtl=useState(null);var detail=_dtl[0];var setDetail=_dtl[1]; /* athlete workout detail */
   var _myA=useState("");var myAth=_myA[0];var setMyAth=_myA[1]; /* My Paces athlete id */
   var _aph=useState({});var athPhotos=_aph[0];var setAthPhotos=_aph[1];
@@ -352,7 +367,7 @@ export default function App(){
   var impRef=useRef(null);var csvRef=useRef(null);
   /* roster edit state */
   var _rn=useState("");var rN=_rn[0];var setRN=_rn[1];
-  var _rt=useState("boys");var rT=_rt[0];var setRT=_rt[1];
+  var _rtm=useState("boys");var rT=_rtm[0];var setRT=_rtm[1];
   var _rg=useState("");var rG=_rg[0];var setRG=_rg[1];
   var _re=useState("");var rE=_re[0];var setRE=_re[1];
   var _ri=useState(null);var rEid=_ri[0];var setREid=_ri[1];
@@ -376,13 +391,14 @@ export default function App(){
     var localTheme=ldLocal(THK);if(localTheme)setTheme(localTheme);
     var localMyAth=ldLocal(MYK);if(localMyAth)setMyAth(localMyAth);
     /* Load team data from Firebase */
-    Promise.all([ld1(SK),ld1(RK),ld1(MK),ld1(AK),ld1(TK),ld1(SRK),loadAthleteData(WLK),loadAthleteData("athphotos"),ld1(CPK)]).then(function(r){
+    Promise.all([ld1(SK),ld1(RK),ld1(MK),ld1(AK),ld1(TK),ld1(SRK),loadAthleteData(WLK),loadAthleteData("athphotos"),ld1(CPK),ld1(RTK)]).then(function(r){
       var rosterData=r[1]||[];
       var wlogData=null;try{wlogData=r[6]?JSON.parse(r[6]):null;}catch(e){}
       var photoData=null;try{photoData=r[7]?JSON.parse(r[7]):null;}catch(e){}
       if(photoData){setAthPhotos(photoData);rosterData=rosterData.map(function(a){if(!a.photo&&photoData[a.id])return Object.assign({},a,{photo:photoData[a.id]});return a;});}
       setSch(r[0]||{});setRoster(rosterData);setMeets(r[2]||DEFAULT_MEETS);setAnnounce(r[3]||"");setTemplates(r[4]||[]);setSchoolRecs(r[5]||{});setWlog(wlogData||{});
       if(r[8])setCustomPresets(r[8]);
+      if(r[9])setRoutines(r[9]);
       setLoaded(true);
     });
   },[]);
@@ -395,6 +411,7 @@ export default function App(){
   function upAnn(t){setAnnounce(t);sv1(AK,t);}
   function upSR(nr){setSchoolRecs(nr);sv1(SRK,nr);}
   function upCP(nr){setCustomPresets(nr);sv1(CPK,nr);}
+  function upRT(nr){setRoutines(nr);sv1(RTK,nr);}
   function upWL(nr){setWlog(nr);saveAthleteData(WLK,JSON.stringify(nr));}
   function addLog(dk,entry){var n=Object.assign({},wlog);if(!n[dk])n[dk]=[];n[dk]=n[dk].concat([entry]);upWL(n);}
   function rmLog(dk,idx){var n=Object.assign({},wlog);if(!n[dk])return;n[dk]=n[dk].slice();n[dk].splice(idx,1);if(n[dk].length===0)delete n[dk];upWL(n);}
@@ -468,7 +485,7 @@ export default function App(){
   function rosterCalc(id,dist,minStr,secStr){var m=parseFloat(minStr)||0;var s=parseFloat(secStr)||0;var tot=m*60+s;if(tot<=0)return;var r=davisCalc(dist,tot);if(!r)return;upR(roster.map(function(a){if(a.id!==id)return a;return Object.assign({},a,{paces:{thrSafe:davisPace(r.cm10,"/mi"),thrMed:davisPace(r.cm50,"/mi"),cv:davisPace(r.c50,"/mi"),vo2Safe:davisPace(r.cp90,"/mi"),vo2Med:davisPace(r.cp50,"/mi")}});}));}
   var PB_DISTS=["800","1600","3200","5k"];
   var PB_CLR={"800":"#F39C12","1600":"#D4A017","3200":"#2ECC71","5k":"#27AE60"};
-  function doExport(){var b=new Blob([JSON.stringify({schedule:sch,roster:roster,meets:meets,announce:announce,templates:templates,schoolRecs:schoolRecs,wlog:wlog,customPresets:customPresets},null,2)],{type:"application/json"});var u=URL.createObjectURL(b);var a=document.createElement("a");a.href=u;a.download="training-data.json";a.click();URL.revokeObjectURL(u);}
+  function doExport(){var b=new Blob([JSON.stringify({schedule:sch,roster:roster,meets:meets,announce:announce,templates:templates,schoolRecs:schoolRecs,wlog:wlog,customPresets:customPresets,routines:routines},null,2)],{type:"application/json"});var u=URL.createObjectURL(b);var a=document.createElement("a");a.href=u;a.download="training-data.json";a.click();URL.revokeObjectURL(u);}
   function exportResultsCSV(){
     var rows=[["Meet","Date","Location","Event","Athlete","Team","Grade","Events","Result","Threshold (Safe)","CV Pace","VO2max (Safe)"]];
     var sm=meets.slice().sort(function(a,b){return a.date<b.date?-1:1;});
@@ -489,7 +506,7 @@ export default function App(){
     var csv=rows.map(function(r){return r.join(",");}).join("\n");
     var b=new Blob([csv],{type:"text/csv"});var u=URL.createObjectURL(b);var a=document.createElement("a");a.href=u;a.download="race-results.csv";a.click();URL.revokeObjectURL(u);
   }
-  function doImport(ev){var f=ev.target.files[0];if(!f)return;var r=new FileReader();r.onload=function(e2){try{var d=JSON.parse(e2.target.result);if(d.schedule){setSch(d.schedule);sv1(SK,d.schedule);}if(d.roster){setRoster(d.roster);sv1(RK,d.roster);}if(d.meets){setMeets(d.meets);sv1(MK,d.meets);}if(d.announce!==undefined){setAnnounce(d.announce);sv1(AK,d.announce);}if(d.templates){setTemplates(d.templates);sv1(TK,d.templates);}if(d.schoolRecs){setSchoolRecs(d.schoolRecs);sv1(SRK,d.schoolRecs);}if(d.wlog){setWlog(d.wlog);saveAthleteData(WLK,JSON.stringify(d.wlog));}if(d.customPresets){setCustomPresets(d.customPresets);sv1(CPK,d.customPresets);}}catch(err){alert("Invalid");}};r.readAsText(f);}
+  function doImport(ev){var f=ev.target.files[0];if(!f)return;var r=new FileReader();r.onload=function(e2){try{var d=JSON.parse(e2.target.result);if(d.schedule){setSch(d.schedule);sv1(SK,d.schedule);}if(d.roster){setRoster(d.roster);sv1(RK,d.roster);}if(d.meets){setMeets(d.meets);sv1(MK,d.meets);}if(d.announce!==undefined){setAnnounce(d.announce);sv1(AK,d.announce);}if(d.templates){setTemplates(d.templates);sv1(TK,d.templates);}if(d.schoolRecs){setSchoolRecs(d.schoolRecs);sv1(SRK,d.schoolRecs);}if(d.wlog){setWlog(d.wlog);saveAthleteData(WLK,JSON.stringify(d.wlog));}if(d.customPresets){setCustomPresets(d.customPresets);sv1(CPK,d.customPresets);}if(d.routines){setRoutines(d.routines);sv1(RTK,d.routines);}}catch(err){alert("Invalid");}};r.readAsText(f);}
   /* Roster helpers */
   function rAdd(){if(!rN.trim())return;var nr=roster.slice();if(rEid){nr=nr.map(function(a){return a.id===rEid?Object.assign({},a,{name:rN,team:rT,grade:rG,events:rE,group:rGrp,pin:rPin||a.pin||genPin()}):a;});}else{nr.push({id:Date.now().toString(),name:rN,team:rT,grade:rG,events:rE,group:rGrp,pin:rPin||genPin(),paces:{},pbs:{},sbs:{},photo:null});}upR(nr);setRN("");setRG("");setRE("");setRGrp("long");setRPin("");setREid(null);setRFormOpen(false);}
   function rCSV(ev){var f=ev.target.files[0];if(!f)return;var r=new FileReader();r.onload=function(e2){var lines=e2.target.result.split("\n");var nr=roster.slice();for(var i=0;i<lines.length;i++){var l=lines[i].trim();if(!l||l.toLowerCase().startsWith("name"))continue;var p=l.split(",");if(p.length<2)continue;var nm=p[0].trim(),tm=(p[1]||"").trim().toLowerCase();if(tm!=="boys"&&tm!=="girls")tm="boys";var gr=(p[4]||"").trim().toLowerCase();if(gr!=="mid"&&gr!=="long")gr="long";nr.push({id:Date.now().toString()+i,name:nm,team:tm,grade:(p[2]||"").trim(),events:(p[3]||"").trim(),group:gr,pin:genPin(),paces:{}});}upR(nr);};r.readAsText(f);}
@@ -544,6 +561,7 @@ export default function App(){
           <button onClick={function(){setView("roster");}} style={tabS("roster")}>Roster ({roster.length})</button>
           <button onClick={function(){setView("pace");}} style={tabS("pace")}>Pace Calc</button>
           <button onClick={function(){setView("guide");}} style={tabS("guide")}>Training Guide</button>
+          <button onClick={function(){setView("routines");}} style={tabS("routines")}>Routines</button>
           <button onClick={function(){setView("meets");}} style={tabS("meets")}>Meet Schedule ({meets.length})</button>
           <button onClick={function(){setView("records");}} style={tabS("records")}>Records</button>
         </div>
@@ -608,7 +626,7 @@ export default function App(){
         {/* WEEK VIEW */}
         {schedMode==="week"?(<div>
           <Summary sch={sch} dates={dates}/>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:8}}>{dates.map(function(d,i){var k=fd(d);var arr=getDayArr(sch,k);var dm=meets.filter(function(m){return m.date===k;});return <Card key={k} date={d} day={DAYS[i]} workouts={arr} roster={roster} meets={dm} today={k===today} cm={cm} lt={lt} myAth={myAth} onEdit={function(idx){if(cm)setEd({dk:k,lb:FDAYS[i]+", "+fs(d),idx:idx});}} onDetail={function(w){setDetail(w);}}/>;})}</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:8}}>{dates.map(function(d,i){var k=fd(d);var arr=getDayArr(sch,k);var dm=meets.filter(function(m){return m.date===k;});return <Card key={k} date={d} day={DAYS[i]} workouts={arr} roster={roster} meets={dm} today={k===today} cm={cm} lt={lt} myAth={myAth} onEdit={function(idx){if(cm)setEd({dk:k,lb:FDAYS[i]+", "+fs(d),idx:idx});}} onDetail={function(w){setDetail(w);}} onReorder={function(na){var n=Object.assign({},sch);n[k]=na;setSch(n);sv1(SK,n);}}/>;})}</div>
         </div>):null}
 
         {/* MONTH VIEW */}
@@ -1330,6 +1348,53 @@ export default function App(){
         <div style={{fontSize:14,color:_tm,lineHeight:1.6,maxWidth:400,margin:"0 auto"}}>This section is currently under construction and will be updated soon. Check back later for detailed training information and workout guides.</div>
       </div>):null}
 
+      {/* ══════ ROUTINES TAB ══════ */}
+      {view==="routines"?(<div>
+        <div style={{fontSize:11,color:_tm,marginBottom:16}}>Supplemental training routines for the team. {cm?"Upload documents for each category.":"Tap a routine to view the exercises."}</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:12}}>
+          {ROUTINE_CATS.map(function(rc){
+            var rd=routines[rc.id];
+            var hasDoc=rd&&rd.data;
+            return(<div key={rc.id} style={{borderRadius:12,border:"1px solid "+(hasDoc?rc.color+"44":C.bd),background:lt?"#fff":"rgba(255,255,255,0.02)",overflow:"hidden"}}>
+              {/* Header */}
+              <div style={{padding:"14px 16px",borderBottom:"1px solid "+C.bd,display:"flex",alignItems:"center",gap:10}}>
+                <span style={{fontSize:24}}>{rc.icon}</span>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:15,fontWeight:800,color:rc.color}}>{rc.label}</div>
+                  <div style={{fontSize:11,color:_tm,marginTop:1}}>{rc.desc}</div>
+                </div>
+                {hasDoc?<span style={{fontSize:9,padding:"2px 8px",borderRadius:10,background:rc.color+"18",color:rc.color,fontWeight:700}}>UPLOADED</span>:null}
+              </div>
+              {/* Content */}
+              <div style={{padding:"12px 16px"}}>
+                {hasDoc?(<div>
+                  <div style={{fontSize:10,color:_tm,marginBottom:8}}>Uploaded: {rd.date||"\u2014"}{rd.fileName?" \u2014 "+rd.fileName:""}</div>
+                  <button onClick={function(){setRoutineView({label:rc.label,data:rd.data,type:rd.type,fileName:rd.fileName});}} style={{width:"100%",padding:"10px 16px",borderRadius:8,background:rc.color+"18",border:"1px solid "+rc.color+"33",color:rc.color,fontSize:12,fontWeight:700,cursor:"pointer",marginBottom:6}}>View {rc.label} Routine</button>
+                  <button onClick={function(){
+                    var a=document.createElement("a");a.href=rd.data;a.download=rd.fileName||rc.label+"-routine";a.click();
+                  }} style={{width:"100%",padding:"6px 16px",borderRadius:6,background:"rgba(255,255,255,0.04)",border:"1px solid "+C.bd,color:_tm,fontSize:10,fontWeight:600,cursor:"pointer",marginBottom:6}}>Download File</button>
+                  {cm?<button onClick={function(){var n=Object.assign({},routines);delete n[rc.id];upRT(n);}} style={{width:"100%",padding:"6px 16px",borderRadius:6,background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.25)",color:"#ef4444",fontSize:10,fontWeight:600,cursor:"pointer"}}>Remove Document</button>:null}
+                </div>):(<div>
+                  {cm?(<label style={{display:"block",width:"100%",padding:"14px 16px",borderRadius:8,background:rc.color+"10",border:"2px dashed "+rc.color+"33",color:rc.color,fontSize:12,fontWeight:600,cursor:"pointer",textAlign:"center"}}>
+                    <input type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" onChange={function(ev){
+                      var f=ev.target.files[0];if(!f)return;
+                      var reader=new FileReader();
+                      reader.onload=function(e){
+                        var n=Object.assign({},routines);
+                        n[rc.id]={data:e.target.result,type:f.type,fileName:f.name,date:new Date().toLocaleDateString()};
+                        upRT(n);
+                      };reader.readAsDataURL(f);
+                      ev.target.value="";
+                    }} style={{display:"none"}}/>
+                    Upload {rc.label} Document
+                  </label>):(<div style={{padding:"14px 16px",textAlign:"center",color:_tm,fontSize:11,fontStyle:"italic"}}>No document uploaded yet.</div>)}
+                </div>)}
+              </div>
+            </div>);
+          })}
+        </div>
+      </div>):null}
+
       {/* ══════ MEETS TAB ══════ */}
       {view==="meets"?(<div>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8}}>
@@ -1796,6 +1861,26 @@ export default function App(){
           <input value={cpw} onChange={function(ev){setCpw(ev.target.value);}} onKeyDown={function(ev){if(ev.key==="Enter")coachLogin();}} type="password" placeholder="Password" style={Object.assign({},IS,{textAlign:"center",fontSize:16,marginBottom:12})}/>
           <button onClick={coachLogin} style={{width:"100%",padding:"12px",borderRadius:10,background:"linear-gradient(135deg,"+C.green+","+C.greenLight+")",border:"none",color:C.white,fontWeight:700,fontSize:14,cursor:"pointer"}}>Login</button>
           <button onClick={function(){setCShow(false);}} style={{marginTop:8,background:"none",border:"none",color:_tm,fontSize:12,cursor:"pointer"}}>Cancel</button>
+        </div>
+      </div>):null}
+      {routineView?(<div style={{position:"fixed",inset:0,zIndex:1200,background:lt?"rgba(255,255,255,0.95)":"rgba(8,18,8,0.95)",backdropFilter:"blur(10px)",display:"flex",flexDirection:"column"}}>
+        <div style={{padding:"12px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:"1px solid "+C.bd,flexShrink:0}}>
+          <div style={{fontSize:16,fontWeight:800,color:_tp}}>{routineView.label} Routine</div>
+          <div style={{display:"flex",gap:8,alignItems:"center"}}>
+            <button onClick={function(){var a=document.createElement("a");a.href=routineView.data;a.download=routineView.fileName||routineView.label+"-routine";a.click();}} style={{padding:"6px 14px",borderRadius:6,background:C.greenLight+"18",border:"1px solid "+C.greenLight+"33",color:C.greenLight,fontSize:11,fontWeight:600,cursor:"pointer"}}>Download</button>
+            <button onClick={function(){setRoutineView(null);}} style={{background:"rgba(255,255,255,0.06)",border:"1px solid "+C.bd,color:_ts,width:32,height:32,borderRadius:8,cursor:"pointer",fontSize:16}}>X</button>
+          </div>
+        </div>
+        <div style={{flex:1,overflow:"auto",display:"flex",alignItems:"center",justifyContent:"center",padding:8}}>
+          {routineView.type&&routineView.type.indexOf("image")===0?
+            <img src={routineView.data} style={{maxWidth:"100%",maxHeight:"100%",objectFit:"contain",borderRadius:8}}/>:
+            routineView.type==="application/pdf"?
+              <iframe src={routineView.data} style={{width:"100%",height:"100%",border:"none",borderRadius:8}}/>:
+              <div style={{textAlign:"center",padding:40}}>
+                <div style={{fontSize:14,color:_tm,marginBottom:12}}>This file type cannot be previewed in the browser.</div>
+                <button onClick={function(){var a=document.createElement("a");a.href=routineView.data;a.download=routineView.fileName||routineView.label+"-routine";a.click();}} style={{padding:"10px 20px",borderRadius:8,background:"linear-gradient(135deg,"+C.green+","+C.greenLight+")",border:"none",color:C.white,fontWeight:700,cursor:"pointer"}}>Download File</button>
+              </div>
+          }
         </div>
       </div>):null}
       {ed?<Editor lt={lt} cm={cm} entry={editEntry} editIdx={ed.idx} dateLabel={ed.lb} roster={roster} templates={templates} customPresets={customPresets} onAddPreset={function(catId,txt){var n=Object.assign({},customPresets);if(!n[catId])n[catId]=[];if(n[catId].indexOf(txt)<0)n[catId]=n[catId].concat([txt]);upCP(n);}} onRemovePreset={function(catId,idx){var n=Object.assign({},customPresets);if(n[catId]){n[catId]=n[catId].slice();n[catId].splice(idx,1);if(n[catId].length===0)delete n[catId];}upCP(n);}} onSaveTemplate={saveTemplate} onDeleteTemplate={deleteTemplate} onClose={function(){setEd(null);}} onSave={handleSave} onDelete={handleDelete}/>:null}
