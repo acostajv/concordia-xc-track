@@ -58,7 +58,7 @@ function ini(name){var p=name.trim().split(/\s+/);return p.length>=2?p[0].charAt
 function genPin(){return String(Math.floor(1000+Math.random()*9000));}
 function fmtMD(ds){var p=ds.split("-");var d=new Date(parseInt(p[0]),parseInt(p[1])-1,parseInt(p[2]));return["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d.getDay()]+", "+MO[d.getMonth()]+" "+d.getDate();}
 
-var SK="track-v14",RK="roster-v3",MK="meets-v2",AK="announce-v1",TK="templates-v1",THK="theme-v1",MYK="mypaces-v1",SRK="schoolrecs-v1",WLK="wlog-v1";
+var SK="track-v14",RK="roster-v3",MK="meets-v2",AK="announce-v1",TK="templates-v1",THK="theme-v1",MYK="mypaces-v1",SRK="schoolrecs-v1",WLK="wlog-v1",CPK="custompresets-v1";
 async function ld1(k){try{var val=await loadData(k);return val?JSON.parse(val):null;}catch(e){return null;}}
 async function sv1(k,d){if(!IS_COACH_BUILD)return;try{await saveData(k,JSON.stringify(d));}catch(e){console.error(e);}}
 /* Local-only storage for per-device data (theme, athlete identity, workout logs) */
@@ -119,6 +119,7 @@ function Editor(props){
   var s12=useState(v("postRun"));var po=s12[0];var setPo=s12[1];
   var s13=useState(v("notes"));var nt=s13[0];var setNt=s13[1];
   var s14=useState(e&&e.athletes?e.athletes:[]);var aths=s14[0];var setAths=s14[1];
+  var _np=useState("");var newPre=_np[0];var setNewPre=_np[1];
   var cat=gc(cat0);var roster=props.roster||[];
   var SD=function(t){return <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:C.tm,marginTop:18,marginBottom:8,paddingTop:10,borderTop:"1px solid "+C.bd,fontFamily:"monospace"}}>{t}</div>;};
   var PL=function(a,c){return{padding:"6px 14px",borderRadius:20,cursor:"pointer",fontSize:12,fontWeight:600,border:a?"2px solid "+c:"2px solid rgba(255,255,255,0.08)",background:a?c+"22":"rgba(255,255,255,0.04)",color:a?c:C.ts};};
@@ -148,7 +149,21 @@ function Editor(props){
               {cat.freq?<div style={{fontSize:11,color:C.tm,fontStyle:"italic",marginTop:8,padding:"6px 10px",background:"rgba(255,255,255,0.02)",borderRadius:6,borderLeft:"3px solid "+cat.color+"44"}}><strong style={{color:cat.color,fontStyle:"normal"}}>Freq: </strong>{cat.freq}</div>:null}
               {cat.why?<div style={{fontSize:11,color:C.ts,marginTop:6,lineHeight:1.5,padding:"8px 10px",background:C.goldBg,borderRadius:6,borderLeft:"3px solid "+C.gold+"66"}}><strong style={{color:C.gold}}>Why: </strong>{cat.why.length>250?cat.why.slice(0,250)+"... (see Guide tab)":cat.why}</div>:null}
               {SD("Workout")}
-              <select value={pre} onChange={function(ev){setPre(ev.target.value);}} style={IS}><option value="">-- Preset --</option>{cat.presets.map(function(p,i){return <option key={i} value={p}>{p}</option>;})}</select>
+              {(function(){
+                var cpList=(props.customPresets&&props.customPresets[cat0])||[];
+                var allPresets=cat.presets.concat(cpList);
+                return(<div>
+                  <select value={pre} onChange={function(ev){setPre(ev.target.value);}} style={IS}><option value="">-- Preset --</option>{allPresets.map(function(p,i){return <option key={i} value={p}>{p}</option>;})}</select>
+                  {props.cm?(<div style={{display:"flex",gap:4,marginTop:6,alignItems:"center"}}>
+                    <input value={newPre} onChange={function(ev){setNewPre(ev.target.value);}} onKeyDown={function(ev){if(ev.key==="Enter"&&newPre.trim()){props.onAddPreset(cat0,newPre.trim());setPre(newPre.trim());setNewPre("");}}} placeholder="Type custom workout & save to presets..." style={Object.assign({},IS,{flex:1,padding:"6px 10px",fontSize:11})}/>
+                    <button onClick={function(){if(!newPre.trim())return;props.onAddPreset(cat0,newPre.trim());setPre(newPre.trim());setNewPre("");}} style={{padding:"6px 12px",borderRadius:6,background:cat.color+"22",border:"1px solid "+cat.color+"44",color:cat.color,fontSize:10,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>+ Save Preset</button>
+                  </div>):null}
+                  {props.cm&&cpList.length>0?(<div style={{marginTop:6}}>
+                    <div style={{fontSize:10,color:C.tm,fontFamily:"monospace",marginBottom:3}}>YOUR CUSTOM PRESETS</div>
+                    <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{cpList.map(function(p,pi){return <span key={pi} style={{fontSize:10,padding:"3px 6px",borderRadius:4,background:cat.color+"12",border:"1px solid "+cat.color+"22",color:cat.color,display:"flex",alignItems:"center",gap:4}}><span onClick={function(){setPre(p);}} style={{cursor:"pointer"}}>{p}</span><button onClick={function(){props.onRemovePreset(cat0,pi);}} style={{background:"none",border:"none",color:"#ef4444",fontSize:10,cursor:"pointer",padding:0}}>x</button></span>;})}</div>
+                  </div>):null}
+                </div>);
+              })()}
               {cat.hasRunMode?(<div>{SD("Run By")}<div style={{display:"flex",gap:8,marginBottom:8}}><button onClick={function(){setRm("distance");}} style={PL(rm==="distance",C.greenLight)}>Distance</button><button onClick={function(){setRm("time");}} style={PL(rm==="time",C.greenLight)}>Time</button></div>{rm==="distance"?<div style={{display:"flex",gap:8}}><div style={{flex:1}}><input value={dist} onChange={function(ev){setDist(ev.target.value);}} placeholder="e.g. 5" style={IS}/></div><select value={du} onChange={function(ev){setDu(ev.target.value);}} style={Object.assign({},IS,{width:70})}><option value="miles">mi</option><option value="km">km</option></select></div>:<input value={dur} onChange={function(ev){setDur(ev.target.value);}} placeholder="e.g. 45 min" style={IS}/>}<label style={LS}>Effort</label><input value={pace} onChange={function(ev){setPace(ev.target.value);}} placeholder="easy, moderate, 8:00/mi" style={IS}/></div>):(<div>{SD("Pace / Distance")}<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}><div><label style={LS}>Distance</label><input value={dist} onChange={function(ev){setDist(ev.target.value);}} placeholder="e.g. 5 mi" style={IS}/></div><div><label style={LS}>Duration</label><input value={dur} onChange={function(ev){setDur(ev.target.value);}} placeholder="e.g. 45 min" style={IS}/></div></div><label style={LS}>Pace</label><input value={pace} onChange={function(ev){setPace(ev.target.value);}} placeholder="e.g. 6:30/mi" style={IS}/></div>)}
               {SD("Warm-up / Cool-down")}<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}><input value={wu} onChange={function(ev){setWu(ev.target.value);}} placeholder="Warm-up" style={IS}/><input value={cd} onChange={function(ev){setCd(ev.target.value);}} placeholder="Cool-down" style={IS}/></div>
               {SD("Pre & Post Run")}<textarea value={pr} onChange={function(ev){setPr(ev.target.value);}} placeholder="Pre-run drills..." style={Object.assign({},TS,{minHeight:36})}/><textarea value={po} onChange={function(ev){setPo(ev.target.value);}} placeholder="Post-run work..." style={Object.assign({},TS,{minHeight:36,marginTop:6})}/>
@@ -271,6 +286,7 @@ export default function App(){
   function addSREntry(key){var n=Object.assign({},schoolRecs);var list=getSRList(key).slice();if(list.length>=5)return;list.push({time:"",name:"",year:""});n[key]=list;upSR(n);}
   function rmSREntry(key,idx){var n=Object.assign({},schoolRecs);var list=getSRList(key).slice();list.splice(idx,1);n[key]=list;upSR(n);}
   var _tpl=useState([]);var templates=_tpl[0];var setTemplates=_tpl[1];
+  var _cp=useState({});var customPresets=_cp[0];var setCustomPresets=_cp[1];
   var _dtl=useState(null);var detail=_dtl[0];var setDetail=_dtl[1]; /* athlete workout detail */
   var _myA=useState("");var myAth=_myA[0];var setMyAth=_myA[1]; /* My Paces athlete id */
   var _aph=useState({});var athPhotos=_aph[0];var setAthPhotos=_aph[1];
@@ -360,12 +376,13 @@ export default function App(){
     var localTheme=ldLocal(THK);if(localTheme)setTheme(localTheme);
     var localMyAth=ldLocal(MYK);if(localMyAth)setMyAth(localMyAth);
     /* Load team data from Firebase */
-    Promise.all([ld1(SK),ld1(RK),ld1(MK),ld1(AK),ld1(TK),ld1(SRK),loadAthleteData(WLK),loadAthleteData("athphotos")]).then(function(r){
+    Promise.all([ld1(SK),ld1(RK),ld1(MK),ld1(AK),ld1(TK),ld1(SRK),loadAthleteData(WLK),loadAthleteData("athphotos"),ld1(CPK)]).then(function(r){
       var rosterData=r[1]||[];
       var wlogData=null;try{wlogData=r[6]?JSON.parse(r[6]):null;}catch(e){}
       var photoData=null;try{photoData=r[7]?JSON.parse(r[7]):null;}catch(e){}
       if(photoData){setAthPhotos(photoData);rosterData=rosterData.map(function(a){if(!a.photo&&photoData[a.id])return Object.assign({},a,{photo:photoData[a.id]});return a;});}
       setSch(r[0]||{});setRoster(rosterData);setMeets(r[2]||DEFAULT_MEETS);setAnnounce(r[3]||"");setTemplates(r[4]||[]);setSchoolRecs(r[5]||{});setWlog(wlogData||{});
+      if(r[8])setCustomPresets(r[8]);
       setLoaded(true);
     });
   },[]);
@@ -377,6 +394,7 @@ export default function App(){
   function upM(nm){setMeets(nm);sv1(MK,nm);}
   function upAnn(t){setAnnounce(t);sv1(AK,t);}
   function upSR(nr){setSchoolRecs(nr);sv1(SRK,nr);}
+  function upCP(nr){setCustomPresets(nr);sv1(CPK,nr);}
   function upWL(nr){setWlog(nr);saveAthleteData(WLK,JSON.stringify(nr));}
   function addLog(dk,entry){var n=Object.assign({},wlog);if(!n[dk])n[dk]=[];n[dk]=n[dk].concat([entry]);upWL(n);}
   function rmLog(dk,idx){var n=Object.assign({},wlog);if(!n[dk])return;n[dk]=n[dk].slice();n[dk].splice(idx,1);if(n[dk].length===0)delete n[dk];upWL(n);}
@@ -450,7 +468,7 @@ export default function App(){
   function rosterCalc(id,dist,minStr,secStr){var m=parseFloat(minStr)||0;var s=parseFloat(secStr)||0;var tot=m*60+s;if(tot<=0)return;var r=davisCalc(dist,tot);if(!r)return;upR(roster.map(function(a){if(a.id!==id)return a;return Object.assign({},a,{paces:{thrSafe:davisPace(r.cm10,"/mi"),thrMed:davisPace(r.cm50,"/mi"),cv:davisPace(r.c50,"/mi"),vo2Safe:davisPace(r.cp90,"/mi"),vo2Med:davisPace(r.cp50,"/mi")}});}));}
   var PB_DISTS=["800","1600","3200","5k"];
   var PB_CLR={"800":"#F39C12","1600":"#D4A017","3200":"#2ECC71","5k":"#27AE60"};
-  function doExport(){var b=new Blob([JSON.stringify({schedule:sch,roster:roster,meets:meets,announce:announce,templates:templates,schoolRecs:schoolRecs,wlog:wlog},null,2)],{type:"application/json"});var u=URL.createObjectURL(b);var a=document.createElement("a");a.href=u;a.download="training-data.json";a.click();URL.revokeObjectURL(u);}
+  function doExport(){var b=new Blob([JSON.stringify({schedule:sch,roster:roster,meets:meets,announce:announce,templates:templates,schoolRecs:schoolRecs,wlog:wlog,customPresets:customPresets},null,2)],{type:"application/json"});var u=URL.createObjectURL(b);var a=document.createElement("a");a.href=u;a.download="training-data.json";a.click();URL.revokeObjectURL(u);}
   function exportResultsCSV(){
     var rows=[["Meet","Date","Location","Event","Athlete","Team","Grade","Events","Result","Threshold (Safe)","CV Pace","VO2max (Safe)"]];
     var sm=meets.slice().sort(function(a,b){return a.date<b.date?-1:1;});
@@ -471,7 +489,7 @@ export default function App(){
     var csv=rows.map(function(r){return r.join(",");}).join("\n");
     var b=new Blob([csv],{type:"text/csv"});var u=URL.createObjectURL(b);var a=document.createElement("a");a.href=u;a.download="race-results.csv";a.click();URL.revokeObjectURL(u);
   }
-  function doImport(ev){var f=ev.target.files[0];if(!f)return;var r=new FileReader();r.onload=function(e2){try{var d=JSON.parse(e2.target.result);if(d.schedule){setSch(d.schedule);sv1(SK,d.schedule);}if(d.roster){setRoster(d.roster);sv1(RK,d.roster);}if(d.meets){setMeets(d.meets);sv1(MK,d.meets);}if(d.announce!==undefined){setAnnounce(d.announce);sv1(AK,d.announce);}if(d.templates){setTemplates(d.templates);sv1(TK,d.templates);}if(d.schoolRecs){setSchoolRecs(d.schoolRecs);sv1(SRK,d.schoolRecs);}if(d.wlog){setWlog(d.wlog);saveAthleteData(WLK,JSON.stringify(d.wlog));}}catch(err){alert("Invalid");}};r.readAsText(f);}
+  function doImport(ev){var f=ev.target.files[0];if(!f)return;var r=new FileReader();r.onload=function(e2){try{var d=JSON.parse(e2.target.result);if(d.schedule){setSch(d.schedule);sv1(SK,d.schedule);}if(d.roster){setRoster(d.roster);sv1(RK,d.roster);}if(d.meets){setMeets(d.meets);sv1(MK,d.meets);}if(d.announce!==undefined){setAnnounce(d.announce);sv1(AK,d.announce);}if(d.templates){setTemplates(d.templates);sv1(TK,d.templates);}if(d.schoolRecs){setSchoolRecs(d.schoolRecs);sv1(SRK,d.schoolRecs);}if(d.wlog){setWlog(d.wlog);saveAthleteData(WLK,JSON.stringify(d.wlog));}if(d.customPresets){setCustomPresets(d.customPresets);sv1(CPK,d.customPresets);}}catch(err){alert("Invalid");}};r.readAsText(f);}
   /* Roster helpers */
   function rAdd(){if(!rN.trim())return;var nr=roster.slice();if(rEid){nr=nr.map(function(a){return a.id===rEid?Object.assign({},a,{name:rN,team:rT,grade:rG,events:rE,group:rGrp,pin:rPin||a.pin||genPin()}):a;});}else{nr.push({id:Date.now().toString(),name:rN,team:rT,grade:rG,events:rE,group:rGrp,pin:rPin||genPin(),paces:{},pbs:{},sbs:{},photo:null});}upR(nr);setRN("");setRG("");setRE("");setRGrp("long");setRPin("");setREid(null);setRFormOpen(false);}
   function rCSV(ev){var f=ev.target.files[0];if(!f)return;var r=new FileReader();r.onload=function(e2){var lines=e2.target.result.split("\n");var nr=roster.slice();for(var i=0;i<lines.length;i++){var l=lines[i].trim();if(!l||l.toLowerCase().startsWith("name"))continue;var p=l.split(",");if(p.length<2)continue;var nm=p[0].trim(),tm=(p[1]||"").trim().toLowerCase();if(tm!=="boys"&&tm!=="girls")tm="boys";var gr=(p[4]||"").trim().toLowerCase();if(gr!=="mid"&&gr!=="long")gr="long";nr.push({id:Date.now().toString()+i,name:nm,team:tm,grade:(p[2]||"").trim(),events:(p[3]||"").trim(),group:gr,pin:genPin(),paces:{}});}upR(nr);};r.readAsText(f);}
@@ -657,13 +675,15 @@ export default function App(){
                   <div style={{fontSize:18,fontWeight:800,color:_tp}}>{a.name} <span style={{fontSize:10,padding:"2px 6px",borderRadius:3,background:C.gold+"22",color:C.gold,fontWeight:700}}>You</span></div>
                   <div style={{fontSize:12,color:_tm}}>{a.grade?"Grade "+a.grade:""}{a.grade&&a.events?" | ":""}{a.events||""}</div>
                   {a.group==="mid"?<span style={{fontSize:10,padding:"1px 6px",borderRadius:3,background:"#E67E2218",color:"#E67E22",fontWeight:600,marginTop:3,display:"inline-block"}}>Mid-Distance</span>:<span style={{fontSize:10,padding:"1px 6px",borderRadius:3,background:"#3498DB18",color:"#3498DB",fontWeight:600,marginTop:3,display:"inline-block"}}>Long Distance</span>}
-                  <div style={{display:"flex",gap:4,marginTop:6,flexWrap:"wrap"}}>
+                  <div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,color:_tm,fontFamily:"monospace",marginTop:6,marginBottom:2}}>Training Paces</div>
+                  <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
                     {hp?[{l:"LT",v:a.paces.thrSafe,c:"#8E44AD"},{l:"CV",v:a.paces.cv,c:"#3498DB"},{l:"VO2",v:a.paces.vo2Safe,c:"#27AE60"}].map(function(b){return b.v?<span key={b.l} style={{fontSize:10,padding:"2px 6px",borderRadius:3,background:b.c+"18",color:b.c,fontFamily:"monospace",fontWeight:600}}>{b.l}:{b.v}</span>:null;}):null}
                   </div>
                 </div>
               </div>
               {/* PBs */}
               {hasPBs?<div style={{flex:"1 1 200px"}}>
+                <div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,color:_tm,fontFamily:"monospace",marginBottom:2}}>Personal Bests</div>
                 <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{PB_DISTS.filter(function(d){return a.pbs&&a.pbs[d];}).map(function(d){var ec=PB_CLR[d]||"#D4A017";return <span key={d} style={{fontSize:10,padding:"2px 6px",borderRadius:3,background:ec+"15",border:"1px solid "+ec+"33",fontFamily:"monospace",fontWeight:700,display:"flex",alignItems:"center",gap:3}}><span style={{background:ec,color:"#fff",fontSize:9,padding:"1px 4px",borderRadius:2,fontWeight:800}}>{d}</span><span style={{color:lt?"#222":_tp,fontWeight:800}}>{a.pbs[d]}</span></span>;})}</div>
               </div>:null}
             </div>
@@ -688,10 +708,11 @@ export default function App(){
                 {a.group==="mid"?<span style={{fontSize:10,padding:"1px 6px",borderRadius:3,background:"#E67E2218",color:"#E67E22",fontWeight:600,marginTop:2,display:"inline-block"}}>Mid-Distance</span>:<span style={{fontSize:10,padding:"1px 6px",borderRadius:3,background:"#3498DB18",color:"#3498DB",fontWeight:600,marginTop:2,display:"inline-block"}}>Long Distance</span>}
                 {cm&&a.pin?<span style={{fontSize:10,padding:"1px 6px",borderRadius:3,background:"rgba(255,255,255,0.06)",border:"1px dashed "+C.bd,color:_tm,fontFamily:"monospace",letterSpacing:1,marginLeft:4,display:"inline-block",marginTop:2}}>PIN:{a.pin}</span>:null}
                 {/* Compact pace + PB badges */}
-                <div style={{display:"flex",gap:4,marginTop:5,flexWrap:"wrap"}}>
+                <div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,color:_tm,fontFamily:"monospace",marginTop:6,marginBottom:2}}>Training Paces</div>
+                <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
                   {hp?[{l:"LT",v:a.paces.thrSafe,c:"#8E44AD"},{l:"CV",v:a.paces.cv,c:"#3498DB"},{l:"VO2",v:a.paces.vo2Safe,c:"#27AE60"}].map(function(b){return b.v?<span key={b.l} style={{fontSize:10,padding:"2px 6px",borderRadius:3,background:b.c+"18",color:b.c,fontFamily:"monospace",fontWeight:600}}>{b.l}:{b.v}</span>:null;}):<span style={{fontSize:10,color:C.gold}}>No paces</span>}
                 </div>
-                {hasPBs?<div style={{display:"flex",gap:4,marginTop:4,flexWrap:"wrap"}}>{PB_DISTS.filter(function(d){return a.pbs&&a.pbs[d];}).map(function(d){var ec=PB_CLR[d]||"#D4A017";return <span key={d} style={{fontSize:10,padding:"2px 6px",borderRadius:3,background:ec+"15",border:"1px solid "+ec+"33",fontFamily:"monospace",fontWeight:700,display:"flex",alignItems:"center",gap:3}}><span style={{background:ec,color:"#fff",fontSize:9,padding:"1px 4px",borderRadius:2,fontWeight:800}}>{d}</span><span style={{color:lt?"#222":_tp,fontWeight:800}}>{a.pbs[d]}</span></span>;})}</div>:null}
+                {hasPBs?<div><div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,color:_tm,fontFamily:"monospace",marginTop:5,marginBottom:2}}>Personal Bests</div><div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{PB_DISTS.filter(function(d){return a.pbs&&a.pbs[d];}).map(function(d){var ec=PB_CLR[d]||"#D4A017";return <span key={d} style={{fontSize:10,padding:"2px 6px",borderRadius:3,background:ec+"15",border:"1px solid "+ec+"33",fontFamily:"monospace",fontWeight:700,display:"flex",alignItems:"center",gap:3}}><span style={{background:ec,color:"#fff",fontSize:9,padding:"1px 4px",borderRadius:2,fontWeight:800}}>{d}</span><span style={{color:lt?"#222":_tp,fontWeight:800}}>{a.pbs[d]}</span></span>;})}</div></div>:null}
               </div>
               {/* Recent check-ins column */}
               {(function(){
@@ -1777,7 +1798,7 @@ export default function App(){
           <button onClick={function(){setCShow(false);}} style={{marginTop:8,background:"none",border:"none",color:_tm,fontSize:12,cursor:"pointer"}}>Cancel</button>
         </div>
       </div>):null}
-      {ed?<Editor lt={lt} cm={cm} entry={editEntry} editIdx={ed.idx} dateLabel={ed.lb} roster={roster} templates={templates} onSaveTemplate={saveTemplate} onDeleteTemplate={deleteTemplate} onClose={function(){setEd(null);}} onSave={handleSave} onDelete={handleDelete}/>:null}
+      {ed?<Editor lt={lt} cm={cm} entry={editEntry} editIdx={ed.idx} dateLabel={ed.lb} roster={roster} templates={templates} customPresets={customPresets} onAddPreset={function(catId,txt){var n=Object.assign({},customPresets);if(!n[catId])n[catId]=[];if(n[catId].indexOf(txt)<0)n[catId]=n[catId].concat([txt]);upCP(n);}} onRemovePreset={function(catId,idx){var n=Object.assign({},customPresets);if(n[catId]){n[catId]=n[catId].slice();n[catId].splice(idx,1);if(n[catId].length===0)delete n[catId];}upCP(n);}} onSaveTemplate={saveTemplate} onDeleteTemplate={deleteTemplate} onClose={function(){setEd(null);}} onSave={handleSave} onDelete={handleDelete}/>:null}
     </div>
   );
 }
