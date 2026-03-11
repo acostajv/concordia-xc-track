@@ -684,76 +684,79 @@ export default function App(){
           var accentClr=a.team==="boys"?C.greenLight:C.gold;
           var hp=a.paces&&(a.paces.thrSafe||a.paces.cv);
           var hasPBs=a.pbs&&Object.values(a.pbs).some(function(v){return v;});
-          return(<div style={{marginBottom:20,padding:"16px",borderRadius:14,background:"linear-gradient(135deg,"+C.gold+"12,"+C.gold+"04)",border:"2px solid "+C.gold+"44"}}>
-            <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:C.gold,fontFamily:"monospace",marginBottom:10}}>My Card</div>
-            <div style={{display:"flex",gap:14,alignItems:"flex-start",flexWrap:"wrap"}}>
-              {/* Photo + name */}
-              <div style={{display:"flex",gap:12,alignItems:"center",flex:"1 1 250px"}}>
-                {a.photo?<img src={a.photo} style={{width:64,height:80,borderRadius:10,objectFit:"cover",border:"2px solid "+C.gold+"55"}}/>:<div style={{width:64,height:80,borderRadius:10,background:"linear-gradient(135deg,"+accentClr+"33,"+accentClr+"11)",color:accentClr,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,fontWeight:800,border:"2px solid "+C.gold+"44"}}>{ini(a.name)}</div>}
-                <div>
-                  <div style={{fontSize:18,fontWeight:800,color:_tp}}>{a.name} <span style={{fontSize:10,padding:"2px 6px",borderRadius:3,background:C.gold+"22",color:C.gold,fontWeight:700}}>You</span></div>
-                  <div style={{fontSize:12,color:_tm}}>{a.grade?"Grade "+a.grade:""}{a.grade&&a.events?" | ":""}{a.events||""}</div>
-                  {a.group==="mid"?<span style={{fontSize:10,padding:"1px 6px",borderRadius:3,background:"#E67E2218",color:"#E67E22",fontWeight:600,marginTop:3,display:"inline-block"}}>Mid-Distance</span>:<span style={{fontSize:10,padding:"1px 6px",borderRadius:3,background:"#3498DB18",color:"#3498DB",fontWeight:600,marginTop:3,display:"inline-block"}}>Long Distance</span>}
-                  <div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,color:_tm,fontFamily:"monospace",marginTop:6,marginBottom:2}}>Training Paces</div>
-                  <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-                    {hp?[{l:"LT",v:a.paces.thrSafe,c:"#8E44AD"},{l:"CV",v:a.paces.cv,c:"#3498DB"},{l:"VO2",v:a.paces.vo2Safe,c:"#27AE60"}].map(function(b){return b.v?<span key={b.l} style={{fontSize:10,padding:"2px 6px",borderRadius:3,background:b.c+"18",color:b.c,fontFamily:"monospace",fontWeight:600}}>{b.l}:{b.v}</span>:null;}):null}
+          var hasSBs=a.sbs&&Object.values(a.sbs).some(function(v){return v;});
+          var isEx=paceAth===a.id;
+          return(<div style={{marginBottom:20,borderRadius:14,background:"linear-gradient(135deg,"+C.gold+"12,"+C.gold+"04)",border:"2px solid "+C.gold+"44",overflow:"hidden"}}>
+            <div style={{padding:"14px 16px",cursor:"pointer"}} onClick={function(){setPaceAth(isEx?null:a.id);}}>
+              <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
+                {a.photo?<img src={a.photo} style={{width:48,height:60,borderRadius:8,objectFit:"cover",border:"2px solid "+C.gold+"55",flexShrink:0}}/>:<div style={{width:48,height:60,borderRadius:8,background:"linear-gradient(135deg,"+accentClr+"33,"+accentClr+"11)",color:accentClr,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:800,border:"2px solid "+C.gold+"44",flexShrink:0}}>{ini(a.name)}</div>}
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:16,fontWeight:800,color:_tp}}>{a.name} <span style={{fontSize:10,padding:"2px 6px",borderRadius:3,background:C.gold+"22",color:C.gold,fontWeight:700}}>You</span></div>
+                  <div style={{display:"flex",gap:4,alignItems:"center",marginTop:2,flexWrap:"wrap"}}>
+                    {a.events?<span style={{fontSize:11,color:_tm}}>{a.events}</span>:null}
+                    {a.group==="mid"?<span style={{fontSize:9,padding:"1px 5px",borderRadius:3,background:"#E67E2218",color:"#E67E22",fontWeight:600}}>Mid</span>:<span style={{fontSize:9,padding:"1px 5px",borderRadius:3,background:"#3498DB18",color:"#3498DB",fontWeight:600}}>Long</span>}
                   </div>
                 </div>
+                <span style={{color:C.gold,fontSize:10}}>{isEx?"[-]":"[+]"}</span>
               </div>
-              {/* PBs */}
-              {hasPBs?<div style={{flex:"1 1 200px"}}>
-                <div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,color:_tm,fontFamily:"monospace",marginBottom:2}}>Personal Bests</div>
-                <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{PB_DISTS.filter(function(d){return a.pbs&&a.pbs[d];}).map(function(d){var ec=PB_CLR[d]||"#D4A017";return <span key={d} style={{fontSize:10,padding:"2px 6px",borderRadius:3,background:ec+"15",border:"1px solid "+ec+"33",fontFamily:"monospace",fontWeight:700,display:"flex",alignItems:"center",gap:3}}><span style={{background:ec,color:"#fff",fontSize:9,padding:"1px 4px",borderRadius:2,fontWeight:800}}>{d}</span><span style={{color:lt?"#222":_tp,fontWeight:800}}>{a.pbs[d]}</span></span>;})}</div>
-              </div>:null}
+              <div style={{display:"flex",gap:4,marginTop:8,flexWrap:"wrap",alignItems:"center"}}>
+                {hp?[{l:"LT",v:a.paces.thrSafe,c:"#8E44AD"},{l:"CV",v:a.paces.cv,c:"#3498DB"},{l:"VO2",v:a.paces.vo2Safe,c:"#27AE60"}].map(function(b){return b.v?<span key={b.l} style={{fontSize:10,padding:"2px 5px",borderRadius:3,background:b.c+"18",color:b.c,fontFamily:"monospace",fontWeight:600}}>{b.l}:{b.v}</span>:null;}):null}
+                {hp&&(hasPBs||hasSBs)?<span style={{color:_tm,fontSize:8}}>|</span>:null}
+                {PB_DISTS.filter(function(d){return(a.pbs&&a.pbs[d])||(a.sbs&&a.sbs[d]);}).map(function(d){var ec=PB_CLR[d]||"#D4A017";var val=a.pbs&&a.pbs[d]?a.pbs[d]:a.sbs[d];return <span key={d} style={{fontSize:10,padding:"2px 5px",borderRadius:3,background:ec+"15",border:"1px solid "+ec+"33",fontFamily:"monospace",fontWeight:700,display:"inline-flex",alignItems:"center",gap:2}}><span style={{background:ec,color:"#fff",fontSize:8,padding:"1px 3px",borderRadius:2,fontWeight:800}}>{d}</span><span style={{color:lt?"#222":_tp,fontWeight:800}}>{val}</span></span>;})}
+              </div>
             </div>
-            <button onClick={function(){setPaceAth(paceAth===a.id?null:a.id);}} style={{marginTop:12,padding:"8px 16px",borderRadius:8,background:C.gold+"18",border:"1px solid "+C.gold+"33",color:C.gold,fontSize:11,fontWeight:700,cursor:"pointer",width:"100%"}}>{paceAth===a.id?"Collapse Full Card":"View Full Card"}</button>
           </div>);
         })():null}
-        {[{title:"Boys Team",list:boys,clr:C.greenLight},{title:"Girls Team",list:girls,clr:C.gold}].map(function(sec){return(<div key={sec.title} style={{marginBottom:24}}><div style={{fontSize:13,fontWeight:700,color:sec.clr,textTransform:"uppercase",letterSpacing:1.5,fontFamily:"monospace",marginBottom:10,paddingBottom:6,borderBottom:"1px solid "+C.bd}}>{sec.title} ({sec.list.length})</div>{sec.list.length===0?<div style={{fontSize:11,color:_tm,fontStyle:"italic"}}>No athletes yet.</div>:null}<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:10,alignItems:"start"}}>{sec.list.map(function(a){
+        {[{title:"Boys Team",list:boys,clr:C.greenLight},{title:"Girls Team",list:girls,clr:C.gold}].map(function(sec){return(<div key={sec.title} style={{marginBottom:24}}><div style={{fontSize:13,fontWeight:700,color:sec.clr,textTransform:"uppercase",letterSpacing:1.5,fontFamily:"monospace",marginBottom:10,paddingBottom:6,borderBottom:"1px solid "+C.bd}}>{sec.title} ({sec.list.length})</div>{sec.list.length===0?<div style={{fontSize:11,color:_tm,fontStyle:"italic"}}>No athletes yet.</div>:null}<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(440px,1fr))",gap:10,alignItems:"start"}}>{sec.list.map(function(a){
           var hp=a.paces&&(a.paces.thrSafe||a.paces.cv);
           var isEx=paceAth===a.id;
           var isMe=myAth===a.id;
           var hasPBs=a.pbs&&Object.values(a.pbs).some(function(v){return v;});
+          var hasSBs=a.sbs&&Object.values(a.sbs).some(function(v){return v;});
           var accentClr=a.team==="boys"?C.greenLight:C.gold;
+          /* Compute weekly mileage + yesterday stats */
+          var _now=new Date();var _dow=_now.getDay();var _monOff=_dow===0?-6:1-_dow;
+          var _mon=new Date(_now);_mon.setDate(_now.getDate()+_monOff);_mon.setHours(0,0,0,0);
+          var _sun=new Date(_mon);_sun.setDate(_mon.getDate()+7);
+          var wkMi=0;var yestMi=0;var yestEff=null;
+          var yest=new Date(_now);yest.setDate(_now.getDate()-1);var ydk=fd(yest);
+          Object.keys(wlog).forEach(function(dk){
+            var dp=dk.split("-");var d=new Date(parseInt(dp[0]),parseInt(dp[1])-1,parseInt(dp[2]));
+            if(d>=_mon&&d<_sun){(wlog[dk]||[]).forEach(function(e){if(e.athId===a.id&&e.type!=="readiness")wkMi+=e.mileage||0;});}
+            if(dk===ydk){(wlog[dk]||[]).forEach(function(e){if(e.athId===a.id&&e.type!=="readiness"){yestMi+=e.mileage||0;if(e.difficulty)yestEff=e.difficulty;}});}
+          });
           return(<div key={a.id} style={{marginBottom:10,borderRadius:12,border:isMe?"2px solid "+C.gold+"66":isEx?"2px solid "+accentClr+"66":"1px solid "+C.bd,background:isMe?(lt?"rgba(212,160,23,0.04)":"rgba(212,160,23,0.06)"):(lt?"#fff":"rgba(255,255,255,0.02)"),overflow:"hidden",gridColumn:isEx?"1/-1":undefined}}>
-{/* ── Card Header (always visible) ── */}
-            <div style={{padding:"12px 14px",display:"flex",alignItems:"stretch",gap:12,cursor:"pointer"}} onClick={function(){setPaceAth(isEx?null:a.id);}}>
-              {/* Photo or initial */}
-              {a.photo?<img src={a.photo} style={{width:52,height:64,borderRadius:8,objectFit:"cover",border:"2px solid "+(isMe?C.gold+"55":accentClr+"33")}}/>:<div style={{width:52,height:64,borderRadius:8,background:"linear-gradient(135deg,"+accentClr+"33,"+accentClr+"11)",color:accentClr,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,fontWeight:800,border:"2px solid "+(isMe?C.gold+"44":accentClr+"22")}}>{ini(a.name)}</div>}
-              {/* Name + info */}
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:14,fontWeight:700,color:_tp}}>{a.name} {a.grade?<span style={{fontSize:11,fontWeight:500,color:_tm}}>({a.grade})</span>:null} {isMe?<span style={{fontSize:10,padding:"2px 6px",borderRadius:3,background:C.gold+"22",color:C.gold,fontWeight:700}}>You</span>:null}</div>
-                {a.events?<div style={{fontSize:11,color:_tm,marginTop:1}}>{a.events}</div>:null}
-                {a.group==="mid"?<span style={{fontSize:10,padding:"1px 6px",borderRadius:3,background:"#E67E2218",color:"#E67E22",fontWeight:600,marginTop:2,display:"inline-block"}}>Mid-Distance</span>:<span style={{fontSize:10,padding:"1px 6px",borderRadius:3,background:"#3498DB18",color:"#3498DB",fontWeight:600,marginTop:2,display:"inline-block"}}>Long Distance</span>}
-                {cm&&a.pin?<span style={{fontSize:10,padding:"1px 6px",borderRadius:3,background:"rgba(255,255,255,0.06)",border:"1px dashed "+C.bd,color:_tm,fontFamily:"monospace",letterSpacing:1,marginLeft:4,display:"inline-block",marginTop:2}}>PIN:{a.pin}</span>:null}
-                {/* Compact pace + PB badges */}
-                <div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,color:_tm,fontFamily:"monospace",marginTop:6,marginBottom:2}}>Training Paces</div>
-                <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-                  {hp?[{l:"LT",v:a.paces.thrSafe,c:"#8E44AD"},{l:"CV",v:a.paces.cv,c:"#3498DB"},{l:"VO2",v:a.paces.vo2Safe,c:"#27AE60"}].map(function(b){return b.v?<span key={b.l} style={{fontSize:10,padding:"2px 6px",borderRadius:3,background:b.c+"18",color:b.c,fontFamily:"monospace",fontWeight:600}}>{b.l}:{b.v}</span>:null;}):<span style={{fontSize:10,color:C.gold}}>No paces</span>}
+            {/* ── Card Header (always visible) ── */}
+            <div style={{padding:"12px 14px",cursor:"pointer"}} onClick={function(){setPaceAth(isEx?null:a.id);}}>
+              {/* Top row: photo + name + stats corner */}
+              <div style={{display:"flex",alignItems:"flex-start",gap:12}}>
+                {a.photo?<img src={a.photo} style={{width:48,height:60,borderRadius:8,objectFit:"cover",border:"2px solid "+(isMe?C.gold+"55":accentClr+"33"),flexShrink:0}}/>:<div style={{width:48,height:60,borderRadius:8,background:"linear-gradient(135deg,"+accentClr+"33,"+accentClr+"11)",color:accentClr,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:800,border:"2px solid "+(isMe?C.gold+"44":accentClr+"22"),flexShrink:0}}>{ini(a.name)}</div>}
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:14,fontWeight:700,color:_tp}}>{a.name} {a.grade?<span style={{fontSize:11,fontWeight:500,color:_tm}}>({a.grade})</span>:null} {isMe?<span style={{fontSize:10,padding:"2px 6px",borderRadius:3,background:C.gold+"22",color:C.gold,fontWeight:700}}>You</span>:null}</div>
+                  <div style={{display:"flex",gap:4,alignItems:"center",marginTop:2,flexWrap:"wrap"}}>
+                    {a.events?<span style={{fontSize:11,color:_tm}}>{a.events}</span>:null}
+                    {a.group==="mid"?<span style={{fontSize:9,padding:"1px 5px",borderRadius:3,background:"#E67E2218",color:"#E67E22",fontWeight:600}}>Mid</span>:<span style={{fontSize:9,padding:"1px 5px",borderRadius:3,background:"#3498DB18",color:"#3498DB",fontWeight:600}}>Long</span>}
+                    {cm&&a.pin?<span style={{fontSize:9,padding:"1px 5px",borderRadius:3,background:"rgba(255,255,255,0.06)",border:"1px dashed "+C.bd,color:_tm,fontFamily:"monospace",letterSpacing:1}}>PIN:{a.pin}</span>:null}
+                  </div>
                 </div>
-                {hasPBs?<div><div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,color:_tm,fontFamily:"monospace",marginTop:5,marginBottom:2}}>Personal Bests</div><div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{PB_DISTS.filter(function(d){return a.pbs&&a.pbs[d];}).map(function(d){var ec=PB_CLR[d]||"#D4A017";return <span key={d} style={{fontSize:10,padding:"2px 6px",borderRadius:3,background:ec+"15",border:"1px solid "+ec+"33",fontFamily:"monospace",fontWeight:700,display:"flex",alignItems:"center",gap:3}}><span style={{background:ec,color:"#fff",fontSize:9,padding:"1px 4px",borderRadius:2,fontWeight:800}}>{d}</span><span style={{color:lt?"#222":_tp,fontWeight:800}}>{a.pbs[d]}</span></span>;})}</div></div>:null}
-              </div>
-              {/* Recent check-ins column */}
-              {(function(){
-                var athRd=[];var athWL=[];
-                Object.keys(wlog).forEach(function(dk){(wlog[dk]||[]).forEach(function(e){if(e.athId===a.id){if(e.type==="readiness")athRd.push(Object.assign({},e,{date:dk}));else athWL.push(Object.assign({},e,{date:dk}));}});});
-                athRd.sort(function(x,y){return(y.ts||0)-(x.ts||0);});
-                athWL.sort(function(x,y){return(y.ts||0)-(x.ts||0);});
-                var hasAny=athRd.length>0||athWL.length>0;
-                if(!hasAny)return <div style={{display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"flex-end",gap:4}}><div style={{display:"flex",gap:4,alignItems:"center"}}>{cm?<button onClick={function(ev){ev.stopPropagation();setREid(a.id);setRN(a.name);setRT(a.team);setRG(a.grade||"");setRE(a.events||"");setRGrp(a.group||"long");setRPin(a.pin||"");setRFormOpen(true);}} style={{background:lt?"#f0f1ec":"rgba(255,255,255,0.06)",border:"none",color:_ts,borderRadius:4,padding:"4px 8px",cursor:"pointer",fontSize:10}}>Edit</button>:null}{cm?<button onClick={function(ev){ev.stopPropagation();if(confirm("Remove "+a.name+" from the roster?"))upR(roster.filter(function(x){return x.id!==a.id;}));}} style={{background:"rgba(239,68,68,0.1)",border:"none",color:"#ef4444",borderRadius:4,padding:"4px 8px",cursor:"pointer",fontSize:10}}>X</button>:null}<span style={{color:_tm,fontSize:10}}>{isEx?"[-]":"[+]"}</span></div></div>;
-                return(<div style={{display:"flex",flexDirection:"column",justifyContent:"space-between",alignItems:"flex-end",minWidth:110}}>
-                  {/* Latest readiness */}
-                  {athRd.length>0?(function(){var r=athRd[0];var rc={"ready":"#27AE60","tired":"#D4A017","sore":"#E67E22","pain":"#E74C3C"}[r.status]||_tm;var dp=r.date.split("-");return <div style={{display:"flex",gap:4,alignItems:"center",marginBottom:2}}><span style={{fontSize:16}}>{RD_EMOJI[r.status]||"?"}</span><div style={{textAlign:"right"}}><div style={{fontSize:10,fontWeight:700,color:rc}}>{r.status}</div><div style={{fontSize:10,color:_tm}}>{parseInt(dp[1])+"/"+parseInt(dp[2])}</div></div></div>;})():null}
-                  {/* Latest workout log */}
-                  {athWL.length>0?(function(){var l=athWL[0];var dc=(l.difficulty||0)<=4?"#27AE60":(l.difficulty||0)<=6?"#D4A017":(l.difficulty||0)<=8?"#E67E22":"#E74C3C";var dp=l.date.split("-");return <div style={{display:"flex",gap:4,alignItems:"center"}}><div style={{width:22,height:22,borderRadius:5,background:dc+"22",color:dc,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800}}>{l.difficulty}</div><div style={{textAlign:"right"}}><div style={{fontSize:10,fontWeight:600,color:_ts}}>{l.mileage?l.mileage+"mi":""}</div><div style={{fontSize:10,color:_tm}}>{parseInt(dp[1])+"/"+parseInt(dp[2])}</div></div></div>;})():null}
-                  {/* Buttons */}
-                  <div style={{display:"flex",gap:4,alignItems:"center",marginTop:2}}>
-                    {cm?<button onClick={function(ev){ev.stopPropagation();setREid(a.id);setRN(a.name);setRT(a.team);setRG(a.grade||"");setRE(a.events||"");setRGrp(a.group||"long");setRPin(a.pin||"");setRFormOpen(true);}} style={{background:lt?"#f0f1ec":"rgba(255,255,255,0.06)",border:"none",color:_ts,borderRadius:4,padding:"4px 8px",cursor:"pointer",fontSize:10}}>Edit</button>:null}
-                    {cm?<button onClick={function(ev){ev.stopPropagation();if(confirm("Remove "+a.name+" from the roster?"))upR(roster.filter(function(x){return x.id!==a.id;}));}} style={{background:"rgba(239,68,68,0.1)",border:"none",color:"#ef4444",borderRadius:4,padding:"4px 8px",cursor:"pointer",fontSize:10}}>X</button>:null}
+                {/* Top-right: week miles / yesterday */}
+                <div style={{textAlign:"right",flexShrink:0,minWidth:70}}>
+                  <div style={{fontSize:10,color:_tm,fontFamily:"monospace"}}>This Wk</div>
+                  <div style={{fontSize:14,fontWeight:800,color:accentClr,fontFamily:"monospace"}}>{wkMi?Math.round(wkMi*10)/10+"mi":"--"}</div>
+                  {yestMi||yestEff!==null?<div style={{fontSize:10,color:_tm,marginTop:2}}>Yest: {yestMi?Math.round(yestMi*10)/10+"mi":""}{yestEff!==null?<span style={{marginLeft:3,fontWeight:700,color:yestEff<=4?"#27AE60":yestEff<=6?"#D4A017":yestEff<=8?"#E67E22":"#E74C3C"}}>{yestEff}/10</span>:null}</div>:null}
+                  <div style={{display:"flex",gap:3,justifyContent:"flex-end",marginTop:3}}>
+                    {cm?<button onClick={function(ev){ev.stopPropagation();setREid(a.id);setRN(a.name);setRT(a.team);setRG(a.grade||"");setRE(a.events||"");setRGrp(a.group||"long");setRPin(a.pin||"");setRFormOpen(true);}} style={{background:lt?"#f0f1ec":"rgba(255,255,255,0.06)",border:"none",color:_ts,borderRadius:4,padding:"3px 6px",cursor:"pointer",fontSize:9}}>Edit</button>:null}
+                    {cm?<button onClick={function(ev){ev.stopPropagation();if(confirm("Remove "+a.name+" from the roster?"))upR(roster.filter(function(x){return x.id!==a.id;}));}} style={{background:"rgba(239,68,68,0.1)",border:"none",color:"#ef4444",borderRadius:4,padding:"3px 6px",cursor:"pointer",fontSize:9}}>X</button>:null}
                     <span style={{color:_tm,fontSize:10}}>{isEx?"[-]":"[+]"}</span>
                   </div>
-                </div>);
-              })()}
+                </div>
+              </div>
+              {/* Paces + PBs + SBs in one row */}
+              <div style={{display:"flex",gap:4,marginTop:8,flexWrap:"wrap",alignItems:"center"}}>
+                {hp?[{l:"LT",v:a.paces.thrSafe,c:"#8E44AD"},{l:"CV",v:a.paces.cv,c:"#3498DB"},{l:"VO2",v:a.paces.vo2Safe,c:"#27AE60"}].map(function(b){return b.v?<span key={b.l} style={{fontSize:10,padding:"2px 5px",borderRadius:3,background:b.c+"18",color:b.c,fontFamily:"monospace",fontWeight:600}}>{b.l}:{b.v}</span>:null;}):null}
+                {hp&&(hasPBs||hasSBs)?<span style={{color:_tm,fontSize:8}}>|</span>:null}
+                {PB_DISTS.filter(function(d){return(a.pbs&&a.pbs[d])||(a.sbs&&a.sbs[d]);}).map(function(d){var ec=PB_CLR[d]||"#D4A017";var val=a.pbs&&a.pbs[d]?a.pbs[d]:a.sbs[d];var isSB=!(a.pbs&&a.pbs[d])&&a.sbs&&a.sbs[d];return <span key={d} style={{fontSize:10,padding:"2px 5px",borderRadius:3,background:ec+"15",border:"1px solid "+ec+"33",fontFamily:"monospace",fontWeight:700,display:"inline-flex",alignItems:"center",gap:2}}><span style={{background:ec,color:"#fff",fontSize:8,padding:"1px 3px",borderRadius:2,fontWeight:800}}>{d}</span><span style={{color:lt?"#222":_tp,fontWeight:800}}>{val}</span>{isSB?<span style={{fontSize:7,color:ec}}>SB</span>:null}</span>;})}
+              </div>
             </div>
 
             {/* ── Expanded Card ── */}
