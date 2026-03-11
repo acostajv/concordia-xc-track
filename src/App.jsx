@@ -759,21 +759,11 @@ export default function App(){
             {/* ── Expanded Card ── */}
             {isEx?(<div style={{padding:"0 14px 16px",borderTop:"1px solid "+C.bd}}>
               {/* Photo + Bio + This Week's Check-ins */}
-              <div style={{display:"flex",gap:14,marginTop:12,marginBottom:14,alignItems:"flex-start",flexWrap:"wrap"}}>
-                {/* Left: Photo + Bio */}
-                <div style={{display:"flex",gap:14,alignItems:"flex-start",flex:"1 1 250px"}}>
-                  <div style={{textAlign:"center"}}>
-                    {a.photo?<img src={a.photo} style={{width:90,height:112,borderRadius:10,objectFit:"cover",border:"2px solid "+accentClr+"33",display:"block"}}/>:<div style={{width:90,height:112,borderRadius:10,background:"linear-gradient(135deg,"+accentClr+"22,"+accentClr+"08)",color:accentClr,display:"flex",alignItems:"center",justifyContent:"center",fontSize:36,fontWeight:800,border:"2px dashed "+accentClr+"33"}}>{ini(a.name)}</div>}
-                    {cm||isMe?<label style={{display:"block",fontSize:10,color:accentClr,cursor:"pointer",marginTop:4}}><input type="file" accept="image/*" onChange={function(ev){handlePhotoUpload(a.id,ev);}} style={{display:"none"}}/>Upload Photo</label>:null}
-                    {(cm||isMe)&&a.photo?<button onClick={function(){if(confirm("Remove this photo?"))savePhoto(a.id,null);}} style={{background:"none",border:"none",color:"#ef4444",fontSize:10,cursor:"pointer"}}>Remove</button>:null}
-                  </div>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:18,fontWeight:800,color:_tp}}>{a.name}</div>
-                    <div style={{fontSize:12,color:_tm}}>{a.grade?"Grade "+a.grade:""}{a.grade&&a.events?" | ":""}{a.events||""}</div>
-                    <div style={{fontSize:11,color:accentClr,fontWeight:600,marginTop:4,textTransform:"uppercase",letterSpacing:1}}>{a.team==="boys"?"Boys Team":"Girls Team"}</div>
-                  </div>
-                </div>
-                {/* Right: This Week's Check-ins */}
+              {/* Coach Edit Athlete button */}
+              {cm?<button onClick={function(ev){ev.stopPropagation();setREid(a.id);setRN(a.name);setRT(a.team);setRG(a.grade||"");setRE(a.events||"");setRGrp(a.group||"long");setRPin(a.pin||"");setRFormOpen(true);}} style={{marginBottom:12,padding:"8px 14px",borderRadius:8,background:accentClr+"15",border:"1px solid "+accentClr+"33",color:accentClr,fontSize:11,fontWeight:700,cursor:"pointer",width:"100%"}}>Edit Athlete Info</button>:null}
+
+              {/* THIS WEEK check-ins */}
+              <div style={{marginBottom:14}}>
                 {(function(){
                   var now=new Date();var dow=now.getDay();var monOff=dow===0?-6:1-dow;
                   var mon=new Date(now);mon.setDate(now.getDate()+monOff);mon.setHours(0,0,0,0);
@@ -792,8 +782,8 @@ export default function App(){
                   });
                   weekRd.sort(function(x,y){return(y.ts||0)-(x.ts||0);});
                   weekWL.sort(function(x,y){return(y.ts||0)-(x.ts||0);});
-                  if(weekRd.length===0&&weekWL.length===0)return <div style={{flex:"1 1 200px",padding:"10px 12px",borderRadius:8,background:lt?"#f8f9f6":"rgba(255,255,255,0.02)",border:"1px solid "+C.bd}}><div style={{fontSize:10,fontWeight:700,color:_tm,fontFamily:"monospace",marginBottom:4}}>THIS WEEK</div><div style={{fontSize:11,color:_tm,fontStyle:"italic"}}>No check-ins this week yet.</div></div>;
-                  return(<div style={{flex:"1 1 200px",padding:"10px 12px",borderRadius:8,background:lt?"#f8f9f6":"rgba(255,255,255,0.02)",border:"1px solid "+C.bd}}>
+                  if(weekRd.length===0&&weekWL.length===0)return <div style={{padding:"10px 12px",borderRadius:8,background:lt?"#f8f9f6":"rgba(255,255,255,0.02)",border:"1px solid "+C.bd}}><div style={{fontSize:10,fontWeight:700,color:_tm,fontFamily:"monospace",marginBottom:4}}>THIS WEEK</div><div style={{fontSize:11,color:_tm,fontStyle:"italic"}}>No check-ins this week yet.</div></div>;
+                  return(<div style={{padding:"10px 12px",borderRadius:8,background:lt?"#f8f9f6":"rgba(255,255,255,0.02)",border:"1px solid "+C.bd}}>
                     <div style={{fontSize:10,fontWeight:700,color:_tm,fontFamily:"monospace",marginBottom:6}}>THIS WEEK</div>
                     {weekRd.length>0?(<div style={{marginBottom:weekWL.length>0?8:0}}>
                       <div style={{fontSize:10,fontWeight:600,color:"#27AE60",marginBottom:4}}>Pre-Practice</div>
@@ -813,23 +803,6 @@ export default function App(){
                     </div>):null}
                   </div>);
                 })()}
-              </div>
-
-              {/* ── Personal Bests & Season Bests ── */}
-              <div style={{marginBottom:14}}>
-                <div style={{fontSize:12,fontWeight:700,color:_tp,marginBottom:8}}>Personal Bests / Season Bests</div>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(130px, 1fr))",gap:6}}>
-                  {PB_DISTS.map(function(d){
-                    var pb=(a.pbs&&a.pbs[d])||"";var sb=(a.sbs&&a.sbs[d])||"";
-                    return(<div key={d} style={{padding:"8px 10px",borderRadius:8,background:lt?"#f8f9f6":"rgba(255,255,255,0.03)",border:"1px solid "+C.bd}}>
-                      <div style={{fontSize:11,fontWeight:700,color:accentClr,marginBottom:4}}>{d}</div>
-                      <div style={{display:"flex",gap:6}}>
-                        <div style={{flex:1}}><div style={{fontSize:10,color:_tm}}>PB</div><input value={pb} readOnly={!cm} onChange={function(ev){savePB(a.id,d,ev.target.value);}} placeholder="--" style={Object.assign({},IS,{padding:"4px 6px",fontSize:13,fontWeight:700,textAlign:"center"})}/></div>
-                        <div style={{flex:1}}><div style={{fontSize:10,color:_tm}}>SB</div><input value={sb} readOnly={!cm} onChange={function(ev){saveSB(a.id,d,ev.target.value);}} placeholder="--" style={Object.assign({},IS,{padding:"4px 6px",fontSize:13,fontWeight:700,textAlign:"center"})}/></div>
-                      </div>
-                    </div>);
-                  })}
-                </div>
               </div>
 
               {/* ── Goals ── */}
@@ -854,19 +827,6 @@ export default function App(){
                     </div>
                   </div>);
                 })}
-              </div>
-
-              {/* ── Training Paces ── */}
-              <div style={{marginBottom:14}}>
-                <div style={{fontSize:12,fontWeight:700,color:_tp,marginBottom:6}}>Training Paces</div>
-                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                  {[{k:"thrSafe",l:"LT Safe",c:"#8E44AD"},{k:"thrMed",l:"LT Med",c:"#8E44AD"},{k:"cv",l:"CV",c:"#3498DB"},{k:"vo2Safe",l:"VO2 Safe",c:"#27AE60"},{k:"vo2Med",l:"VO2 Med",c:"#27AE60"}].map(function(p){
-                    return <div key={p.k} style={{flex:"1 1 90px",maxWidth:140,background:p.c+"0a",borderRadius:6,padding:"6px 8px",borderLeft:"3px solid "+p.c}}>
-                      <div style={{fontSize:9,fontWeight:700,color:p.c,fontFamily:"monospace"}}>{p.l}</div>
-                      <input value={(a.paces&&a.paces[p.k])||""} readOnly={!cm} onChange={function(ev){if(!cm)return;savePF(a.id,p.k,ev.target.value);}} placeholder="--" style={Object.assign({},IS,{marginTop:2,padding:"3px 6px",fontSize:13,fontWeight:700,textAlign:"center"})}/>
-                    </div>;
-                  })}
-                </div>
               </div>
 
               {/* ── Workout Log & Mileage ── */}
@@ -1085,16 +1045,74 @@ export default function App(){
         {cm?(
           <div style={{marginBottom:16,borderRadius:10,border:"1px solid "+C.bd,background:lt?"#fff":"rgba(255,255,255,0.03)",overflow:"hidden"}}>
             <div onClick={function(){if(!rEid)setRFormOpen(!rFormOpen);}} style={{padding:"10px 14px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <div style={{fontSize:12,fontWeight:700,color:rFormOpen||rEid?C.tp:C.ts}}>{rEid?"Edit Athlete":"+ Add Athlete"}</div>
-              <span style={{fontSize:10,color:_tm}}>{rFormOpen||rEid?"[-]":"[+]"}</span>
+              <div style={{fontSize:12,fontWeight:700,color:rFormOpen?C.tp:C.ts}}>+ Add Athlete</div>
+              <span style={{fontSize:10,color:_tm}}>{rFormOpen?"[-]":"[+]"}</span>
             </div>
-            {rFormOpen||rEid?(
+            {rFormOpen&&!rEid?(
               <div style={{padding:"0 14px 14px",borderTop:"1px solid "+C.bd}}>
-                <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:10}}><input value={rN} onChange={function(ev){setRN(ev.target.value);}} placeholder="Name" style={Object.assign({},IS,{flex:"2 1 160px"})}/><select value={rT} onChange={function(ev){setRT(ev.target.value);}} style={Object.assign({},IS,{flex:"0 1 90px"})}><option value="boys">Boys</option><option value="girls">Girls</option></select><select value={rGrp} onChange={function(ev){setRGrp(ev.target.value);}} style={Object.assign({},IS,{flex:"0 1 120px"})}><option value="mid">Mid-Distance</option><option value="long">Long Distance</option></select><input value={rG} onChange={function(ev){setRG(ev.target.value);}} placeholder="Grade" style={Object.assign({},IS,{flex:"0 1 60px"})}/><input value={rE} onChange={function(ev){setRE(ev.target.value);}} placeholder="Events" style={Object.assign({},IS,{flex:"2 1 140px"})}/><input value={rPin} onChange={function(ev){setRPin(ev.target.value);}} placeholder="PIN (auto)" style={Object.assign({},IS,{flex:"0 1 80px",fontFamily:"monospace",letterSpacing:2,textAlign:"center"})}/><button onClick={rAdd} style={{padding:"10px 16px",borderRadius:8,background:"linear-gradient(135deg,"+C.green+","+C.greenLight+")",border:"none",color:C.white,fontWeight:700,fontSize:12,cursor:"pointer"}}>{rEid?"Update":"Add"}</button>{rEid?<button onClick={function(){setREid(null);setRN("");setRFormOpen(false);}} style={{padding:"10px 12px",borderRadius:8,background:lt?"#f0f1ec":"rgba(255,255,255,0.06)",border:"1px solid "+C.bd,color:_ts,fontSize:12,cursor:"pointer"}}>Cancel</button>:null}</div>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:10}}><input value={rN} onChange={function(ev){setRN(ev.target.value);}} placeholder="Name" style={Object.assign({},IS,{flex:"2 1 160px"})}/><select value={rT} onChange={function(ev){setRT(ev.target.value);}} style={Object.assign({},IS,{flex:"0 1 90px"})}><option value="boys">Boys</option><option value="girls">Girls</option></select><select value={rGrp} onChange={function(ev){setRGrp(ev.target.value);}} style={Object.assign({},IS,{flex:"0 1 120px"})}><option value="mid">Mid-Distance</option><option value="long">Long Distance</option></select><input value={rG} onChange={function(ev){setRG(ev.target.value);}} placeholder="Grade" style={Object.assign({},IS,{flex:"0 1 60px"})}/><input value={rE} onChange={function(ev){setRE(ev.target.value);}} placeholder="Events" style={Object.assign({},IS,{flex:"2 1 140px"})}/><input value={rPin} onChange={function(ev){setRPin(ev.target.value);}} placeholder="PIN (auto)" style={Object.assign({},IS,{flex:"0 1 80px",fontFamily:"monospace",letterSpacing:2,textAlign:"center"})}/><button onClick={rAdd} style={{padding:"10px 16px",borderRadius:8,background:"linear-gradient(135deg,"+C.green+","+C.greenLight+")",border:"none",color:C.white,fontWeight:700,fontSize:12,cursor:"pointer"}}>Add</button></div>
               </div>
             ):null}
           </div>
         ):null}
+        {/* ── Edit Athlete Modal ── */}
+        {rEid?(function(){
+          var ea=roster.find(function(x){return x.id===rEid;});if(!ea)return null;
+          var eClr=ea.team==="boys"?C.greenLight:C.gold;
+          return(<div style={{position:"fixed",inset:0,zIndex:1100,background:"rgba(8,18,8,0.85)",backdropFilter:"blur(10px)",display:"flex",alignItems:"center",justifyContent:"center"}} onClick={function(){setREid(null);setRN("");setRFormOpen(false);}}>
+            <div onClick={function(ev){ev.stopPropagation();}} style={{background:_modalBg,borderRadius:16,width:"min(560px,94vw)",maxHeight:"90vh",overflow:"auto",border:"1px solid "+C.bd,boxShadow:"0 24px 80px rgba(0,0,0,0.6)"}}>
+              <div style={{padding:"16px 24px",borderBottom:"1px solid "+C.bd,display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:_modalBg,zIndex:10,borderRadius:"16px 16px 0 0"}}>
+                <div style={{fontSize:16,fontWeight:800,color:_tp}}>Edit Athlete</div>
+                <button onClick={function(){setREid(null);setRN("");setRFormOpen(false);}} style={{background:"rgba(255,255,255,0.06)",border:"none",color:_ts,width:32,height:32,borderRadius:8,cursor:"pointer",fontSize:16}}>X</button>
+              </div>
+              <div style={{padding:"16px 24px"}}>
+                {/* Photo */}
+                <div style={{display:"flex",gap:14,alignItems:"center",marginBottom:16}}>
+                  {ea.photo?<img src={ea.photo} style={{width:64,height:80,borderRadius:10,objectFit:"cover",border:"2px solid "+eClr+"33"}}/>:<div style={{width:64,height:80,borderRadius:10,background:"linear-gradient(135deg,"+eClr+"22,"+eClr+"08)",color:eClr,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,fontWeight:800,border:"2px dashed "+eClr+"33"}}>{ini(ea.name)}</div>}
+                  <div>
+                    <label style={{display:"block",fontSize:11,color:eClr,cursor:"pointer",fontWeight:600}}><input type="file" accept="image/*" onChange={function(ev){handlePhotoUpload(ea.id,ev);}} style={{display:"none"}}/>Upload Photo</label>
+                    {ea.photo?<button onClick={function(){if(confirm("Remove photo?"))savePhoto(ea.id,null);}} style={{background:"none",border:"none",color:"#ef4444",fontSize:10,cursor:"pointer",marginTop:2}}>Remove</button>:null}
+                  </div>
+                </div>
+                {/* Basic info */}
+                <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}>
+                  <input value={rN} onChange={function(ev){setRN(ev.target.value);}} placeholder="Name" style={Object.assign({},IS,{flex:"2 1 160px"})}/>
+                  <select value={rT} onChange={function(ev){setRT(ev.target.value);}} style={Object.assign({},IS,{flex:"0 1 90px"})}><option value="boys">Boys</option><option value="girls">Girls</option></select>
+                  <select value={rGrp} onChange={function(ev){setRGrp(ev.target.value);}} style={Object.assign({},IS,{flex:"0 1 120px"})}><option value="mid">Mid-Distance</option><option value="long">Long Distance</option></select>
+                  <input value={rG} onChange={function(ev){setRG(ev.target.value);}} placeholder="Grade" style={Object.assign({},IS,{flex:"0 1 60px"})}/>
+                  <input value={rE} onChange={function(ev){setRE(ev.target.value);}} placeholder="Events" style={Object.assign({},IS,{flex:"2 1 140px"})}/>
+                  <input value={rPin} onChange={function(ev){setRPin(ev.target.value);}} placeholder="PIN" style={Object.assign({},IS,{flex:"0 1 80px",fontFamily:"monospace",letterSpacing:2,textAlign:"center"})}/>
+                </div>
+                {/* Training Paces */}
+                <div style={{fontSize:11,fontWeight:700,color:_tp,marginBottom:6}}>Training Paces</div>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
+                  {[{k:"thrSafe",l:"LT Safe",c:"#8E44AD"},{k:"thrMed",l:"LT Med",c:"#8E44AD"},{k:"cv",l:"CV",c:"#3498DB"},{k:"vo2Safe",l:"VO2 Safe",c:"#27AE60"},{k:"vo2Med",l:"VO2 Med",c:"#27AE60"}].map(function(p){
+                    return <div key={p.k} style={{flex:"1 1 85px",maxWidth:120,background:p.c+"0a",borderRadius:6,padding:"5px 7px",borderLeft:"3px solid "+p.c}}>
+                      <div style={{fontSize:9,fontWeight:700,color:p.c,fontFamily:"monospace"}}>{p.l}</div>
+                      <input value={(ea.paces&&ea.paces[p.k])||""} onChange={function(ev){savePF(ea.id,p.k,ev.target.value);}} placeholder="--" style={Object.assign({},IS,{marginTop:2,padding:"3px 6px",fontSize:12,fontWeight:700,textAlign:"center"})}/>
+                    </div>;
+                  })}
+                </div>
+                {/* PBs & SBs */}
+                <div style={{fontSize:11,fontWeight:700,color:_tp,marginBottom:6}}>Personal Bests / Season Bests</div>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:16}}>
+                  {PB_DISTS.map(function(d){var ec=PB_CLR[d]||"#D4A017";return <div key={d} style={{flex:"1 1 100px",padding:"6px 8px",borderRadius:6,background:ec+"08",border:"1px solid "+ec+"22"}}>
+                    <div style={{fontSize:10,fontWeight:700,color:ec,marginBottom:3}}>{d}</div>
+                    <div style={{display:"flex",gap:4}}>
+                      <div style={{flex:1}}><div style={{fontSize:9,color:_tm}}>PB</div><input value={(ea.pbs&&ea.pbs[d])||""} onChange={function(ev){savePB(ea.id,d,ev.target.value);}} placeholder="--" style={Object.assign({},IS,{padding:"3px 4px",fontSize:12,fontWeight:700,textAlign:"center"})}/></div>
+                      <div style={{flex:1}}><div style={{fontSize:9,color:_tm}}>SB</div><input value={(ea.sbs&&ea.sbs[d])||""} onChange={function(ev){saveSB(ea.id,d,ev.target.value);}} placeholder="--" style={Object.assign({},IS,{padding:"3px 4px",fontSize:12,fontWeight:700,textAlign:"center"})}/></div>
+                    </div>
+                  </div>;})}
+                </div>
+                {/* Save / Cancel */}
+                <div style={{display:"flex",gap:10}}>
+                  <button onClick={rAdd} style={{flex:1,padding:"12px 16px",borderRadius:10,background:"linear-gradient(135deg,"+C.green+","+C.greenLight+")",border:"none",color:C.white,fontWeight:700,fontSize:14,cursor:"pointer"}}>Save</button>
+                  <button onClick={function(){setREid(null);setRN("");setRFormOpen(false);}} style={{padding:"12px 16px",borderRadius:10,background:lt?"#f0f1ec":"rgba(255,255,255,0.06)",border:"1px solid "+C.bd,color:_ts,fontSize:12,cursor:"pointer"}}>Cancel</button>
+                </div>
+              </div>
+            </div>
+          </div>);
+        })():null}
         {cm?(<div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}><button onClick={function(){csvRef.current.click();}} style={hB}>Import CSV</button><input ref={csvRef} type="file" accept=".csv,.txt" onChange={rCSV} style={{display:"none"}}/>{roster.some(function(a){return!a.pin;})?<button onClick={function(){upR(roster.map(function(a){return a.pin?a:Object.assign({},a,{pin:genPin()});}));}} style={Object.assign({},hB,{color:C.gold,border:"1px solid "+C.gold+"33"})}>Generate Missing PINs</button>:null}<div style={{fontSize:10,color:_tm,display:"flex",alignItems:"center"}}>CSV: Name, Team, Grade, Events, Group (mid/long)</div></div>):null}
       </div>):null}
 
