@@ -165,7 +165,7 @@ function Editor(props){
                   </div>):null}
                   {props.cm&&cpList.length>0?(<div style={{marginTop:6}}>
                     <div style={{fontSize:10,color:C.tm,fontFamily:"monospace",marginBottom:3}}>YOUR CUSTOM PRESETS</div>
-                    <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{cpList.map(function(p,pi){return <span key={pi} style={{fontSize:10,padding:"3px 6px",borderRadius:4,background:cat.color+"12",border:"1px solid "+cat.color+"22",color:cat.color,display:"flex",alignItems:"center",gap:4}}><span onClick={function(){setPre(p);}} style={{cursor:"pointer"}}>{p}</span><button onClick={function(){props.onRemovePreset(cat0,pi);}} style={{background:"none",border:"none",color:"#ef4444",fontSize:10,cursor:"pointer",padding:0}}>x</button></span>;})}</div>
+                    <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{cpList.map(function(p,pi){return <span key={pi} style={{fontSize:10,padding:"3px 6px",borderRadius:4,background:cat.color+"12",border:"1px solid "+cat.color+"22",color:cat.color,display:"flex",alignItems:"center",gap:4}}><span onClick={function(){setPre(p);}} style={{cursor:"pointer"}}>{p}</span><button onClick={function(){if(confirm("Remove this preset?"))props.onRemovePreset(cat0,pi);}} style={{background:"none",border:"none",color:"#ef4444",fontSize:10,cursor:"pointer",padding:0}}>x</button></span>;})}</div>
                   </div>):null}
                 </div>);
               })()}
@@ -174,7 +174,7 @@ function Editor(props){
               {SD("Pre & Post Run")}<textarea value={pr} onChange={function(ev){setPr(ev.target.value);}} placeholder="Pre-run drills..." style={Object.assign({},TS,{minHeight:36})}/><textarea value={po} onChange={function(ev){setPo(ev.target.value);}} placeholder="Post-run work..." style={Object.assign({},TS,{minHeight:36,marginTop:6})}/>
               {roster.length>0?(<div>{SD("Assign Athletes")}<div style={{display:"flex",gap:4,marginBottom:6,flexWrap:"wrap"}}><button onClick={function(){setAths(roster.map(function(a){return a.id;}));}} style={{fontSize:10,padding:"4px 10px",borderRadius:4,background:"rgba(255,255,255,0.06)",border:"1px solid "+C.bd,color:C.ts,cursor:"pointer"}}>All</button><button onClick={function(){setAths(roster.filter(function(a){return a.team==="boys";}).map(function(a){return a.id;}));}} style={{fontSize:10,padding:"4px 10px",borderRadius:4,background:C.greenLight+"15",border:"1px solid "+C.greenLight+"33",color:C.greenLight,cursor:"pointer"}}>Boys</button><button onClick={function(){setAths(roster.filter(function(a){return a.team==="girls";}).map(function(a){return a.id;}));}} style={{fontSize:10,padding:"4px 10px",borderRadius:4,background:C.gold+"15",border:"1px solid "+C.gold+"33",color:C.gold,cursor:"pointer"}}>Girls</button><button onClick={function(){setAths(roster.filter(function(a){return a.group==="mid";}).map(function(a){return a.id;}));}} style={{fontSize:10,padding:"4px 10px",borderRadius:4,background:"#E67E2215",border:"1px solid #E67E2233",color:"#E67E22",cursor:"pointer"}}>Mid-Distance</button><button onClick={function(){setAths(roster.filter(function(a){return(a.group||"long")==="long";}).map(function(a){return a.id;}));}} style={{fontSize:10,padding:"4px 10px",borderRadius:4,background:"#3498DB15",border:"1px solid #3498DB33",color:"#3498DB",cursor:"pointer"}}>Long Distance</button><button onClick={function(){setAths([]);}} style={{fontSize:10,padding:"4px 10px",borderRadius:4,background:"rgba(255,255,255,0.04)",border:"1px solid "+C.bd,color:C.tm,cursor:"pointer"}}>None</button></div><div style={{display:"flex",flexWrap:"wrap",gap:4}}>{roster.map(function(a){var sel=aths.indexOf(a.id)>=0;var clr=a.team==="boys"?C.greenLight:C.gold;var gBdg=a.group==="mid"?"M":"L";var gClr=a.group==="mid"?"#E67E22":"#3498DB";return <button key={a.id} onClick={function(){togAth(a.id);}} style={{padding:"4px 8px",borderRadius:4,fontSize:10,fontWeight:sel?700:400,cursor:"pointer",border:sel?"1px solid "+clr:"1px solid "+C.bd,background:sel?clr+"22":"transparent",color:sel?clr:C.tm}}><span style={{fontSize:9,fontWeight:700,color:gClr,marginRight:3}}>{gBdg}</span>{a.name}</button>;})}</div></div>):null}
               {SD("Notes")}<textarea value={nt} onChange={function(ev){setNt(ev.target.value);}} placeholder="Notes..." style={Object.assign({},TS,{minHeight:36})}/>
-              <div style={{display:"flex",gap:10,marginTop:18}}><button onClick={doSave} style={{flex:1,padding:"12px 16px",borderRadius:10,background:"linear-gradient(135deg,"+C.green+","+C.greenLight+")",border:"none",color:C.white,fontWeight:700,fontSize:14,cursor:"pointer"}}>Save</button>{props.onSaveTemplate?<button onClick={function(){props.onSaveTemplate({category:cat0,preset:pre,customWorkout:cw,runMode:rm,distance:dist,distanceUnit:du,duration:dur,pace:pace,warmup:wu,cooldown:cd,preRun:pr,postRun:po,notes:nt});}} style={{padding:"12px 16px",borderRadius:10,background:C.gold+"18",border:"1px solid "+C.gold+"33",color:C.gold,fontWeight:600,fontSize:11,cursor:"pointer"}}>Save Template</button>:null}{props.editIdx!==null?<button onClick={props.onDelete} style={{padding:"12px 16px",borderRadius:10,background:"rgba(239,68,68,0.15)",border:"1px solid rgba(239,68,68,0.3)",color:"#ef4444",fontWeight:600,fontSize:13,cursor:"pointer"}}>Remove</button>:null}</div>
+              <div style={{display:"flex",gap:10,marginTop:18}}><button onClick={doSave} style={{flex:1,padding:"12px 16px",borderRadius:10,background:"linear-gradient(135deg,"+C.green+","+C.greenLight+")",border:"none",color:C.white,fontWeight:700,fontSize:14,cursor:"pointer"}}>Save</button>{props.onSaveTemplate?<button onClick={function(){props.onSaveTemplate({category:cat0,preset:pre,customWorkout:cw,runMode:rm,distance:dist,distanceUnit:du,duration:dur,pace:pace,warmup:wu,cooldown:cd,preRun:pr,postRun:po,notes:nt});}} style={{padding:"12px 16px",borderRadius:10,background:C.gold+"18",border:"1px solid "+C.gold+"33",color:C.gold,fontWeight:600,fontSize:11,cursor:"pointer"}}>Save Template</button>:null}{props.editIdx!==null?<button onClick={function(){if(confirm("Remove this workout?"))props.onDelete();}} style={{padding:"12px 16px",borderRadius:10,background:"rgba(239,68,68,0.15)",border:"1px solid rgba(239,68,68,0.3)",color:"#ef4444",fontWeight:600,fontSize:13,cursor:"pointer"}}>Remove</button>:null}</div>
             </div>
           ):null}
         </div>
@@ -470,6 +470,7 @@ export default function App(){
   function saveRacePlans(id,plans){upR(roster.map(function(a){return a.id===id?Object.assign({},a,{racePlans:plans}):a;}));}
   /* Readiness - stored as wlog entry with type:"readiness" */
   function addReadiness(dk,athId,status,note){var n=Object.assign({},wlog);if(!n[dk])n[dk]=[];n[dk]=n[dk].filter(function(e){return!(e.type==="readiness"&&e.athId===athId);});n[dk]=n[dk].concat([{type:"readiness",athId:athId,status:status,notes:note,ts:Date.now()}]);upWL(n);}
+  function commentOnLog(dk,ts,comment){var n=Object.assign({},wlog);if(!n[dk])return;n[dk]=n[dk].map(function(e){if(e.ts===ts)return Object.assign({},e,{coachComment:comment});return e;});upWL(n);}
   function deleteReadiness(dk,athId){var n=Object.assign({},wlog);if(!n[dk])return;n[dk]=n[dk].filter(function(e){return!(e.type==="readiness"&&e.athId===athId);});if(n[dk].length===0)delete n[dk];upWL(n);}
   function getReadiness(dk){return(wlog[dk]||[]).filter(function(e){return e.type==="readiness";});}
   var BODY_AREAS=["Left Shin","Right Shin","Left Knee","Right Knee","Left Achilles","Right Achilles","Left Calf","Right Calf","Left Hamstring","Right Hamstring","Left Hip","Right Hip","Lower Back","Left Foot","Right Foot","Other"];
@@ -739,7 +740,7 @@ export default function App(){
                 athRd.sort(function(x,y){return(y.ts||0)-(x.ts||0);});
                 athWL.sort(function(x,y){return(y.ts||0)-(x.ts||0);});
                 var hasAny=athRd.length>0||athWL.length>0;
-                if(!hasAny)return <div style={{display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"flex-end",gap:4}}><div style={{display:"flex",gap:4,alignItems:"center"}}>{cm?<button onClick={function(ev){ev.stopPropagation();setREid(a.id);setRN(a.name);setRT(a.team);setRG(a.grade||"");setRE(a.events||"");setRGrp(a.group||"long");setRPin(a.pin||"");setRFormOpen(true);}} style={{background:lt?"#f0f1ec":"rgba(255,255,255,0.06)",border:"none",color:_ts,borderRadius:4,padding:"4px 8px",cursor:"pointer",fontSize:10}}>Edit</button>:null}{cm?<button onClick={function(ev){ev.stopPropagation();upR(roster.filter(function(x){return x.id!==a.id;}));}} style={{background:"rgba(239,68,68,0.1)",border:"none",color:"#ef4444",borderRadius:4,padding:"4px 8px",cursor:"pointer",fontSize:10}}>X</button>:null}<span style={{color:_tm,fontSize:10}}>{isEx?"[-]":"[+]"}</span></div></div>;
+                if(!hasAny)return <div style={{display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"flex-end",gap:4}}><div style={{display:"flex",gap:4,alignItems:"center"}}>{cm?<button onClick={function(ev){ev.stopPropagation();setREid(a.id);setRN(a.name);setRT(a.team);setRG(a.grade||"");setRE(a.events||"");setRGrp(a.group||"long");setRPin(a.pin||"");setRFormOpen(true);}} style={{background:lt?"#f0f1ec":"rgba(255,255,255,0.06)",border:"none",color:_ts,borderRadius:4,padding:"4px 8px",cursor:"pointer",fontSize:10}}>Edit</button>:null}{cm?<button onClick={function(ev){ev.stopPropagation();if(confirm("Remove "+a.name+" from the roster?"))upR(roster.filter(function(x){return x.id!==a.id;}));}} style={{background:"rgba(239,68,68,0.1)",border:"none",color:"#ef4444",borderRadius:4,padding:"4px 8px",cursor:"pointer",fontSize:10}}>X</button>:null}<span style={{color:_tm,fontSize:10}}>{isEx?"[-]":"[+]"}</span></div></div>;
                 return(<div style={{display:"flex",flexDirection:"column",justifyContent:"space-between",alignItems:"flex-end",minWidth:110}}>
                   {/* Latest readiness */}
                   {athRd.length>0?(function(){var r=athRd[0];var rc={"ready":"#27AE60","tired":"#D4A017","sore":"#E67E22","pain":"#E74C3C"}[r.status]||_tm;var dp=r.date.split("-");return <div style={{display:"flex",gap:4,alignItems:"center",marginBottom:2}}><span style={{fontSize:16}}>{RD_EMOJI[r.status]||"?"}</span><div style={{textAlign:"right"}}><div style={{fontSize:10,fontWeight:700,color:rc}}>{r.status}</div><div style={{fontSize:10,color:_tm}}>{parseInt(dp[1])+"/"+parseInt(dp[2])}</div></div></div>;})():null}
@@ -748,7 +749,7 @@ export default function App(){
                   {/* Buttons */}
                   <div style={{display:"flex",gap:4,alignItems:"center",marginTop:2}}>
                     {cm?<button onClick={function(ev){ev.stopPropagation();setREid(a.id);setRN(a.name);setRT(a.team);setRG(a.grade||"");setRE(a.events||"");setRGrp(a.group||"long");setRPin(a.pin||"");setRFormOpen(true);}} style={{background:lt?"#f0f1ec":"rgba(255,255,255,0.06)",border:"none",color:_ts,borderRadius:4,padding:"4px 8px",cursor:"pointer",fontSize:10}}>Edit</button>:null}
-                    {cm?<button onClick={function(ev){ev.stopPropagation();upR(roster.filter(function(x){return x.id!==a.id;}));}} style={{background:"rgba(239,68,68,0.1)",border:"none",color:"#ef4444",borderRadius:4,padding:"4px 8px",cursor:"pointer",fontSize:10}}>X</button>:null}
+                    {cm?<button onClick={function(ev){ev.stopPropagation();if(confirm("Remove "+a.name+" from the roster?"))upR(roster.filter(function(x){return x.id!==a.id;}));}} style={{background:"rgba(239,68,68,0.1)",border:"none",color:"#ef4444",borderRadius:4,padding:"4px 8px",cursor:"pointer",fontSize:10}}>X</button>:null}
                     <span style={{color:_tm,fontSize:10}}>{isEx?"[-]":"[+]"}</span>
                   </div>
                 </div>);
@@ -764,7 +765,7 @@ export default function App(){
                   <div style={{textAlign:"center"}}>
                     {a.photo?<img src={a.photo} style={{width:90,height:112,borderRadius:10,objectFit:"cover",border:"2px solid "+accentClr+"33",display:"block"}}/>:<div style={{width:90,height:112,borderRadius:10,background:"linear-gradient(135deg,"+accentClr+"22,"+accentClr+"08)",color:accentClr,display:"flex",alignItems:"center",justifyContent:"center",fontSize:36,fontWeight:800,border:"2px dashed "+accentClr+"33"}}>{ini(a.name)}</div>}
                     {cm||isMe?<label style={{display:"block",fontSize:10,color:accentClr,cursor:"pointer",marginTop:4}}><input type="file" accept="image/*" onChange={function(ev){handlePhotoUpload(a.id,ev);}} style={{display:"none"}}/>Upload Photo</label>:null}
-                    {(cm||isMe)&&a.photo?<button onClick={function(){savePhoto(a.id,null);}} style={{background:"none",border:"none",color:"#ef4444",fontSize:10,cursor:"pointer"}}>Remove</button>:null}
+                    {(cm||isMe)&&a.photo?<button onClick={function(){if(confirm("Remove this photo?"))savePhoto(a.id,null);}} style={{background:"none",border:"none",color:"#ef4444",fontSize:10,cursor:"pointer"}}>Remove</button>:null}
                   </div>
                   <div style={{flex:1}}>
                     <div style={{fontSize:18,fontWeight:800,color:_tp}}>{a.name}</div>
@@ -799,7 +800,7 @@ export default function App(){
                       {weekRd.map(function(r,ri){
                         var rc={"ready":"#27AE60","tired":"#D4A017","sore":"#E67E22","pain":"#E74C3C"}[r.status]||_tm;
                         var dp=r.date.split("-");var dLbl=parseInt(dp[1])+"/"+parseInt(dp[2]);
-                        return <div key={ri} style={{display:"flex",gap:6,alignItems:"center",marginBottom:2,fontSize:11}}><span style={{fontSize:14}}>{RD_EMOJI[r.status]||"?"}</span><span style={{fontWeight:600,color:_tp}}>{dLbl}</span><span style={{color:rc,fontWeight:600}}>{r.status}</span>{r.notes?<span style={{color:_tm,fontSize:10}}>{r.notes}</span>:null}</div>;
+                        return <div key={ri} style={{marginBottom:4}}><div style={{display:"flex",gap:6,alignItems:"center",fontSize:11}}><span style={{fontSize:14}}>{RD_EMOJI[r.status]||"?"}</span><span style={{fontWeight:600,color:_tp}}>{dLbl}</span><span style={{color:rc,fontWeight:600}}>{r.status}</span>{r.notes?<span style={{color:_tm,fontSize:10}}>{r.notes}</span>:null}</div>{r.coachComment?<div style={{fontSize:10,marginTop:2,marginLeft:22,padding:"3px 8px",borderRadius:4,background:"#3498DB10",borderLeft:"2px solid #3498DB44",color:"#3498DB"}}><span style={{fontWeight:700}}>Coach: </span>{r.coachComment}</div>:null}{cm?<div style={{marginLeft:22,marginTop:2}}><input placeholder="Add comment..." defaultValue={r.coachComment||""} onBlur={function(ev){var v=ev.target.value.trim();if(v!==(r.coachComment||""))commentOnLog(r.date,r.ts,v);}} onKeyDown={function(ev){if(ev.key==="Enter"){ev.target.blur();}}} style={{fontSize:10,padding:"2px 6px",borderRadius:3,border:"1px solid "+C.bd,background:"transparent",color:_ts,width:"100%"}}/></div>:null}</div>;
                       })}
                     </div>):null}
                     {weekWL.length>0?(<div>
@@ -807,7 +808,7 @@ export default function App(){
                       {weekWL.map(function(l,li){
                         var dc=(l.difficulty||0)<=4?"#27AE60":(l.difficulty||0)<=6?"#D4A017":(l.difficulty||0)<=8?"#E67E22":"#E74C3C";
                         var dp=l.date.split("-");var dLbl=parseInt(dp[1])+"/"+parseInt(dp[2]);
-                        return <div key={li} style={{display:"flex",gap:6,alignItems:"center",marginBottom:2,fontSize:11}}><div style={{width:20,height:20,borderRadius:4,background:dc+"22",color:dc,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}}>{l.difficulty}</div><span style={{fontWeight:600,color:_tp}}>{dLbl}</span>{l.mileage?<span style={{color:_ts,fontFamily:"monospace"}}>{l.mileage}mi</span>:null}{l.splits?<span style={{color:_tm,fontSize:10}}>{l.splits}</span>:null}</div>;
+                        return <div key={li} style={{marginBottom:4}}><div style={{display:"flex",gap:6,alignItems:"center",fontSize:11}}><div style={{width:20,height:20,borderRadius:4,background:dc+"22",color:dc,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}}>{l.difficulty}</div><span style={{fontWeight:600,color:_tp}}>{dLbl}</span>{l.mileage?<span style={{color:_ts,fontFamily:"monospace"}}>{l.mileage}mi</span>:null}{l.splits?<span style={{color:_tm,fontSize:10}}>{l.splits}</span>:null}</div>{l.notes?<div style={{fontSize:10,color:_tm,marginLeft:26,fontStyle:"italic"}}>{l.notes}</div>:null}{l.coachComment?<div style={{fontSize:10,marginTop:2,marginLeft:26,padding:"3px 8px",borderRadius:4,background:"#3498DB10",borderLeft:"2px solid #3498DB44",color:"#3498DB"}}><span style={{fontWeight:700}}>Coach: </span>{l.coachComment}</div>:null}{cm?<div style={{marginLeft:26,marginTop:2}}><input placeholder="Add comment..." defaultValue={l.coachComment||""} onBlur={function(ev){var v=ev.target.value.trim();if(v!==(l.coachComment||""))commentOnLog(l.date,l.ts,v);}} onKeyDown={function(ev){if(ev.key==="Enter"){ev.target.blur();}}} style={{fontSize:10,padding:"2px 6px",borderRadius:3,border:"1px solid "+C.bd,background:"transparent",color:_ts,width:"100%"}}/></div>:null}</div>;
                       })}
                     </div>):null}
                   </div>);
@@ -1353,42 +1354,48 @@ export default function App(){
         <div style={{fontSize:11,color:_tm,marginBottom:16}}>Supplemental training routines for the team. {cm?"Upload documents for each category.":"Tap a routine to view the exercises."}</div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:12}}>
           {ROUTINE_CATS.map(function(rc){
-            var rd=routines[rc.id];
-            var hasDoc=rd&&rd.data;
-            return(<div key={rc.id} style={{borderRadius:12,border:"1px solid "+(hasDoc?rc.color+"44":C.bd),background:lt?"#fff":"rgba(255,255,255,0.02)",overflow:"hidden"}}>
-              {/* Header */}
+            var raw=routines[rc.id];
+            /* Backward compat: convert old single-doc to array */
+            var docs=!raw?[]:Array.isArray(raw)?raw:raw.data?[raw]:[];
+            var hasDocs=docs.length>0;
+            return(<div key={rc.id} style={{borderRadius:12,border:"1px solid "+(hasDocs?rc.color+"44":C.bd),background:lt?"#fff":"rgba(255,255,255,0.02)",overflow:"hidden"}}>
               <div style={{padding:"14px 16px",borderBottom:"1px solid "+C.bd,display:"flex",alignItems:"center",gap:10}}>
                 <span style={{fontSize:24}}>{rc.icon}</span>
                 <div style={{flex:1}}>
                   <div style={{fontSize:15,fontWeight:800,color:rc.color}}>{rc.label}</div>
                   <div style={{fontSize:11,color:_tm,marginTop:1}}>{rc.desc}</div>
                 </div>
-                {hasDoc?<span style={{fontSize:9,padding:"2px 8px",borderRadius:10,background:rc.color+"18",color:rc.color,fontWeight:700}}>UPLOADED</span>:null}
+                {hasDocs?<span style={{fontSize:9,padding:"2px 8px",borderRadius:10,background:rc.color+"18",color:rc.color,fontWeight:700}}>{docs.length} DOC{docs.length>1?"S":""}</span>:null}
               </div>
-              {/* Content */}
               <div style={{padding:"12px 16px"}}>
-                {hasDoc?(<div>
-                  <div style={{fontSize:10,color:_tm,marginBottom:8}}>Uploaded: {rd.date||"\u2014"}{rd.fileName?" \u2014 "+rd.fileName:""}</div>
-                  <button onClick={function(){setRoutineView({label:rc.label,data:rd.data,type:rd.type,fileName:rd.fileName});}} style={{width:"100%",padding:"10px 16px",borderRadius:8,background:rc.color+"18",border:"1px solid "+rc.color+"33",color:rc.color,fontSize:12,fontWeight:700,cursor:"pointer",marginBottom:6}}>View {rc.label} Routine</button>
-                  <button onClick={function(){
-                    var a=document.createElement("a");a.href=rd.data;a.download=rd.fileName||rc.label+"-routine";a.click();
-                  }} style={{width:"100%",padding:"6px 16px",borderRadius:6,background:"rgba(255,255,255,0.04)",border:"1px solid "+C.bd,color:_tm,fontSize:10,fontWeight:600,cursor:"pointer",marginBottom:6}}>Download File</button>
-                  {cm?<button onClick={function(){var n=Object.assign({},routines);delete n[rc.id];upRT(n);}} style={{width:"100%",padding:"6px 16px",borderRadius:6,background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.25)",color:"#ef4444",fontSize:10,fontWeight:600,cursor:"pointer"}}>Remove Document</button>:null}
-                </div>):(<div>
-                  {cm?(<label style={{display:"block",width:"100%",padding:"14px 16px",borderRadius:8,background:rc.color+"10",border:"2px dashed "+rc.color+"33",color:rc.color,fontSize:12,fontWeight:600,cursor:"pointer",textAlign:"center"}}>
-                    <input type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" onChange={function(ev){
-                      var f=ev.target.files[0];if(!f)return;
-                      var reader=new FileReader();
-                      reader.onload=function(e){
-                        var n=Object.assign({},routines);
-                        n[rc.id]={data:e.target.result,type:f.type,fileName:f.name,date:new Date().toLocaleDateString()};
-                        upRT(n);
-                      };reader.readAsDataURL(f);
-                      ev.target.value="";
-                    }} style={{display:"none"}}/>
-                    Upload {rc.label} Document
-                  </label>):(<div style={{padding:"14px 16px",textAlign:"center",color:_tm,fontSize:11,fontStyle:"italic"}}>No document uploaded yet.</div>)}
-                </div>)}
+                {docs.map(function(doc,di){
+                  var title=doc.title||doc.fileName||rc.label+" Routine";
+                  return(<div key={di} style={{marginBottom:8,padding:"8px 10px",borderRadius:8,background:lt?"#f8f9f6":"rgba(255,255,255,0.03)",border:"1px solid "+C.bd,position:"relative"}}>
+                    {cm?<button onClick={function(){if(confirm("Remove \""+title+"\"?")){var n=Object.assign({},routines);var arr=docs.slice();arr.splice(di,1);if(arr.length===0)delete n[rc.id];else n[rc.id]=arr;upRT(n);}}} style={{position:"absolute",top:6,right:6,background:"none",border:"none",color:"#ef4444",fontSize:12,cursor:"pointer",opacity:0.5,padding:"2px 4px"}}>x</button>:null}
+                    <div style={{fontSize:12,fontWeight:700,color:_tp,marginBottom:2,paddingRight:20}}>{title}</div>
+                    <div style={{fontSize:10,color:_tm,marginBottom:6}}>{doc.date||""}{doc.fileName?" — "+doc.fileName:""}</div>
+                    <div style={{display:"flex",gap:6}}>
+                      <button onClick={function(){setRoutineView({label:title,data:doc.data,type:doc.type,fileName:doc.fileName});}} style={{flex:1,padding:"6px 10px",borderRadius:6,background:rc.color+"18",border:"1px solid "+rc.color+"33",color:rc.color,fontSize:11,fontWeight:700,cursor:"pointer"}}>View</button>
+                      <button onClick={function(){var a=document.createElement("a");a.href=doc.data;a.download=doc.fileName||title;a.click();}} style={{padding:"6px 10px",borderRadius:6,background:"rgba(255,255,255,0.04)",border:"1px solid "+C.bd,color:_tm,fontSize:10,fontWeight:600,cursor:"pointer"}}>Download</button>
+                    </div>
+                  </div>);
+                })}
+                {cm?(<label style={{display:"block",width:"100%",padding:hasDocs?"10px 12px":"14px 16px",borderRadius:8,background:rc.color+"10",border:"2px dashed "+rc.color+"33",color:rc.color,fontSize:hasDocs?11:12,fontWeight:600,cursor:"pointer",textAlign:"center"}}>
+                  <input type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" onChange={function(ev){
+                    var f=ev.target.files[0];if(!f)return;
+                    var titleInput=prompt("Title for this document (or leave blank for filename):",f.name.replace(/\.[^.]+$/,""));
+                    var reader=new FileReader();
+                    reader.onload=function(e){
+                      var n=Object.assign({},routines);
+                      var arr=docs.slice();
+                      arr.push({data:e.target.result,type:f.type,fileName:f.name,title:titleInput||f.name.replace(/\.[^.]+$/,""),date:new Date().toLocaleDateString()});
+                      n[rc.id]=arr;
+                      upRT(n);
+                    };reader.readAsDataURL(f);
+                    ev.target.value="";
+                  }} style={{display:"none"}}/>
+                  + Add {rc.label} Document
+                </label>):(docs.length===0?<div style={{padding:"14px 16px",textAlign:"center",color:_tm,fontSize:11,fontStyle:"italic"}}>No documents uploaded yet.</div>:null)}
               </div>
             </div>);
           })}
@@ -1828,7 +1835,7 @@ export default function App(){
                   <div style={{fontSize:18,fontWeight:800,color:rc}}>{rl?rl.l:existing.status}</div>
                   {existing.notes?<div style={{fontSize:12,color:_ts,marginTop:4}}>{existing.notes}</div>:null}
                 </div>
-                <button onClick={function(){deleteReadiness(rdMod.dateKey,myAth);}} style={{width:"100%",padding:"10px",borderRadius:8,background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.3)",color:"#ef4444",fontWeight:700,fontSize:12,cursor:"pointer"}}>Delete & Redo Check-in</button>
+                <button onClick={function(){if(confirm("Delete your check-in and redo?"))deleteReadiness(rdMod.dateKey,myAth);}} style={{width:"100%",padding:"10px",borderRadius:8,background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.3)",color:"#ef4444",fontWeight:700,fontSize:12,cursor:"pointer"}}>Delete & Redo Check-in</button>
               </div>);}
               return(<div>
                 <div style={{fontSize:11,color:_tm,marginBottom:12}}>How are you feeling before practice today?</div>
@@ -1863,26 +1870,38 @@ export default function App(){
           <button onClick={function(){setCShow(false);}} style={{marginTop:8,background:"none",border:"none",color:_tm,fontSize:12,cursor:"pointer"}}>Cancel</button>
         </div>
       </div>):null}
-      {routineView?(<div style={{position:"fixed",inset:0,zIndex:1200,background:lt?"rgba(255,255,255,0.95)":"rgba(8,18,8,0.95)",backdropFilter:"blur(10px)",display:"flex",flexDirection:"column"}}>
+      {routineView?(function(){
+        /* Convert base64 data URL to blob URL for reliable PDF rendering */
+        var blobUrl=null;
+        if(routineView.data&&routineView.data.indexOf("data:")===0){
+          try{
+            var parts=routineView.data.split(",");var mime=parts[0].match(/:(.*?);/)[1];
+            var bin=atob(parts[1]);var arr=new Uint8Array(bin.length);
+            for(var i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
+            blobUrl=URL.createObjectURL(new Blob([arr],{type:mime}));
+          }catch(e){}
+        }
+        var viewSrc=blobUrl||routineView.data;
+        return(<div style={{position:"fixed",inset:0,zIndex:1200,background:lt?"rgba(255,255,255,0.95)":"rgba(8,18,8,0.95)",backdropFilter:"blur(10px)",display:"flex",flexDirection:"column"}}>
         <div style={{padding:"12px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:"1px solid "+C.bd,flexShrink:0}}>
-          <div style={{fontSize:16,fontWeight:800,color:_tp}}>{routineView.label} Routine</div>
+          <div style={{fontSize:16,fontWeight:800,color:_tp}}>{routineView.label}</div>
           <div style={{display:"flex",gap:8,alignItems:"center"}}>
-            <button onClick={function(){var a=document.createElement("a");a.href=routineView.data;a.download=routineView.fileName||routineView.label+"-routine";a.click();}} style={{padding:"6px 14px",borderRadius:6,background:C.greenLight+"18",border:"1px solid "+C.greenLight+"33",color:C.greenLight,fontSize:11,fontWeight:600,cursor:"pointer"}}>Download</button>
-            <button onClick={function(){setRoutineView(null);}} style={{background:"rgba(255,255,255,0.06)",border:"1px solid "+C.bd,color:_ts,width:32,height:32,borderRadius:8,cursor:"pointer",fontSize:16}}>X</button>
+            <button onClick={function(){var a=document.createElement("a");a.href=routineView.data;a.download=routineView.fileName||routineView.label;a.click();}} style={{padding:"6px 14px",borderRadius:6,background:C.greenLight+"18",border:"1px solid "+C.greenLight+"33",color:C.greenLight,fontSize:11,fontWeight:600,cursor:"pointer"}}>Download</button>
+            <button onClick={function(){if(blobUrl)URL.revokeObjectURL(blobUrl);setRoutineView(null);}} style={{background:"rgba(255,255,255,0.06)",border:"1px solid "+C.bd,color:_ts,width:32,height:32,borderRadius:8,cursor:"pointer",fontSize:16}}>X</button>
           </div>
         </div>
         <div style={{flex:1,overflow:"auto",display:"flex",alignItems:"center",justifyContent:"center",padding:8}}>
           {routineView.type&&routineView.type.indexOf("image")===0?
-            <img src={routineView.data} style={{maxWidth:"100%",maxHeight:"100%",objectFit:"contain",borderRadius:8}}/>:
+            <img src={viewSrc} style={{maxWidth:"100%",maxHeight:"100%",objectFit:"contain",borderRadius:8}}/>:
             routineView.type==="application/pdf"?
-              <iframe src={routineView.data} style={{width:"100%",height:"100%",border:"none",borderRadius:8}}/>:
+              <iframe src={viewSrc} style={{width:"100%",height:"100%",border:"none",borderRadius:8}}/>:
               <div style={{textAlign:"center",padding:40}}>
                 <div style={{fontSize:14,color:_tm,marginBottom:12}}>This file type cannot be previewed in the browser.</div>
-                <button onClick={function(){var a=document.createElement("a");a.href=routineView.data;a.download=routineView.fileName||routineView.label+"-routine";a.click();}} style={{padding:"10px 20px",borderRadius:8,background:"linear-gradient(135deg,"+C.green+","+C.greenLight+")",border:"none",color:C.white,fontWeight:700,cursor:"pointer"}}>Download File</button>
+                <button onClick={function(){var a=document.createElement("a");a.href=routineView.data;a.download=routineView.fileName||routineView.label;a.click();}} style={{padding:"10px 20px",borderRadius:8,background:"linear-gradient(135deg,"+C.green+","+C.greenLight+")",border:"none",color:C.white,fontWeight:700,cursor:"pointer"}}>Download File</button>
               </div>
           }
         </div>
-      </div>):null}
+      </div>);})():null}
       {ed?<Editor lt={lt} cm={cm} entry={editEntry} editIdx={ed.idx} dateLabel={ed.lb} roster={roster} templates={templates} customPresets={customPresets} onAddPreset={function(catId,txt){var n=Object.assign({},customPresets);if(!n[catId])n[catId]=[];if(n[catId].indexOf(txt)<0)n[catId]=n[catId].concat([txt]);upCP(n);}} onRemovePreset={function(catId,idx){var n=Object.assign({},customPresets);if(n[catId]){n[catId]=n[catId].slice();n[catId].splice(idx,1);if(n[catId].length===0)delete n[catId];}upCP(n);}} onSaveTemplate={saveTemplate} onDeleteTemplate={deleteTemplate} onClose={function(){setEd(null);}} onSave={handleSave} onDelete={handleDelete}/>:null}
     </div>
   );
