@@ -172,7 +172,7 @@ function Editor(props){
               {cat.hasRunMode?(<div>{SD("Run By")}<div style={{display:"flex",gap:8,marginBottom:8}}><button onClick={function(){setRm("distance");}} style={PL(rm==="distance",C.greenLight)}>Distance</button><button onClick={function(){setRm("time");}} style={PL(rm==="time",C.greenLight)}>Time</button></div>{rm==="distance"?<div style={{display:"flex",gap:8}}><div style={{flex:1}}><input value={dist} onChange={function(ev){setDist(ev.target.value);}} placeholder="e.g. 5" style={IS}/></div><select value={du} onChange={function(ev){setDu(ev.target.value);}} style={Object.assign({},IS,{width:70})}><option value="miles">mi</option><option value="km">km</option></select></div>:<input value={dur} onChange={function(ev){setDur(ev.target.value);}} placeholder="e.g. 45 min" style={IS}/>}<label style={LS}>Effort</label><input value={pace} onChange={function(ev){setPace(ev.target.value);}} placeholder="easy, moderate, 8:00/mi" style={IS}/></div>):(<div>{SD("Pace / Distance")}<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}><div><label style={LS}>Distance</label><input value={dist} onChange={function(ev){setDist(ev.target.value);}} placeholder="e.g. 5 mi" style={IS}/></div><div><label style={LS}>Duration</label><input value={dur} onChange={function(ev){setDur(ev.target.value);}} placeholder="e.g. 45 min" style={IS}/></div></div><label style={LS}>Pace</label><input value={pace} onChange={function(ev){setPace(ev.target.value);}} placeholder="e.g. 6:30/mi" style={IS}/></div>)}
               {SD("Warm-up / Cool-down")}<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}><input value={wu} onChange={function(ev){setWu(ev.target.value);}} placeholder="Warm-up" style={IS}/><input value={cd} onChange={function(ev){setCd(ev.target.value);}} placeholder="Cool-down" style={IS}/></div>
               {SD("Pre & Post Run")}<textarea value={pr} onChange={function(ev){setPr(ev.target.value);}} placeholder="Pre-run drills..." style={Object.assign({},TS,{minHeight:36})}/><textarea value={po} onChange={function(ev){setPo(ev.target.value);}} placeholder="Post-run work..." style={Object.assign({},TS,{minHeight:36,marginTop:6})}/>
-              {roster.length>0?(<div>{SD("Assign Athletes")}<div style={{display:"flex",gap:4,marginBottom:6,flexWrap:"wrap"}}><button onClick={function(){setAths(roster.map(function(a){return a.id;}));}} style={{fontSize:10,padding:"4px 10px",borderRadius:4,background:"rgba(255,255,255,0.06)",border:"1px solid "+C.bd,color:C.ts,cursor:"pointer"}}>All</button><button onClick={function(){setAths(roster.filter(function(a){return a.team==="boys";}).map(function(a){return a.id;}));}} style={{fontSize:10,padding:"4px 10px",borderRadius:4,background:C.greenLight+"15",border:"1px solid "+C.greenLight+"33",color:C.greenLight,cursor:"pointer"}}>Boys</button><button onClick={function(){setAths(roster.filter(function(a){return a.team==="girls";}).map(function(a){return a.id;}));}} style={{fontSize:10,padding:"4px 10px",borderRadius:4,background:C.gold+"15",border:"1px solid "+C.gold+"33",color:C.gold,cursor:"pointer"}}>Girls</button><button onClick={function(){setAths(roster.filter(function(a){return a.group==="mid";}).map(function(a){return a.id;}));}} style={{fontSize:10,padding:"4px 10px",borderRadius:4,background:"#E67E2215",border:"1px solid #E67E2233",color:"#E67E22",cursor:"pointer"}}>Mid-Distance</button><button onClick={function(){setAths(roster.filter(function(a){return(a.group||"long")==="long";}).map(function(a){return a.id;}));}} style={{fontSize:10,padding:"4px 10px",borderRadius:4,background:"#3498DB15",border:"1px solid #3498DB33",color:"#3498DB",cursor:"pointer"}}>Long Distance</button><button onClick={function(){setAths([]);}} style={{fontSize:10,padding:"4px 10px",borderRadius:4,background:"rgba(255,255,255,0.04)",border:"1px solid "+C.bd,color:C.tm,cursor:"pointer"}}>None</button></div><div style={{display:"flex",flexWrap:"wrap",gap:4}}>{roster.map(function(a){var sel=aths.indexOf(a.id)>=0;var clr=a.team==="boys"?C.greenLight:C.gold;var gBdg=a.group==="mid"?"M":"L";var gClr=a.group==="mid"?"#E67E22":"#3498DB";return <button key={a.id} onClick={function(){togAth(a.id);}} style={{padding:"4px 8px",borderRadius:4,fontSize:10,fontWeight:sel?700:400,cursor:"pointer",border:sel?"1px solid "+clr:"1px solid "+C.bd,background:sel?clr+"22":"transparent",color:sel?clr:C.tm}}><span style={{fontSize:9,fontWeight:700,color:gClr,marginRight:3}}>{gBdg}</span>{a.name}</button>;})}</div></div>):null}
+              {roster.length>0?(<div>{SD("Assign Athletes")}<div style={{display:"flex",gap:4,marginBottom:6,flexWrap:"wrap"}}><button onClick={function(){setAths(roster.map(function(a){return a.id;}));}} style={{fontSize:10,padding:"4px 10px",borderRadius:4,background:"rgba(255,255,255,0.06)",border:"1px solid "+C.bd,color:C.ts,cursor:"pointer"}}>All</button><button onClick={function(){setAths(roster.filter(function(a){return a.team==="boys";}).map(function(a){return a.id;}));}} style={{fontSize:10,padding:"4px 10px",borderRadius:4,background:C.greenLight+"15",border:"1px solid "+C.greenLight+"33",color:C.greenLight,cursor:"pointer"}}>Boys</button><button onClick={function(){setAths(roster.filter(function(a){return a.team==="girls";}).map(function(a){return a.id;}));}} style={{fontSize:10,padding:"4px 10px",borderRadius:4,background:C.gold+"15",border:"1px solid "+C.gold+"33",color:C.gold,cursor:"pointer"}}>Girls</button><button onClick={function(){setAths(roster.filter(function(a){return a.group==="mid";}).map(function(a){return a.id;}));}} style={{fontSize:10,padding:"4px 10px",borderRadius:4,background:"#E67E2215",border:"1px solid #E67E2233",color:"#E67E22",cursor:"pointer"}}>Mid-Distance</button><button onClick={function(){setAths(roster.filter(function(a){return(a.group||"long")==="long";}).map(function(a){return a.id;}));}} style={{fontSize:10,padding:"4px 10px",borderRadius:4,background:"#3498DB15",border:"1px solid #3498DB33",color:"#3498DB",cursor:"pointer"}}>Long Distance</button><button onClick={function(){setAths([]);}} style={{fontSize:10,padding:"4px 10px",borderRadius:4,background:"rgba(255,255,255,0.04)",border:"1px solid "+C.bd,color:C.tm,cursor:"pointer"}}>None</button></div><div style={{display:"flex",flexWrap:"wrap",gap:4}}>{roster.map(function(a){var sel=aths.indexOf(a.id)>=0;var clr=a.team==="boys"?C.greenLight:C.gold;var gBdg=a.group==="mid"?"M":a.group==="both"?"B":"L";var gClr=a.group==="mid"?"#E67E22":a.group==="both"?"#9B59B6":"#3498DB";return <button key={a.id} onClick={function(){togAth(a.id);}} style={{padding:"4px 8px",borderRadius:4,fontSize:10,fontWeight:sel?700:400,cursor:"pointer",border:sel?"1px solid "+clr:"1px solid "+C.bd,background:sel?clr+"22":"transparent",color:sel?clr:C.tm}}><span style={{fontSize:9,fontWeight:700,color:gClr,marginRight:3}}>{gBdg}</span>{a.name}</button>;})}</div></div>):null}
               {SD("Notes")}<textarea value={nt} onChange={function(ev){setNt(ev.target.value);}} placeholder="Notes..." style={Object.assign({},TS,{minHeight:36})}/>
               <div style={{display:"flex",gap:10,marginTop:18}}><button onClick={doSave} style={{flex:1,padding:"12px 16px",borderRadius:10,background:"linear-gradient(135deg,"+C.green+","+C.greenLight+")",border:"none",color:C.white,fontWeight:700,fontSize:14,cursor:"pointer"}}>Save</button>{props.onSaveTemplate?<button onClick={function(){props.onSaveTemplate({category:cat0,preset:pre,customWorkout:cw,runMode:rm,distance:dist,distanceUnit:du,duration:dur,pace:pace,warmup:wu,cooldown:cd,preRun:pr,postRun:po,notes:nt});}} style={{padding:"12px 16px",borderRadius:10,background:C.gold+"18",border:"1px solid "+C.gold+"33",color:C.gold,fontWeight:600,fontSize:11,cursor:"pointer"}}>Save Template</button>:null}{props.editIdx!==null?<button onClick={function(){if(confirm("Remove this workout?"))props.onDelete();}} style={{padding:"12px 16px",borderRadius:10,background:"rgba(239,68,68,0.15)",border:"1px solid rgba(239,68,68,0.3)",color:"#ef4444",fontWeight:600,fontSize:13,cursor:"pointer"}}>Remove</button>:null}</div>
             </div>
@@ -290,7 +290,7 @@ export default function App(){
   var _logNt=useState("");var logNt=_logNt[0];var setLogNt=_logNt[1];
   var _lbEvt=useState("1600");var lbEvt=_lbEvt[0];var setLbEvt=_lbEvt[1];
   var _lbType=useState("sb");var lbType=_lbType[0];var setLbType=_lbType[1];
-  var _recSec=useState({lb:true,hl:true,sr:true});var recSec=_recSec[0];var setRecSec=_recSec[1];
+  var _recSec=useState({lb:true,cons:true,hl:true,sr:true});var recSec=_recSec[0];var setRecSec=_recSec[1];
   function togRecSec(k){var n=Object.assign({},recSec);n[k]=!n[k];setRecSec(n);}
   var LB_EVENTS=["800","1600","3200","5k"];
   var SR_EVENTS=[{ev:"800",label:"800m"},{ev:"1600",label:"1600m"},{ev:"3200",label:"3200m"},{ev:"5k",label:"5k"},{ev:"4x800",label:"4x800 Relay"}];
@@ -398,6 +398,13 @@ export default function App(){
       if(photoData){setAthPhotos(photoData);rosterData=rosterData.map(function(a){if(!a.photo&&photoData[a.id])return Object.assign({},a,{photo:photoData[a.id]});return a;});}
       setSch(r[0]||{});setRoster(rosterData);setMeets(r[2]||DEFAULT_MEETS);setAnnounce(r[3]||"");setTemplates(r[4]||[]);setSchoolRecs(r[5]||{});setWlog(wlogData||{});
       if(r[8])setCustomPresets(r[8]);
+      /* Load athlete self-edits and merge */
+      loadAthleteData("athprofile").then(function(raw){
+        if(!raw)return;try{var prof=JSON.parse(raw);
+        setRoster(function(prev){return prev.map(function(a){
+          if(prof[a.id]){return Object.assign({},a,prof[a.id]);}return a;
+        });});}catch(e){}
+      });
       if(r[9])setRoutines(r[9]);
       setLoaded(true);
     });
@@ -420,6 +427,47 @@ export default function App(){
   function submitLog(){if(!logMod||!logAth||!logDate)return;addLog(logDate,{athId:logAth,difficulty:logDiff,mileage:parseFloat(logMi)||0,splits:logSpl,notes:logNt,ts:Date.now()});setLogMod(null);}
   function getAthLogs(athId){var logs={};Object.keys(wlog).forEach(function(dk){(wlog[dk]||[]).forEach(function(e){if(e.athId===athId){if(!logs[dk])logs[dk]=[];logs[dk].push(e);}});});return logs;}
   function getWeeklyMileage(athId,weeksBack){var result=[];var now=new Date();for(var w=0;w<weeksBack;w++){var mon=new Date(now);var dow=mon.getDay();mon.setDate(now.getDate()-(dow===0?6:dow-1)-w*7);mon.setHours(0,0,0,0);var total=0;for(var d=0;d<7;d++){var day=new Date(mon);day.setDate(mon.getDate()+d);var dk=fd(day);if(wlog[dk])(wlog[dk]).forEach(function(e){if(e.athId===athId)total+=e.mileage||0;});}var lbl=(mon.getMonth()+1)+"/"+mon.getDate();result.unshift({week:lbl,miles:Math.round(total*10)/10});}return result;}
+  /* ── Streak / Badge / Consistency helpers ── */
+  function getStreak(athId){
+    var streak=0;var d=new Date();d.setDate(d.getDate()-1);/* start from yesterday */
+    for(var i=0;i<365;i++){
+      var dk=fd(d);var entries=wlog[dk]||[];
+      var hasLog=entries.some(function(e){return e.athId===athId&&e.type!=="readiness";});
+      var hasCheckin=entries.some(function(e){return e.athId===athId&&e.type==="readiness";});
+      if(hasLog&&hasCheckin)streak++;else if(i===0&&!hasLog&&!hasCheckin){/* check today too */
+        var td=fd(new Date());var te=wlog[td]||[];var tl=te.some(function(e){return e.athId===athId&&e.type!=="readiness";});var tc=te.some(function(e){return e.athId===athId&&e.type==="readiness";});
+        if(tl&&tc)streak++;else break;
+      }else break;
+      d.setDate(d.getDate()-1);
+    }return streak;
+  }
+  function getWeekBadges(athId){
+    var badges=0;var now=new Date();var dow=now.getDay();var monOff=dow===0?-6:1-dow;
+    for(var w=0;w<20;w++){
+      var mon=new Date(now);mon.setDate(now.getDate()+monOff-w*7);mon.setHours(0,0,0,0);
+      var days=0;
+      for(var d=0;d<6;d++){/* Mon-Sat */
+        var day=new Date(mon);day.setDate(mon.getDate()+d);var dk=fd(day);
+        if((wlog[dk]||[]).some(function(e){return e.athId===athId&&e.type!=="readiness";}))days++;
+      }
+      if(days>=6)badges++;
+    }return badges;
+  }
+  function getLogPct(athId){
+    /* Count weekdays with a log vs total weekdays since first log */
+    var first=null;var logDays=0;var allDks={};
+    Object.keys(wlog).forEach(function(dk){(wlog[dk]||[]).forEach(function(e){
+      if(e.athId===athId&&e.type!=="readiness"){allDks[dk]=true;if(!first||dk<first)first=dk;}
+    });});
+    if(!first)return 0;
+    logDays=Object.keys(allDks).length;
+    var fp=first.split("-");var start=new Date(parseInt(fp[0]),parseInt(fp[1])-1,parseInt(fp[2]));
+    var end=new Date();var totalDays=0;
+    var d=new Date(start);
+    while(d<=end){var dow=d.getDay();if(dow>=1&&dow<=6)totalDays++;d.setDate(d.getDate()+1);}
+    return totalDays>0?Math.round(logDays/totalDays*100):0;
+  }
+
   function upTpl(t){setTemplates(t);sv1(TK,t);}
   function togTheme(){var n=theme==="dark"?"light":"dark";setTheme(n);svLocal(THK,n);}
   function saveMyAth(id){setMyAth(id);svLocal(MYK,id);}
@@ -463,9 +511,24 @@ export default function App(){
   }
   function handlePhotoUpload(id,ev){var f=ev.target.files[0];if(!f)return;var r=new FileReader();r.onload=function(e){var img=new Image();img.onload=function(){var c=document.createElement("canvas");var cw=140;var ch=175;c.width=cw;c.height=ch;var ctx=c.getContext("2d");var ratio=cw/ch;var imgR=img.width/img.height;var sx,sy,sw,sh;if(imgR>ratio){sh=img.height;sw=sh*ratio;sx=(img.width-sw)/2;sy=0;}else{sw=img.width;sh=sw/ratio;sx=0;sy=(img.height-sh)/2;}ctx.drawImage(img,sx,sy,sw,sh,0,0,cw,ch);savePhoto(id,c.toDataURL("image/jpeg",0.7));};img.src=e.target.result;};r.readAsDataURL(f);}
   /* Goals */
-  function saveGoals(id,goals){upR(roster.map(function(a){return a.id===id?Object.assign({},a,{goals:goals}):a;}));}
+  function saveGoals(id,goals){
+    if(cm){upR(roster.map(function(a){return a.id===id?Object.assign({},a,{goals:goals}):a;}));}
+    else{saveAthSelf(id,"goals",goals);}
+  }
+  function saveAthSelf(id,field,val){
+    setRoster(roster.map(function(a){return a.id===id?Object.assign({},a,Object.fromEntries([[field,val]])):a;}));
+    /* Save to athleteData so athletes can persist without coach token */
+    loadAthleteData("athprofile").then(function(raw){
+      var prof={};try{prof=raw?JSON.parse(raw):{};}catch(e){}
+      if(!prof[id])prof[id]={};prof[id][field]=val;
+      saveAthleteData("athprofile",JSON.stringify(prof));
+    });
+  }
   /* Injuries */
-  function saveInjuries(id,inj){upR(roster.map(function(a){return a.id===id?Object.assign({},a,{injuries:inj}):a;}));}
+  function saveInjuries(id,inj){
+    if(cm){upR(roster.map(function(a){return a.id===id?Object.assign({},a,{injuries:inj}):a;}));}
+    else{saveAthSelf(id,"injuries",inj);}
+  }
   /* Race Plans */
   function saveRacePlans(id,plans){upR(roster.map(function(a){return a.id===id?Object.assign({},a,{racePlans:plans}):a;}));}
   /* Readiness - stored as wlog entry with type:"readiness" */
@@ -686,18 +749,31 @@ export default function App(){
           var hasPBs=a.pbs&&Object.values(a.pbs).some(function(v){return v;});
           var hasSBs=a.sbs&&Object.values(a.sbs).some(function(v){return v;});
           var isEx=paceAth===a.id;
+          var isMe=true;
+          var _streak=getStreak(a.id);var _badges=getWeekBadges(a.id);
           return(<div style={{marginBottom:20,borderRadius:14,background:"linear-gradient(135deg,"+C.gold+"12,"+C.gold+"04)",border:"2px solid "+C.gold+"44",overflow:"hidden"}}>
             <div style={{padding:"14px 16px",cursor:"pointer"}} onClick={function(){setPaceAth(isEx?null:a.id);}}>
               <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
-                {a.photo?<img src={a.photo} style={{width:48,height:60,borderRadius:8,objectFit:"cover",border:"2px solid "+C.gold+"55",flexShrink:0}}/>:<div style={{width:48,height:60,borderRadius:8,background:"linear-gradient(135deg,"+accentClr+"33,"+accentClr+"11)",color:accentClr,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:800,border:"2px solid "+C.gold+"44",flexShrink:0}}>{ini(a.name)}</div>}
+                <div style={{flexShrink:0,textAlign:"center"}}>
+                  {a.photo?<img src={a.photo} style={{width:48,height:60,borderRadius:8,objectFit:"cover",border:"2px solid "+C.gold+"55"}}/>:<div style={{width:48,height:60,borderRadius:8,background:"linear-gradient(135deg,"+accentClr+"33,"+accentClr+"11)",color:accentClr,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:800,border:"2px solid "+C.gold+"44"}}>{ini(a.name)}</div>}
+                  <label style={{display:"block",fontSize:9,color:C.gold,cursor:"pointer",marginTop:2}}><input type="file" accept="image/*" onChange={function(ev){handlePhotoUpload(a.id,ev);}} style={{display:"none"}}/>Photo</label>
+                </div>
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:16,fontWeight:800,color:_tp}}>{a.name} <span style={{fontSize:10,padding:"2px 6px",borderRadius:3,background:C.gold+"22",color:C.gold,fontWeight:700}}>You</span></div>
+                  <div style={{fontSize:16,fontWeight:800,color:_tp}}>{a.name} <span style={{fontSize:10,padding:"2px 6px",borderRadius:3,background:C.gold+"22",color:C.gold,fontWeight:700}}>You</span>{_streak>=2?<span style={{fontSize:10,padding:"2px 5px",borderRadius:3,background:"#E74C3C18",color:"#E74C3C",fontWeight:700,marginLeft:4}}>{"\u{1F525}"+_streak}</span>:null}{_badges>0?<span style={{fontSize:10,padding:"2px 5px",borderRadius:3,background:C.gold+"18",color:C.gold,fontWeight:700,marginLeft:3}}>{_badges+"\u{2B50}"}</span>:null}</div>
                   <div style={{display:"flex",gap:4,alignItems:"center",marginTop:2,flexWrap:"wrap"}}>
-                    {a.events?<span style={{fontSize:11,color:_tm}}>{a.events}</span>:null}
-                    {a.group==="mid"?<span style={{fontSize:9,padding:"1px 5px",borderRadius:3,background:"#E67E2218",color:"#E67E22",fontWeight:600}}>Mid</span>:<span style={{fontSize:9,padding:"1px 5px",borderRadius:3,background:"#3498DB18",color:"#3498DB",fontWeight:600}}>Long</span>}
+                    <input value={a.events||""} onChange={function(ev){saveAthSelf(a.id,"events",ev.target.value);}} placeholder="Your events (e.g. 800, 1600)" style={{fontSize:11,color:_tm,background:"transparent",border:"1px solid "+C.bd,borderRadius:4,padding:"2px 6px",width:160,outline:"none"}}/>
+                    <select value={a.group||"long"} onChange={function(ev){saveAthSelf(a.id,"group",ev.target.value);}} style={{fontSize:9,padding:"1px 4px",borderRadius:3,background:"transparent",border:"1px solid "+C.bd,color:_tm,outline:"none"}}>
+                      <option value="mid">Mid</option><option value="long">Long</option><option value="both">Mid & Long</option>
+                    </select>
                   </div>
                 </div>
-                <span style={{color:C.gold,fontSize:10}}>{isEx?"[-]":"[+]"}</span>
+                <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
+                  {(function(){var st=getStreak(a.id);var wb=getWeekBadges(a.id);return(st>=2||wb>0)?<span style={{display:"flex",gap:4,alignItems:"center"}}>
+                    {st>=2?<span style={{fontSize:10,color:"#E74C3C",fontWeight:700}}>{"\uD83D\uDD25"}{st}d</span>:null}
+                    {wb>0?<span style={{fontSize:10,color:C.gold,fontWeight:700}}>{"\u2B50"}{wb}</span>:null}
+                  </span>:null;})()}
+                  <span style={{color:C.gold,fontSize:10}}>{isEx?"[-]":"[+]"}</span>
+                </div>
               </div>
               <div style={{display:"flex",gap:4,marginTop:8,flexWrap:"wrap",alignItems:"center"}}>
                 {hp?[{l:"LT",v:a.paces.thrSafe,c:"#8E44AD"},{l:"CV",v:a.paces.cv,c:"#3498DB"},{l:"VO2",v:a.paces.vo2Safe,c:"#27AE60"}].map(function(b){return b.v?<span key={b.l} style={{fontSize:10,padding:"2px 5px",borderRadius:3,background:b.c+"18",color:b.c,fontFamily:"monospace",fontWeight:600}}>{b.l}:{b.v}</span>:null;}):null}
@@ -705,6 +781,216 @@ export default function App(){
                 {PB_DISTS.filter(function(d){return(a.pbs&&a.pbs[d])||(a.sbs&&a.sbs[d]);}).map(function(d){var ec=PB_CLR[d]||"#D4A017";var val=a.pbs&&a.pbs[d]?a.pbs[d]:a.sbs[d];return <span key={d} style={{fontSize:10,padding:"2px 5px",borderRadius:3,background:ec+"15",border:"1px solid "+ec+"33",fontFamily:"monospace",fontWeight:700,display:"inline-flex",alignItems:"center",gap:2}}><span style={{background:ec,color:"#fff",fontSize:8,padding:"1px 3px",borderRadius:2,fontWeight:800}}>{d}</span><span style={{color:lt?"#222":_tp,fontWeight:800}}>{val}</span></span>;})}
               </div>
             </div>
+            {/* ── Expanded Card (at top for logged-in athlete) ── */}
+            {isEx?(<div style={{padding:"0 14px 16px",borderTop:"1px solid "+C.bd}}>
+              {/* Photo + Bio + This Week's Check-ins */}
+              {/* Coach Edit Athlete button */}
+              {cm?<button onClick={function(ev){ev.stopPropagation();setREid(a.id);setRN(a.name);setRT(a.team);setRG(a.grade||"");setRE(a.events||"");setRGrp(a.group||"long");setRPin(a.pin||"");setRFormOpen(true);}} style={{marginBottom:12,padding:"8px 14px",borderRadius:8,background:accentClr+"15",border:"1px solid "+accentClr+"33",color:accentClr,fontSize:11,fontWeight:700,cursor:"pointer",width:"100%"}}>Edit Athlete Info</button>:null}
+
+              {/* THIS WEEK check-ins */}
+              <div style={{marginBottom:14}}>
+                {(function(){
+                  var now=new Date();var dow=now.getDay();var monOff=dow===0?-6:1-dow;
+                  var mon=new Date(now);mon.setDate(now.getDate()+monOff);mon.setHours(0,0,0,0);
+                  var sun=new Date(mon);sun.setDate(mon.getDate()+7);
+                  var weekRd=[];var weekWL=[];
+                  Object.keys(wlog).forEach(function(dk){
+                    var dp=dk.split("-");var d=new Date(parseInt(dp[0]),parseInt(dp[1])-1,parseInt(dp[2]));
+                    if(d>=mon&&d<sun){
+                      (wlog[dk]||[]).forEach(function(e){
+                        if(e.athId===a.id){
+                          if(e.type==="readiness")weekRd.push(Object.assign({},e,{date:dk}));
+                          else weekWL.push(Object.assign({},e,{date:dk}));
+                        }
+                      });
+                    }
+                  });
+                  weekRd.sort(function(x,y){return(y.ts||0)-(x.ts||0);});
+                  weekWL.sort(function(x,y){return(y.ts||0)-(x.ts||0);});
+                  if(weekRd.length===0&&weekWL.length===0)return <div style={{padding:"10px 12px",borderRadius:8,background:lt?"#f8f9f6":"rgba(255,255,255,0.02)",border:"1px solid "+C.bd}}><div style={{fontSize:10,fontWeight:700,color:_tm,fontFamily:"monospace",marginBottom:4}}>THIS WEEK</div><div style={{fontSize:11,color:_tm,fontStyle:"italic"}}>No check-ins this week yet.</div></div>;
+                  return(<div style={{padding:"10px 12px",borderRadius:8,background:lt?"#f8f9f6":"rgba(255,255,255,0.02)",border:"1px solid "+C.bd}}>
+                    <div style={{fontSize:10,fontWeight:700,color:_tm,fontFamily:"monospace",marginBottom:6}}>THIS WEEK</div>
+                    {weekRd.length>0?(<div style={{marginBottom:weekWL.length>0?8:0}}>
+                      <div style={{fontSize:10,fontWeight:600,color:"#27AE60",marginBottom:4}}>Pre-Practice</div>
+                      {weekRd.map(function(r,ri){
+                        var rc={"ready":"#27AE60","tired":"#D4A017","sore":"#E67E22","pain":"#E74C3C"}[r.status]||_tm;
+                        var dp=r.date.split("-");var dLbl=parseInt(dp[1])+"/"+parseInt(dp[2]);
+                        return <div key={ri} style={{marginBottom:4}}><div style={{display:"flex",gap:6,alignItems:"center",fontSize:11}}><span style={{fontSize:14}}>{RD_EMOJI[r.status]||"?"}</span><span style={{fontWeight:600,color:_tp}}>{dLbl}</span><span style={{color:rc,fontWeight:600}}>{r.status}</span>{r.notes?<span style={{color:_tm,fontSize:10}}>{r.notes}</span>:null}</div>{r.coachComment?<div style={{fontSize:10,marginTop:2,marginLeft:22,padding:"3px 8px",borderRadius:4,background:"#3498DB10",borderLeft:"2px solid #3498DB44",color:"#3498DB"}}><span style={{fontWeight:700}}>Coach: </span>{r.coachComment}</div>:null}{cm?<div style={{marginLeft:22,marginTop:2}}><input placeholder="Add comment..." defaultValue={r.coachComment||""} onBlur={function(ev){var v=ev.target.value.trim();if(v!==(r.coachComment||""))commentOnLog(r.date,r.ts,v);}} onKeyDown={function(ev){if(ev.key==="Enter"){ev.target.blur();}}} style={{fontSize:10,padding:"2px 6px",borderRadius:3,border:"1px solid "+C.bd,background:"transparent",color:_ts,width:"100%"}}/></div>:null}</div>;
+                      })}
+                    </div>):null}
+                    {weekWL.length>0?(<div>
+                      <div style={{fontSize:10,fontWeight:600,color:"#9B59B6",marginBottom:4}}>Workout Logs</div>
+                      {weekWL.map(function(l,li){
+                        var dc=(l.difficulty||0)<=4?"#27AE60":(l.difficulty||0)<=6?"#D4A017":(l.difficulty||0)<=8?"#E67E22":"#E74C3C";
+                        var dp=l.date.split("-");var dLbl=parseInt(dp[1])+"/"+parseInt(dp[2]);
+                        return <div key={li} style={{marginBottom:4}}><div style={{display:"flex",gap:6,alignItems:"center",fontSize:11}}><div style={{width:20,height:20,borderRadius:4,background:dc+"22",color:dc,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}}>{l.difficulty}</div><span style={{fontWeight:600,color:_tp}}>{dLbl}</span>{l.mileage?<span style={{color:_ts,fontFamily:"monospace"}}>{l.mileage}mi</span>:null}{l.splits?<span style={{color:_tm,fontSize:10}}>{l.splits}</span>:null}</div>{l.notes?<div style={{fontSize:10,color:_tm,marginLeft:26,fontStyle:"italic"}}>{l.notes}</div>:null}{l.coachComment?<div style={{fontSize:10,marginTop:2,marginLeft:26,padding:"3px 8px",borderRadius:4,background:"#3498DB10",borderLeft:"2px solid #3498DB44",color:"#3498DB"}}><span style={{fontWeight:700}}>Coach: </span>{l.coachComment}</div>:null}{cm?<div style={{marginLeft:26,marginTop:2}}><input placeholder="Add comment..." defaultValue={l.coachComment||""} onBlur={function(ev){var v=ev.target.value.trim();if(v!==(l.coachComment||""))commentOnLog(l.date,l.ts,v);}} onKeyDown={function(ev){if(ev.key==="Enter"){ev.target.blur();}}} style={{fontSize:10,padding:"2px 6px",borderRadius:3,border:"1px solid "+C.bd,background:"transparent",color:_ts,width:"100%"}}/></div>:null}</div>;
+                      })}
+                    </div>):null}
+                  </div>);
+                })()}
+              </div>
+
+              {/* ── Goals ── */}
+              <div style={{marginBottom:14}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                  <div style={{fontSize:12,fontWeight:700,color:_tp}}>Season Goals</div>
+                  {(cm||isMe)?<button onClick={function(ev){ev.stopPropagation();var g=(a.goals||[]).slice();g.push({event:"",target:"",notes:""});saveGoals(a.id,g);}} style={{fontSize:10,padding:"2px 8px",borderRadius:4,background:accentClr+"15",border:"1px solid "+accentClr+"33",color:accentClr,cursor:"pointer",fontWeight:600}}>+ Add Goal</button>:null}
+                </div>
+                {(a.goals||[]).length===0?<div style={{fontSize:11,color:_tm,lineHeight:1.6}}>{(cm||isMe)?<span>Add your season goals. <span style={{fontStyle:"italic"}}>Ideas: time goals (e.g. 800 in 2:15), run a PR, win conference, qualify for state, run in college, improve fitness, stay healthy, or anything else!</span></span>:"No goals set yet."}</div>:null}
+                {(cm||isMe)&&(a.goals||[]).length===0?<div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:6,marginBottom:6}}>{["Run a PR","Win Conference","Qualify for State","Run in College","Stay Healthy","Improve Fitness"].map(function(preset){return <button key={preset} onClick={function(ev){ev.stopPropagation();var g=(a.goals||[]).slice();g.push({event:preset,target:"",notes:""});saveGoals(a.id,g);}} style={{fontSize:10,padding:"3px 8px",borderRadius:4,background:accentClr+"10",border:"1px solid "+accentClr+"22",color:accentClr,cursor:"pointer",fontWeight:600}}>{preset}</button>;})}</div>:null}
+                {(a.goals||[]).map(function(g,gi){
+                  return(<div key={gi} style={{display:"flex",gap:6,alignItems:"flex-start",marginBottom:4,padding:"8px 10px",borderRadius:8,background:accentClr+"06",border:"1px solid "+accentClr+"15"}}>
+                    <div style={{fontSize:16,color:accentClr,flexShrink:0}}>*</div>
+                    <div style={{flex:1}}>
+                      {(cm||isMe)?(<div style={{display:"flex",gap:4,marginBottom:3,flexWrap:"wrap"}}>
+                        <input value={g.event} onChange={function(ev){var ng=(a.goals||[]).slice();ng[gi]=Object.assign({},ng[gi],{event:ev.target.value});saveGoals(a.id,ng);}} placeholder="Goal (e.g. 1600, Run a PR)" style={Object.assign({},IS,{width:140,padding:"3px 6px",fontSize:11})}/>
+                        <input value={g.target} onChange={function(ev){var ng=(a.goals||[]).slice();ng[gi]=Object.assign({},ng[gi],{target:ev.target.value});saveGoals(a.id,ng);}} placeholder="Target (optional)" style={Object.assign({},IS,{width:100,padding:"3px 6px",fontSize:11,fontWeight:700})}/>
+                        <input value={g.notes||""} onChange={function(ev){var ng=(a.goals||[]).slice();ng[gi]=Object.assign({},ng[gi],{notes:ev.target.value});saveGoals(a.id,ng);}} placeholder="Notes" style={Object.assign({},IS,{flex:1,padding:"3px 6px",fontSize:11})}/>
+                        <button onClick={function(ev){ev.stopPropagation();var ng=(a.goals||[]).slice();ng.splice(gi,1);saveGoals(a.id,ng);}} style={{background:"none",border:"none",color:"#ef4444",fontSize:10,cursor:"pointer",padding:"2px 4px"}}>X</button>
+                      </div>):(
+                        <div><span style={{fontWeight:700,color:accentClr}}>{g.event||"Goal"}</span>{g.target?<span style={{fontWeight:700,color:_tp,fontFamily:"monospace",marginLeft:6}}>{g.target}</span>:null}{g.notes?<span style={{color:_tm,marginLeft:6,fontSize:11}}>{g.notes}</span>:null}</div>
+                      )}
+                    </div>
+                  </div>);
+                })}
+              </div>
+
+              {/* ── Workout Log & Mileage ── */}
+              {(function(){
+                var weeks=getWeeklyMileage(a.id,8);
+                var maxMi=0;weeks.forEach(function(w){if(w.miles>maxMi)maxMi=w.miles;});
+                var totalSeason=0;var totalWeeks=0;
+                weeks.forEach(function(w){totalSeason+=w.miles;if(w.miles>0)totalWeeks++;});
+                var avg=totalWeeks>0?Math.round(totalSeason/totalWeeks*10)/10:0;
+                var allLogs=[];Object.keys(wlog).forEach(function(dk){(wlog[dk]||[]).forEach(function(e){if(e.athId===a.id&&e.type!=="readiness")allLogs.push(Object.assign({},e,{date:dk}));});});
+                allLogs.sort(function(x,y){return(y.ts||0)-(x.ts||0);});
+                var avgDiff=allLogs.length>0?Math.round(allLogs.reduce(function(s,l){return s+(l.difficulty||0);},0)/allLogs.length*10)/10:null;
+                var diffClr=avgDiff===null?"":avgDiff<=4?"#27AE60":avgDiff<=6?"#D4A017":avgDiff<=8?"#E67E22":"#E74C3C";
+                var barH=60;
+                var hasData=allLogs.length>0||maxMi>0;
+                return(
+                  <div style={{marginBottom:14}}>
+                    <div style={{fontSize:12,fontWeight:700,color:_tp,marginBottom:8}}>Workout Log & Mileage</div>
+                    {!hasData?<div style={{fontSize:11,color:_tm,fontStyle:"italic",padding:"8px 0"}}>No check-ins yet. Use the Log Workout button at the top of the Schedule tab.</div>:(
+                      <div>
+                        {/* Stats row */}
+                        <div style={{display:"flex",gap:12,marginBottom:10,flexWrap:"wrap"}}>
+                          <div style={{padding:"8px 12px",borderRadius:8,background:accentClr+"0a",border:"1px solid "+accentClr+"22",textAlign:"center"}}><div style={{fontSize:10,color:_tm}}>Avg Miles/Wk</div><div style={{fontSize:16,fontWeight:800,color:accentClr,fontFamily:"monospace"}}>{avg}</div></div>
+                          <div style={{padding:"8px 12px",borderRadius:8,background:accentClr+"0a",border:"1px solid "+accentClr+"22",textAlign:"center"}}><div style={{fontSize:10,color:_tm}}>Season Total</div><div style={{fontSize:16,fontWeight:800,color:accentClr,fontFamily:"monospace"}}>{Math.round(totalSeason*10)/10}</div></div>
+                          {avgDiff!==null?<div style={{padding:"8px 12px",borderRadius:8,background:diffClr+"0a",border:"1px solid "+diffClr+"22",textAlign:"center"}}><div style={{fontSize:10,color:_tm}}>Avg Effort</div><div style={{fontSize:16,fontWeight:800,color:diffClr,fontFamily:"monospace"}}>{avgDiff}/10</div></div>:null}
+                          <div style={{padding:"8px 12px",borderRadius:8,background:"rgba(255,255,255,0.03)",border:"1px solid "+C.bd,textAlign:"center"}}><div style={{fontSize:10,color:_tm}}>Check-ins</div><div style={{fontSize:16,fontWeight:800,color:_tp}}>{allLogs.length}</div></div>
+                        </div>
+                        {/* Bar chart */}
+                        {maxMi>0?(<div style={{padding:"10px 12px",borderRadius:8,background:lt?"#f8f9f6":"rgba(255,255,255,0.02)",border:"1px solid "+C.bd,marginBottom:10}}>
+                          <div style={{fontSize:10,fontWeight:700,color:_tm,fontFamily:"monospace",marginBottom:6}}>WEEKLY MILEAGE (last 8 weeks)</div>
+                          <div style={{display:"flex",gap:3,alignItems:"flex-end",height:barH}}>
+                            {weeks.map(function(w,wi){
+                              var h=maxMi>0?Math.max(2,w.miles/maxMi*barH):2;
+                              return(<div key={wi} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end",height:"100%"}}>
+                                <div style={{fontSize:10,fontWeight:600,color:w.miles>0?accentClr:C.tm,marginBottom:2}}>{w.miles>0?w.miles:""}</div>
+                                <div style={{width:"100%",height:h,borderRadius:3,background:w.miles>0?accentClr+"66":"rgba(255,255,255,0.04)"}}/>
+                              </div>);
+                            })}
+                          </div>
+                          <div style={{display:"flex",gap:3,marginTop:3}}>
+                            {weeks.map(function(w,wi){return <div key={wi} style={{flex:1,textAlign:"center",fontSize:10,color:_tm}}>{w.week}</div>;})}
+                          </div>
+                        </div>):null}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* ── Injury / Health Tracker ── */}
+              <div style={{marginBottom:14}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                  <div style={{fontSize:12,fontWeight:700,color:_tp}}>Injury / Health</div>
+                  {(cm||isMe)?<button onClick={function(ev){ev.stopPropagation();var inj=(a.injuries||[]).slice();inj.push({area:"",severity:1,date:fd(new Date()),notes:"",status:"monitoring"});saveInjuries(a.id,inj);}} style={{fontSize:10,padding:"2px 8px",borderRadius:4,background:"#E74C3C15",border:"1px solid #E74C3C33",color:"#E74C3C",cursor:"pointer",fontWeight:600}}>+ Add</button>:null}
+                </div>
+                {(a.injuries||[]).filter(function(inj){return inj.status!=="resolved";}).length===0&&(a.injuries||[]).length===0?<div style={{fontSize:11,color:"#27AE60",fontWeight:600}}>Healthy</div>:null}
+                {(a.injuries||[]).map(function(inj,ii){
+                  var sevClr=inj.severity<=3?"#27AE60":inj.severity<=5?"#D4A017":inj.severity<=7?"#E67E22":"#E74C3C";
+                  var statClr=inj.status==="resolved"?"#27AE60":inj.status==="monitoring"?"#D4A017":inj.status==="limited"?"#E67E22":"#E74C3C";
+                  if(!cm&&inj.status==="resolved")return null;
+                  return(<div key={ii} style={{padding:"8px 10px",marginBottom:4,borderRadius:8,background:sevClr+"06",border:"1px solid "+sevClr+"22",borderLeft:"3px solid "+sevClr}}>
+                    {(cm||isMe)?(<div style={{display:"flex",gap:4,flexWrap:"wrap",alignItems:"center",marginBottom:4}}>
+                      <select value={inj.area} onChange={function(ev){var ni=(a.injuries||[]).slice();ni[ii]=Object.assign({},ni[ii],{area:ev.target.value});saveInjuries(a.id,ni);}} style={Object.assign({},IS,{width:120,padding:"3px 6px",fontSize:10})}>
+                        <option value="">-- Area --</option>{BODY_AREAS.map(function(b){return <option key={b} value={b}>{b}</option>;})}
+                      </select>
+                      <select value={inj.severity} onChange={function(ev){var ni=(a.injuries||[]).slice();ni[ii]=Object.assign({},ni[ii],{severity:parseInt(ev.target.value)});saveInjuries(a.id,ni);}} style={Object.assign({},IS,{width:50,padding:"3px 6px",fontSize:10})}>
+                        <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option>
+                      </select>
+                      <select value={inj.status} onChange={function(ev){var ni=(a.injuries||[]).slice();ni[ii]=Object.assign({},ni[ii],{status:ev.target.value});saveInjuries(a.id,ni);}} style={Object.assign({},IS,{width:90,padding:"3px 6px",fontSize:10})}>
+                        <option value="monitoring">Monitoring</option><option value="limited">Limited</option><option value="out">Out</option><option value="resolved">Resolved</option>
+                      </select>
+                      <input value={inj.notes||""} onChange={function(ev){var ni=(a.injuries||[]).slice();ni[ii]=Object.assign({},ni[ii],{notes:ev.target.value});saveInjuries(a.id,ni);}} placeholder="Notes" style={Object.assign({},IS,{flex:1,padding:"3px 6px",fontSize:10})}/>
+                      <button onClick={function(ev){ev.stopPropagation();var ni=(a.injuries||[]).slice();ni.splice(ii,1);saveInjuries(a.id,ni);}} style={{background:"none",border:"none",color:"#ef4444",fontSize:10,cursor:"pointer",padding:"2px 4px"}}>X</button>
+                    </div>):(
+                      <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                        <span style={{fontSize:12,fontWeight:700,color:sevClr}}>{inj.area||"Unknown"}</span>
+                        <span style={{fontSize:10,padding:"1px 5px",borderRadius:3,background:statClr+"22",color:statClr,fontWeight:600}}>{inj.status}</span>
+                        <span style={{fontSize:10,color:_tm}}>Pain {inj.severity}/10</span>
+                        {inj.notes?<span style={{fontSize:10,color:_tm}}>{inj.notes}</span>:null}
+                      </div>
+                    )}
+                  </div>);
+                })}
+              </div>
+
+              {/* ── Race Plans ── */}
+              <div style={{marginBottom:14}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                  <div style={{fontSize:12,fontWeight:700,color:_tp}}>Race Plans</div>
+                  {cm?<button onClick={function(){var rp=(a.racePlans||[]).slice();rp.push({meetId:"",event:"",targetSplits:"",tactics:"",warmup:"",actual:"",notes:""});saveRacePlans(a.id,rp);}} style={{fontSize:10,padding:"2px 8px",borderRadius:4,background:"#0D47A115",border:"1px solid #0D47A133",color:"#6494D4",cursor:"pointer",fontWeight:600}}>+ Add Plan</button>:null}
+                </div>
+                {(a.racePlans||[]).length===0?<div style={{fontSize:11,color:_tm,fontStyle:"italic"}}>{cm?"Add race plans for upcoming meets.":"No race plans yet."}</div>:null}
+                {(a.racePlans||[]).map(function(rp,ri){
+                  var mt=meets.find(function(m){return m.id===rp.meetId;});
+                  return(<div key={ri} style={{padding:"10px 12px",marginBottom:6,borderRadius:8,background:"#0D47A108",border:"1px solid #0D47A122"}}>
+                    {cm?(<div>
+                      <div style={{display:"flex",gap:4,marginBottom:6,flexWrap:"wrap"}}>
+                        <select value={rp.meetId||""} onChange={function(ev){var np=(a.racePlans||[]).slice();np[ri]=Object.assign({},np[ri],{meetId:ev.target.value});saveRacePlans(a.id,np);}} style={Object.assign({},IS,{width:160,padding:"3px 6px",fontSize:10})}>
+                          <option value="">-- Meet --</option>{meets.map(function(m){return <option key={m.id} value={m.id}>{m.name}</option>;})}
+                        </select>
+                        <input value={rp.event||""} onChange={function(ev){var np=(a.racePlans||[]).slice();np[ri]=Object.assign({},np[ri],{event:ev.target.value});saveRacePlans(a.id,np);}} placeholder="Event" style={Object.assign({},IS,{width:70,padding:"3px 6px",fontSize:10})}/>
+                        <button onClick={function(){var np=(a.racePlans||[]).slice();np.splice(ri,1);saveRacePlans(a.id,np);}} style={{background:"none",border:"none",color:"#ef4444",fontSize:10,cursor:"pointer"}}>X</button>
+                      </div>
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4,marginBottom:4}}>
+                        <div><div style={{fontSize:10,color:_tm,fontFamily:"monospace"}}>TARGET SPLITS</div><input value={rp.targetSplits||""} onChange={function(ev){var np=(a.racePlans||[]).slice();np[ri]=Object.assign({},np[ri],{targetSplits:ev.target.value});saveRacePlans(a.id,np);}} placeholder="e.g. 72, 74, 76, 74" style={Object.assign({},IS,{padding:"4px 6px",fontSize:11})}/></div>
+                        <div><div style={{fontSize:10,color:_tm,fontFamily:"monospace"}}>ACTUAL SPLITS</div><input value={rp.actual||""} onChange={function(ev){var np=(a.racePlans||[]).slice();np[ri]=Object.assign({},np[ri],{actual:ev.target.value});saveRacePlans(a.id,np);}} placeholder="Fill after race" style={Object.assign({},IS,{padding:"4px 6px",fontSize:11})}/></div>
+                      </div>
+                      <div style={{marginBottom:4}}><div style={{fontSize:10,color:_tm,fontFamily:"monospace"}}>RACE TACTICS</div><input value={rp.tactics||""} onChange={function(ev){var np=(a.racePlans||[]).slice();np[ri]=Object.assign({},np[ri],{tactics:ev.target.value});saveRacePlans(a.id,np);}} placeholder="e.g. Go with lead pack through 800, kick at 300" style={Object.assign({},IS,{padding:"4px 6px",fontSize:11})}/></div>
+                      <div style={{marginBottom:4}}><div style={{fontSize:10,color:_tm,fontFamily:"monospace"}}>WARMUP PLAN</div><input value={rp.warmup||""} onChange={function(ev){var np=(a.racePlans||[]).slice();np[ri]=Object.assign({},np[ri],{warmup:ev.target.value});saveRacePlans(a.id,np);}} placeholder="e.g. 10min jog, drills, 3x100 strides" style={Object.assign({},IS,{padding:"4px 6px",fontSize:11})}/></div>
+                      <div><div style={{fontSize:10,color:_tm,fontFamily:"monospace"}}>NOTES</div><input value={rp.notes||""} onChange={function(ev){var np=(a.racePlans||[]).slice();np[ri]=Object.assign({},np[ri],{notes:ev.target.value});saveRacePlans(a.id,np);}} placeholder="Anything else" style={Object.assign({},IS,{padding:"4px 6px",fontSize:11})}/></div>
+                    </div>):(
+                      <div>
+                        <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:4}}>
+                          <span style={{fontSize:12,fontWeight:700,color:"#6494D4"}}>{mt?mt.name:"Unknown Meet"}</span>
+                          {rp.event?<span style={{fontSize:11,fontWeight:600,color:_tp}}>{rp.event}</span>:null}
+                        </div>
+                        {rp.targetSplits?<div style={{fontSize:11,color:_ts}}><span style={{fontWeight:600,color:_tm}}>Target: </span><span style={{fontFamily:"monospace"}}>{rp.targetSplits}</span></div>:null}
+                        {rp.tactics?<div style={{fontSize:11,color:_ts}}><span style={{fontWeight:600,color:_tm}}>Tactics: </span>{rp.tactics}</div>:null}
+                        {rp.warmup?<div style={{fontSize:11,color:_ts}}><span style={{fontWeight:600,color:_tm}}>Warmup: </span>{rp.warmup}</div>:null}
+                        {rp.actual?<div style={{fontSize:11,color:"#27AE60"}}><span style={{fontWeight:600}}>Actual: </span><span style={{fontFamily:"monospace"}}>{rp.actual}</span></div>:null}
+                        {rp.notes?<div style={{fontSize:11,color:_tm,marginTop:2}}>{rp.notes}</div>:null}
+                      </div>
+                    )}
+                  </div>);
+                })}
+              </div>
+
+              {/* ── Quick Calc (coach only) ── */}
+              {cm?(<div style={{padding:"12px",borderRadius:8,background:lt?"#f5f6f2":"rgba(255,255,255,0.04)",border:"1px dashed "+C.bd}}>
+                <div style={{fontSize:11,fontWeight:700,color:_tp,marginBottom:6}}>Quick Calculate Paces for {a.name.split(" ")[0]}</div>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"flex-end"}}>
+                  <select value={rcDist} onChange={function(ev){setRcDist(ev.target.value);}} style={Object.assign({},IS,{width:90,padding:"6px 8px",fontSize:11})}><option value="800">800m</option><option value="1600">1600m</option><option value="mile">Mile</option><option value="3200">3200m</option><option value="5km">5k</option></select>
+                  <div style={{display:"flex",gap:3,alignItems:"center"}}><input value={rcMin} onChange={function(ev){setRcMin(ev.target.value);}} placeholder="m" type="number" style={Object.assign({},IS,{width:48,padding:"6px",textAlign:"center",fontSize:11})}/><span style={{color:_ts}}>:</span><input value={rcSec} onChange={function(ev){setRcSec(ev.target.value);}} placeholder="s" type="number" style={Object.assign({},IS,{width:48,padding:"6px",textAlign:"center",fontSize:11})}/></div>
+                  <button onClick={function(){rosterCalc(a.id,rcDist,rcMin,rcSec);}} style={{padding:"6px 14px",borderRadius:6,background:"linear-gradient(135deg,"+C.green+","+C.greenLight+")",border:"none",color:C.white,fontWeight:700,fontSize:11,cursor:"pointer"}}>Calc & Save</button>
+                </div>
+                <div style={{fontSize:10,color:_tm,marginTop:4}}>Calculates training paces from a race result and saves them to this athlete's profile.</div>
+              </div>):null}
+            </div>):null}
           </div>);
         })():null}
         {[{title:"Boys Team",list:boys,clr:C.greenLight},{title:"Girls Team",list:girls,clr:C.gold}].map(function(sec){return(<div key={sec.title} style={{marginBottom:24}}><div style={{fontSize:13,fontWeight:700,color:sec.clr,textTransform:"uppercase",letterSpacing:1.5,fontFamily:"monospace",marginBottom:10,paddingBottom:6,borderBottom:"1px solid "+C.bd}}>{sec.title} ({sec.list.length})</div>{sec.list.length===0?<div style={{fontSize:11,color:_tm,fontStyle:"italic"}}>No athletes yet.</div>:null}<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(440px,1fr))",gap:10,alignItems:"start"}}>{sec.list.map(function(a){
@@ -715,6 +1001,8 @@ export default function App(){
           var hasSBs=a.sbs&&Object.values(a.sbs).some(function(v){return v;});
           var accentClr=a.team==="boys"?C.greenLight:C.gold;
           /* Compute weekly mileage + yesterday stats */
+          if(isMe&&!cm)return null;/* Logged-in athlete shows at top */
+          var _streak=getStreak(a.id);var _badges=getWeekBadges(a.id);
           var _now=new Date();var _dow=_now.getDay();var _monOff=_dow===0?-6:1-_dow;
           var _mon=new Date(_now);_mon.setDate(_now.getDate()+_monOff);_mon.setHours(0,0,0,0);
           var _sun=new Date(_mon);_sun.setDate(_mon.getDate()+7);
@@ -732,18 +1020,26 @@ export default function App(){
               <div style={{display:"flex",alignItems:"flex-start",gap:12}}>
                 {a.photo?<img src={a.photo} style={{width:48,height:60,borderRadius:8,objectFit:"cover",border:"2px solid "+(isMe?C.gold+"55":accentClr+"33"),flexShrink:0}}/>:<div style={{width:48,height:60,borderRadius:8,background:"linear-gradient(135deg,"+accentClr+"33,"+accentClr+"11)",color:accentClr,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:800,border:"2px solid "+(isMe?C.gold+"44":accentClr+"22"),flexShrink:0}}>{ini(a.name)}</div>}
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:14,fontWeight:700,color:_tp}}>{a.name} {a.grade?<span style={{fontSize:11,fontWeight:500,color:_tm}}>({a.grade})</span>:null} {isMe?<span style={{fontSize:10,padding:"2px 6px",borderRadius:3,background:C.gold+"22",color:C.gold,fontWeight:700}}>You</span>:null}</div>
+                  <div style={{fontSize:14,fontWeight:700,color:_tp}}>{a.name} {a.grade?<span style={{fontSize:11,fontWeight:500,color:_tm}}>({a.grade})</span>:null} {isMe?<span style={{fontSize:10,padding:"2px 6px",borderRadius:3,background:C.gold+"22",color:C.gold,fontWeight:700}}>You</span>:null}{_streak>=2?<span style={{fontSize:10,padding:"2px 5px",borderRadius:3,background:"#E74C3C18",color:"#E74C3C",fontWeight:700,marginLeft:4}} title={_streak+" day streak"}>{"\u{1F525}"+_streak}</span>:null}{_badges>0?<span style={{fontSize:10,padding:"2px 5px",borderRadius:3,background:C.gold+"18",color:C.gold,fontWeight:700,marginLeft:3}} title={_badges+" perfect week(s)"}>{_badges+"\u{2B50}"}</span>:null}</div>
                   <div style={{display:"flex",gap:4,alignItems:"center",marginTop:2,flexWrap:"wrap"}}>
                     {a.events?<span style={{fontSize:11,color:_tm}}>{a.events}</span>:null}
-                    {a.group==="mid"?<span style={{fontSize:9,padding:"1px 5px",borderRadius:3,background:"#E67E2218",color:"#E67E22",fontWeight:600}}>Mid</span>:<span style={{fontSize:9,padding:"1px 5px",borderRadius:3,background:"#3498DB18",color:"#3498DB",fontWeight:600}}>Long</span>}
+                    {a.group==="mid"?<span style={{fontSize:9,padding:"1px 5px",borderRadius:3,background:"#E67E2218",color:"#E67E22",fontWeight:600}}>Mid</span>:a.group==="both"?<span style={{fontSize:9,padding:"1px 5px",borderRadius:3,background:"#9B59B618",color:"#9B59B6",fontWeight:600}}>Mid/Long</span>:<span style={{fontSize:9,padding:"1px 5px",borderRadius:3,background:"#3498DB18",color:"#3498DB",fontWeight:600}}>Long</span>}
                     {cm&&a.pin?<span style={{fontSize:9,padding:"1px 5px",borderRadius:3,background:"rgba(255,255,255,0.06)",border:"1px dashed "+C.bd,color:_tm,fontFamily:"monospace",letterSpacing:1}}>PIN:{a.pin}</span>:null}
                   </div>
                 </div>
-                {/* Top-right: week miles / yesterday */}
+                {/* Top-right: week miles / yesterday / streak */}
                 <div style={{textAlign:"right",flexShrink:0,minWidth:70}}>
+                  {(function(){var st=getStreak(a.id);var wb=getWeekBadges(a.id);return(st>=2||wb>0)?<div style={{display:"flex",gap:4,justifyContent:"flex-end",alignItems:"center",marginBottom:2}}>
+                    {st>=2?<span style={{fontSize:10,color:"#E74C3C",fontWeight:700}}>{"\uD83D\uDD25"}{st}d</span>:null}
+                    {wb>0?<span style={{fontSize:10,color:C.gold,fontWeight:700}}>{"\u2B50"}{wb}</span>:null}
+                  </div>:null;})()}
                   <div style={{fontSize:10,color:_tm,fontFamily:"monospace"}}>This Wk</div>
                   <div style={{fontSize:14,fontWeight:800,color:accentClr,fontFamily:"monospace"}}>{wkMi?Math.round(wkMi*10)/10+"mi":"--"}</div>
                   {yestMi||yestEff!==null?<div style={{fontSize:10,color:_tm,marginTop:2}}>Yest: {yestMi?Math.round(yestMi*10)/10+"mi":""}{yestEff!==null?<span style={{marginLeft:3,fontWeight:700,color:yestEff<=4?"#27AE60":yestEff<=6?"#D4A017":yestEff<=8?"#E67E22":"#E74C3C"}}>{yestEff}/10</span>:null}</div>:null}
+                  {_streak>0||_badges>0?<div style={{display:"flex",gap:6,justifyContent:"flex-end",marginTop:3,alignItems:"center"}}>
+                    {_streak>=2?<span style={{fontSize:10,fontWeight:700,color:"#E74C3C"}}>{"\u{1F525}"}{_streak}d</span>:null}
+                    {_badges>0?<span style={{fontSize:10,fontWeight:700,color:C.gold}}>{"\u{2B50}"}{_badges}</span>:null}
+                  </div>:null}
                   <div style={{display:"flex",gap:3,justifyContent:"flex-end",marginTop:3}}>
                     {cm?<button onClick={function(ev){ev.stopPropagation();setREid(a.id);setRN(a.name);setRT(a.team);setRG(a.grade||"");setRE(a.events||"");setRGrp(a.group||"long");setRPin(a.pin||"");setRFormOpen(true);}} style={{background:lt?"#f0f1ec":"rgba(255,255,255,0.06)",border:"none",color:_ts,borderRadius:4,padding:"3px 6px",cursor:"pointer",fontSize:9}}>Edit</button>:null}
                     {cm?<button onClick={function(ev){ev.stopPropagation();if(confirm("Remove "+a.name+" from the roster?"))upR(roster.filter(function(x){return x.id!==a.id;}));}} style={{background:"rgba(239,68,68,0.1)",border:"none",color:"#ef4444",borderRadius:4,padding:"3px 6px",cursor:"pointer",fontSize:9}}>X</button>:null}
@@ -812,18 +1108,19 @@ export default function App(){
               <div style={{marginBottom:14}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                   <div style={{fontSize:12,fontWeight:700,color:_tp}}>Season Goals</div>
-                  {cm?<button onClick={function(){var g=(a.goals||[]).slice();g.push({event:"",target:"",notes:""});saveGoals(a.id,g);}} style={{fontSize:10,padding:"2px 8px",borderRadius:4,background:accentClr+"15",border:"1px solid "+accentClr+"33",color:accentClr,cursor:"pointer",fontWeight:600}}>+ Add Goal</button>:null}
+                  {(cm||isMe)?<button onClick={function(ev){ev.stopPropagation();var g=(a.goals||[]).slice();g.push({event:"",target:"",notes:""});saveGoals(a.id,g);}} style={{fontSize:10,padding:"2px 8px",borderRadius:4,background:accentClr+"15",border:"1px solid "+accentClr+"33",color:accentClr,cursor:"pointer",fontWeight:600}}>+ Add Goal</button>:null}
                 </div>
-                {(a.goals||[]).length===0?<div style={{fontSize:11,color:_tm,fontStyle:"italic"}}>{cm?"Add season goals for this athlete.":"No goals set yet."}</div>:null}
+                {(a.goals||[]).length===0?<div style={{fontSize:11,color:_tm,lineHeight:1.6}}>{(cm||isMe)?<span>Add your season goals. <span style={{fontStyle:"italic"}}>Ideas: time goals (e.g. 800 in 2:15), run a PR, win conference, qualify for state, run in college, improve fitness, stay healthy, or anything else!</span></span>:"No goals set yet."}</div>:null}
+                {(cm||isMe)&&(a.goals||[]).length===0?<div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:6,marginBottom:6}}>{["Run a PR","Win Conference","Qualify for State","Run in College","Stay Healthy","Improve Fitness"].map(function(preset){return <button key={preset} onClick={function(ev){ev.stopPropagation();var g=(a.goals||[]).slice();g.push({event:preset,target:"",notes:""});saveGoals(a.id,g);}} style={{fontSize:10,padding:"3px 8px",borderRadius:4,background:accentClr+"10",border:"1px solid "+accentClr+"22",color:accentClr,cursor:"pointer",fontWeight:600}}>{preset}</button>;})}</div>:null}
                 {(a.goals||[]).map(function(g,gi){
                   return(<div key={gi} style={{display:"flex",gap:6,alignItems:"flex-start",marginBottom:4,padding:"8px 10px",borderRadius:8,background:accentClr+"06",border:"1px solid "+accentClr+"15"}}>
                     <div style={{fontSize:16,color:accentClr,flexShrink:0}}>*</div>
                     <div style={{flex:1}}>
-                      {cm?(<div style={{display:"flex",gap:4,marginBottom:3,flexWrap:"wrap"}}>
-                        <input value={g.event} onChange={function(ev){var ng=(a.goals||[]).slice();ng[gi]=Object.assign({},ng[gi],{event:ev.target.value});saveGoals(a.id,ng);}} placeholder="Event (e.g. 1600)" style={Object.assign({},IS,{width:80,padding:"3px 6px",fontSize:11})}/>
-                        <input value={g.target} onChange={function(ev){var ng=(a.goals||[]).slice();ng[gi]=Object.assign({},ng[gi],{target:ev.target.value});saveGoals(a.id,ng);}} placeholder="Target time" style={Object.assign({},IS,{width:80,padding:"3px 6px",fontSize:11,fontWeight:700})}/>
+                      {(cm||isMe)?(<div style={{display:"flex",gap:4,marginBottom:3,flexWrap:"wrap"}}>
+                        <input value={g.event} onChange={function(ev){var ng=(a.goals||[]).slice();ng[gi]=Object.assign({},ng[gi],{event:ev.target.value});saveGoals(a.id,ng);}} placeholder="Goal (e.g. 1600, Run a PR)" style={Object.assign({},IS,{width:140,padding:"3px 6px",fontSize:11})}/>
+                        <input value={g.target} onChange={function(ev){var ng=(a.goals||[]).slice();ng[gi]=Object.assign({},ng[gi],{target:ev.target.value});saveGoals(a.id,ng);}} placeholder="Target (optional)" style={Object.assign({},IS,{width:100,padding:"3px 6px",fontSize:11,fontWeight:700})}/>
                         <input value={g.notes||""} onChange={function(ev){var ng=(a.goals||[]).slice();ng[gi]=Object.assign({},ng[gi],{notes:ev.target.value});saveGoals(a.id,ng);}} placeholder="Notes" style={Object.assign({},IS,{flex:1,padding:"3px 6px",fontSize:11})}/>
-                        <button onClick={function(){var ng=(a.goals||[]).slice();ng.splice(gi,1);saveGoals(a.id,ng);}} style={{background:"none",border:"none",color:"#ef4444",fontSize:10,cursor:"pointer"}}>X</button>
+                        <button onClick={function(ev){ev.stopPropagation();var ng=(a.goals||[]).slice();ng.splice(gi,1);saveGoals(a.id,ng);}} style={{background:"none",border:"none",color:"#ef4444",fontSize:10,cursor:"pointer",padding:"2px 4px"}}>X</button>
                       </div>):(
                         <div><span style={{fontWeight:700,color:accentClr}}>{g.event||"Goal"}</span>{g.target?<span style={{fontWeight:700,color:_tp,fontFamily:"monospace",marginLeft:6}}>{g.target}</span>:null}{g.notes?<span style={{color:_tm,marginLeft:6,fontSize:11}}>{g.notes}</span>:null}</div>
                       )}
@@ -883,31 +1180,31 @@ export default function App(){
               <div style={{marginBottom:14}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                   <div style={{fontSize:12,fontWeight:700,color:_tp}}>Injury / Health</div>
-                  {cm?<button onClick={function(){var inj=(a.injuries||[]).slice();inj.push({area:"",severity:1,date:fd(new Date()),notes:"",status:"monitoring"});saveInjuries(a.id,inj);}} style={{fontSize:10,padding:"2px 8px",borderRadius:4,background:"#E74C3C15",border:"1px solid #E74C3C33",color:"#E74C3C",cursor:"pointer",fontWeight:600}}>+ Add</button>:null}
+                  {(cm||isMe)?<button onClick={function(ev){ev.stopPropagation();var inj=(a.injuries||[]).slice();inj.push({area:"",severity:1,date:fd(new Date()),notes:"",status:"monitoring"});saveInjuries(a.id,inj);}} style={{fontSize:10,padding:"2px 8px",borderRadius:4,background:"#E74C3C15",border:"1px solid #E74C3C33",color:"#E74C3C",cursor:"pointer",fontWeight:600}}>+ Add</button>:null}
                 </div>
                 {(a.injuries||[]).filter(function(inj){return inj.status!=="resolved";}).length===0&&(a.injuries||[]).length===0?<div style={{fontSize:11,color:"#27AE60",fontWeight:600}}>Healthy</div>:null}
                 {(a.injuries||[]).map(function(inj,ii){
-                  var sevClr=inj.severity<=2?"#D4A017":inj.severity<=3?"#E67E22":"#E74C3C";
+                  var sevClr=inj.severity<=3?"#27AE60":inj.severity<=5?"#D4A017":inj.severity<=7?"#E67E22":"#E74C3C";
                   var statClr=inj.status==="resolved"?"#27AE60":inj.status==="monitoring"?"#D4A017":inj.status==="limited"?"#E67E22":"#E74C3C";
                   if(!cm&&inj.status==="resolved")return null;
                   return(<div key={ii} style={{padding:"8px 10px",marginBottom:4,borderRadius:8,background:sevClr+"06",border:"1px solid "+sevClr+"22",borderLeft:"3px solid "+sevClr}}>
-                    {cm?(<div style={{display:"flex",gap:4,flexWrap:"wrap",alignItems:"center",marginBottom:4}}>
+                    {(cm||isMe)?(<div style={{display:"flex",gap:4,flexWrap:"wrap",alignItems:"center",marginBottom:4}}>
                       <select value={inj.area} onChange={function(ev){var ni=(a.injuries||[]).slice();ni[ii]=Object.assign({},ni[ii],{area:ev.target.value});saveInjuries(a.id,ni);}} style={Object.assign({},IS,{width:120,padding:"3px 6px",fontSize:10})}>
                         <option value="">-- Area --</option>{BODY_AREAS.map(function(b){return <option key={b} value={b}>{b}</option>;})}
                       </select>
                       <select value={inj.severity} onChange={function(ev){var ni=(a.injuries||[]).slice();ni[ii]=Object.assign({},ni[ii],{severity:parseInt(ev.target.value)});saveInjuries(a.id,ni);}} style={Object.assign({},IS,{width:50,padding:"3px 6px",fontSize:10})}>
-                        <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option>
+                        <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option>
                       </select>
                       <select value={inj.status} onChange={function(ev){var ni=(a.injuries||[]).slice();ni[ii]=Object.assign({},ni[ii],{status:ev.target.value});saveInjuries(a.id,ni);}} style={Object.assign({},IS,{width:90,padding:"3px 6px",fontSize:10})}>
                         <option value="monitoring">Monitoring</option><option value="limited">Limited</option><option value="out">Out</option><option value="resolved">Resolved</option>
                       </select>
                       <input value={inj.notes||""} onChange={function(ev){var ni=(a.injuries||[]).slice();ni[ii]=Object.assign({},ni[ii],{notes:ev.target.value});saveInjuries(a.id,ni);}} placeholder="Notes" style={Object.assign({},IS,{flex:1,padding:"3px 6px",fontSize:10})}/>
-                      <button onClick={function(){var ni=(a.injuries||[]).slice();ni.splice(ii,1);saveInjuries(a.id,ni);}} style={{background:"none",border:"none",color:"#ef4444",fontSize:10,cursor:"pointer"}}>X</button>
+                      <button onClick={function(ev){ev.stopPropagation();var ni=(a.injuries||[]).slice();ni.splice(ii,1);saveInjuries(a.id,ni);}} style={{background:"none",border:"none",color:"#ef4444",fontSize:10,cursor:"pointer",padding:"2px 4px"}}>X</button>
                     </div>):(
                       <div style={{display:"flex",gap:6,alignItems:"center"}}>
                         <span style={{fontSize:12,fontWeight:700,color:sevClr}}>{inj.area||"Unknown"}</span>
                         <span style={{fontSize:10,padding:"1px 5px",borderRadius:3,background:statClr+"22",color:statClr,fontWeight:600}}>{inj.status}</span>
-                        <span style={{fontSize:10,color:_tm}}>Severity {inj.severity}/5</span>
+                        <span style={{fontSize:10,color:_tm}}>Pain {inj.severity}/10</span>
                         {inj.notes?<span style={{fontSize:10,color:_tm}}>{inj.notes}</span>:null}
                       </div>
                     )}
@@ -1053,7 +1350,7 @@ export default function App(){
             </div>
             {rFormOpen&&!rEid?(
               <div style={{padding:"0 14px 14px",borderTop:"1px solid "+C.bd}}>
-                <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:10}}><input value={rN} onChange={function(ev){setRN(ev.target.value);}} placeholder="Name" style={Object.assign({},IS,{flex:"2 1 160px"})}/><select value={rT} onChange={function(ev){setRT(ev.target.value);}} style={Object.assign({},IS,{flex:"0 1 90px"})}><option value="boys">Boys</option><option value="girls">Girls</option></select><select value={rGrp} onChange={function(ev){setRGrp(ev.target.value);}} style={Object.assign({},IS,{flex:"0 1 120px"})}><option value="mid">Mid-Distance</option><option value="long">Long Distance</option></select><input value={rG} onChange={function(ev){setRG(ev.target.value);}} placeholder="Grade" style={Object.assign({},IS,{flex:"0 1 60px"})}/><input value={rE} onChange={function(ev){setRE(ev.target.value);}} placeholder="Events" style={Object.assign({},IS,{flex:"2 1 140px"})}/><input value={rPin} onChange={function(ev){setRPin(ev.target.value);}} placeholder="PIN (auto)" style={Object.assign({},IS,{flex:"0 1 80px",fontFamily:"monospace",letterSpacing:2,textAlign:"center"})}/><button onClick={rAdd} style={{padding:"10px 16px",borderRadius:8,background:"linear-gradient(135deg,"+C.green+","+C.greenLight+")",border:"none",color:C.white,fontWeight:700,fontSize:12,cursor:"pointer"}}>Add</button></div>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:10}}><input value={rN} onChange={function(ev){setRN(ev.target.value);}} placeholder="Name" style={Object.assign({},IS,{flex:"2 1 160px"})}/><select value={rT} onChange={function(ev){setRT(ev.target.value);}} style={Object.assign({},IS,{flex:"0 1 90px"})}><option value="boys">Boys</option><option value="girls">Girls</option></select><select value={rGrp} onChange={function(ev){setRGrp(ev.target.value);}} style={Object.assign({},IS,{flex:"0 1 120px"})}><option value="mid">Mid-Distance</option><option value="long">Long Distance</option><option value="both">Mid & Long</option></select><input value={rG} onChange={function(ev){setRG(ev.target.value);}} placeholder="Grade" style={Object.assign({},IS,{flex:"0 1 60px"})}/><input value={rE} onChange={function(ev){setRE(ev.target.value);}} placeholder="Events" style={Object.assign({},IS,{flex:"2 1 140px"})}/><input value={rPin} onChange={function(ev){setRPin(ev.target.value);}} placeholder="PIN (auto)" style={Object.assign({},IS,{flex:"0 1 80px",fontFamily:"monospace",letterSpacing:2,textAlign:"center"})}/><button onClick={rAdd} style={{padding:"10px 16px",borderRadius:8,background:"linear-gradient(135deg,"+C.green+","+C.greenLight+")",border:"none",color:C.white,fontWeight:700,fontSize:12,cursor:"pointer"}}>Add</button></div>
               </div>
             ):null}
           </div>
@@ -1081,7 +1378,7 @@ export default function App(){
                 <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}>
                   <input value={rN} onChange={function(ev){setRN(ev.target.value);}} placeholder="Name" style={Object.assign({},IS,{flex:"2 1 160px"})}/>
                   <select value={rT} onChange={function(ev){setRT(ev.target.value);}} style={Object.assign({},IS,{flex:"0 1 90px"})}><option value="boys">Boys</option><option value="girls">Girls</option></select>
-                  <select value={rGrp} onChange={function(ev){setRGrp(ev.target.value);}} style={Object.assign({},IS,{flex:"0 1 120px"})}><option value="mid">Mid-Distance</option><option value="long">Long Distance</option></select>
+                  <select value={rGrp} onChange={function(ev){setRGrp(ev.target.value);}} style={Object.assign({},IS,{flex:"0 1 120px"})}><option value="mid">Mid-Distance</option><option value="long">Long Distance</option><option value="both">Mid & Long</option></select>
                   <input value={rG} onChange={function(ev){setRG(ev.target.value);}} placeholder="Grade" style={Object.assign({},IS,{flex:"0 1 60px"})}/>
                   <input value={rE} onChange={function(ev){setRE(ev.target.value);}} placeholder="Events" style={Object.assign({},IS,{flex:"2 1 140px"})}/>
                   <input value={rPin} onChange={function(ev){setRPin(ev.target.value);}} placeholder="PIN" style={Object.assign({},IS,{flex:"0 1 80px",fontFamily:"monospace",letterSpacing:2,textAlign:"center"})}/>
@@ -1562,6 +1859,50 @@ export default function App(){
           </div>):null}
         </div>
 
+        <div style={{marginBottom:12,borderRadius:12,border:"1px solid "+C.bd,background:lt?"#fff":"rgba(255,255,255,0.02)",overflow:"hidden"}}>
+          <div onClick={function(){togRecSec("cons");}} style={{padding:"14px 16px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",background:lt?"#f5f6f2":"rgba(255,255,255,0.03)"}}>
+            <div style={{fontSize:15,fontWeight:800,color:"#E74C3C"}}>🔥 Consistency Leaderboard</div>
+            <span style={{color:_tm,fontSize:11}}>{recSec.cons?"[-]":"[+]"}</span>
+          </div>
+          {recSec.cons?(<div style={{padding:"12px 16px"}}>
+            <div style={{fontSize:11,color:_tm,marginBottom:12}}>Mon–Sat practice days. Log a workout to earn percentage. 6/6 days = perfect week ⭐. 80%+ earns monthly rewards!</div>
+            {(function(){
+              var all=roster.filter(function(a){return a.name!=="Mr. Acosta";}).map(function(a){
+                return{id:a.id,name:a.name,team:a.team,photo:a.photo,grade:a.grade,pct:getLogPct(a.id),streak:getStreak(a.id),badges:getWeekBadges(a.id)};
+              }).sort(function(x,y){return y.pct-x.pct||y.streak-x.streak;});
+              return(<div style={{display:"flex",gap:16,flexWrap:"wrap"}}>
+                {[{label:"Boys",list:all.filter(function(a){return a.team==="boys";}),clr:C.greenLight},{label:"Girls",list:all.filter(function(a){return a.team==="girls";}),clr:C.gold}].map(function(grp){
+                  return(<div key={grp.label} style={{flex:1,minWidth:200}}>
+                    <div style={{fontSize:12,fontWeight:700,color:grp.clr,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>{grp.label}</div>
+                    {grp.list.map(function(a,i){
+                      var pClr=a.pct>=80?"#27AE60":a.pct>=50?"#D4A017":a.pct>=20?"#E67E22":"#E74C3C";
+                      var barW=Math.max(a.pct,2);
+                      return(<div key={a.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",marginBottom:3,borderRadius:8,background:i===0?grp.clr+"12":"transparent",border:i===0?"1px solid "+grp.clr+"33":"1px solid "+C.bd}}>
+                        <div style={{width:20,fontSize:11,fontWeight:800,color:i===0?grp.clr:_tm,textAlign:"center"}}>{i+1}</div>
+                        {a.photo?<img src={a.photo} style={{width:24,height:24,borderRadius:5,objectFit:"cover"}}/>:null}
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                            <span style={{fontSize:11,fontWeight:i===0?700:500,color:i===0?grp.clr:_tp,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.name}</span>
+                            <div style={{display:"flex",gap:4,alignItems:"center",flexShrink:0}}>
+                              {a.streak>=2?<span style={{fontSize:9,color:"#E74C3C",fontWeight:700}}>🔥{a.streak}d</span>:null}
+                              {a.badges>0?<span style={{fontSize:9,color:C.gold,fontWeight:700}}>⭐{a.badges}</span>:null}
+                            </div>
+                          </div>
+                          <div style={{height:6,borderRadius:3,background:lt?"#eee":"rgba(255,255,255,0.06)",marginTop:3,overflow:"hidden"}}>
+                            <div style={{height:"100%",borderRadius:3,width:barW+"%",background:pClr,transition:"width 0.3s"}}/>
+                          </div>
+                        </div>
+                        <div style={{fontSize:13,fontWeight:800,color:pClr,fontFamily:"monospace",minWidth:36,textAlign:"right"}}>{a.pct}%</div>
+                      </div>);
+                    })}
+                  </div>);
+                })}
+              </div>);
+            })()}
+          </div>):null}
+        </div>
+
+
         {/* ── 2. SEASON HIGHLIGHTS ── */}
         <div style={{marginBottom:12,borderRadius:12,border:"1px solid "+C.bd,background:lt?"#fff":"rgba(255,255,255,0.02)",overflow:"hidden"}}>
           <div onClick={function(){togRecSec("hl");}} style={{padding:"14px 16px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",background:lt?"#f5f6f2":"rgba(255,255,255,0.03)"}}>
@@ -1598,7 +1939,7 @@ export default function App(){
           </div>):null}
         </div>
 
-        {/* ── 3. SCHOOL RECORDS (Top 5) ── */}
+        {/* ── 4. SCHOOL RECORDS (Top 5) ── */}
         <div style={{marginBottom:12,borderRadius:12,border:"1px solid "+C.bd,background:lt?"#fff":"rgba(255,255,255,0.02)",overflow:"hidden"}}>
           <div onClick={function(){togRecSec("sr");}} style={{padding:"14px 16px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",background:lt?"#f5f6f2":"rgba(255,255,255,0.03)"}}>
             <div style={{fontSize:15,fontWeight:800,color:C.gold}}>School Records (All-Time Top 5)</div>
