@@ -352,7 +352,7 @@ export default function App(){
       }});
     }));
   }
-  var EVTS=["800","1600","3200","4x800"];
+  var EVTS=["4x800","800","1600","3200"];
   function upLineup(meetId,evtName,field,val){
     upM(meets.map(function(m){
       if(m.id!==meetId)return m;
@@ -858,13 +858,14 @@ export default function App(){
 
               {/* ── Training Paces ── */}
               <div style={{marginBottom:14}}>
-                <div style={{fontSize:12,fontWeight:700,color:_tp,marginBottom:8}}>Training Paces</div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-                  <div style={{background:"#8E44AD0a",borderRadius:6,padding:"8px 10px",borderLeft:"3px solid #8E44AD"}}><div style={{fontSize:10,fontWeight:700,color:"#8E44AD",fontFamily:"monospace"}}>Threshold Safe</div><input value={(a.paces&&a.paces.thrSafe)||""} readOnly={!cm} onChange={function(ev){if(!cm)return;savePF(a.id,"thrSafe",ev.target.value);}} placeholder="e.g. 6:45/mi" style={Object.assign({},IS,{marginTop:4,padding:"6px 8px",fontSize:14,fontWeight:700})}/></div>
-                  <div style={{background:"#8E44AD0a",borderRadius:6,padding:"8px 10px",borderLeft:"3px solid #8E44AD"}}><div style={{fontSize:10,fontWeight:700,color:"#8E44AD",fontFamily:"monospace"}}>Threshold Median</div><input value={(a.paces&&a.paces.thrMed)||""} readOnly={!cm} onChange={function(ev){if(!cm)return;savePF(a.id,"thrMed",ev.target.value);}} placeholder="e.g. 6:20/mi" style={Object.assign({},IS,{marginTop:4,padding:"6px 8px",fontSize:14,fontWeight:700})}/></div>
-                  <div style={{gridColumn:"1/3",background:"#3498DB0a",borderRadius:6,padding:"8px 10px",borderLeft:"3px solid #3498DB"}}><div style={{fontSize:10,fontWeight:700,color:"#3498DB",fontFamily:"monospace"}}>CV / Critical Speed</div><input value={(a.paces&&a.paces.cv)||""} readOnly={!cm} onChange={function(ev){if(!cm)return;savePF(a.id,"cv",ev.target.value);}} placeholder="e.g. 5:55/mi" style={Object.assign({},IS,{marginTop:4,padding:"6px 8px",fontSize:14,fontWeight:700})}/></div>
-                  <div style={{background:"#27AE600a",borderRadius:6,padding:"8px 10px",borderLeft:"3px solid #27AE60"}}><div style={{fontSize:10,fontWeight:700,color:"#27AE60",fontFamily:"monospace"}}>VO2max Safe</div><input value={(a.paces&&a.paces.vo2Safe)||""} readOnly={!cm} onChange={function(ev){if(!cm)return;savePF(a.id,"vo2Safe",ev.target.value);}} placeholder="e.g. 5:43/mi" style={Object.assign({},IS,{marginTop:4,padding:"6px 8px",fontSize:14,fontWeight:700})}/></div>
-                  <div style={{background:"#27AE600a",borderRadius:6,padding:"8px 10px",borderLeft:"3px solid #27AE60"}}><div style={{fontSize:10,fontWeight:700,color:"#27AE60",fontFamily:"monospace"}}>VO2max Median</div><input value={(a.paces&&a.paces.vo2Med)||""} readOnly={!cm} onChange={function(ev){if(!cm)return;savePF(a.id,"vo2Med",ev.target.value);}} placeholder="e.g. 5:35/mi" style={Object.assign({},IS,{marginTop:4,padding:"6px 8px",fontSize:14,fontWeight:700})}/></div>
+                <div style={{fontSize:12,fontWeight:700,color:_tp,marginBottom:6}}>Training Paces</div>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                  {[{k:"thrSafe",l:"LT Safe",c:"#8E44AD"},{k:"thrMed",l:"LT Med",c:"#8E44AD"},{k:"cv",l:"CV",c:"#3498DB"},{k:"vo2Safe",l:"VO2 Safe",c:"#27AE60"},{k:"vo2Med",l:"VO2 Med",c:"#27AE60"}].map(function(p){
+                    return <div key={p.k} style={{flex:"1 1 90px",maxWidth:140,background:p.c+"0a",borderRadius:6,padding:"6px 8px",borderLeft:"3px solid "+p.c}}>
+                      <div style={{fontSize:9,fontWeight:700,color:p.c,fontFamily:"monospace"}}>{p.l}</div>
+                      <input value={(a.paces&&a.paces[p.k])||""} readOnly={!cm} onChange={function(ev){if(!cm)return;savePF(a.id,p.k,ev.target.value);}} placeholder="--" style={Object.assign({},IS,{marginTop:2,padding:"3px 6px",fontSize:13,fontWeight:700,textAlign:"center"})}/>
+                    </div>;
+                  })}
                 </div>
               </div>
 
@@ -1678,13 +1679,15 @@ export default function App(){
               </div>
               {/* Training Paces */}
               <div style={{marginBottom:14}}>
-                <div style={{fontSize:12,fontWeight:700,color:_tp,marginBottom:8}}>Training Paces</div>
-                {hp?(<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-                  <div style={{background:"#8E44AD12",borderRadius:8,padding:"10px",borderLeft:"3px solid #8E44AD"}}><div style={{fontSize:10,fontWeight:700,color:"#8E44AD",fontFamily:"monospace"}}>Threshold (Safe)</div><div style={{fontSize:18,fontWeight:800,color:_tp,marginTop:2}}>{a.paces.thrSafe||"--"}</div></div>
-                  <div style={{background:"#8E44AD12",borderRadius:8,padding:"10px",borderLeft:"3px solid #8E44AD"}}><div style={{fontSize:10,fontWeight:700,color:"#8E44AD",fontFamily:"monospace"}}>Threshold (Med)</div><div style={{fontSize:18,fontWeight:800,color:_tp,marginTop:2}}>{a.paces.thrMed||"--"}</div></div>
-                  <div style={{gridColumn:"1/3",background:"#3498DB12",borderRadius:8,padding:"10px",borderLeft:"3px solid #3498DB"}}><div style={{fontSize:10,fontWeight:700,color:"#3498DB",fontFamily:"monospace"}}>CV / Critical Speed</div><div style={{fontSize:18,fontWeight:800,color:_tp,marginTop:2}}>{a.paces.cv||"--"}</div></div>
-                  <div style={{background:"#27AE6012",borderRadius:8,padding:"10px",borderLeft:"3px solid #27AE60"}}><div style={{fontSize:10,fontWeight:700,color:"#27AE60",fontFamily:"monospace"}}>VO2max (Safe)</div><div style={{fontSize:18,fontWeight:800,color:_tp,marginTop:2}}>{a.paces.vo2Safe||"--"}</div></div>
-                  <div style={{background:"#27AE6012",borderRadius:8,padding:"10px",borderLeft:"3px solid #27AE60"}}><div style={{fontSize:10,fontWeight:700,color:"#27AE60",fontFamily:"monospace"}}>VO2max (Med)</div><div style={{fontSize:18,fontWeight:800,color:_tp,marginTop:2}}>{a.paces.vo2Med||"--"}</div></div>
+                <div style={{fontSize:12,fontWeight:700,color:_tp,marginBottom:6}}>Training Paces</div>
+                {hp?(<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                  {[{k:"thrSafe",l:"LT Safe",c:"#8E44AD"},{k:"thrMed",l:"LT Med",c:"#8E44AD"},{k:"cv",l:"CV",c:"#3498DB"},{k:"vo2Safe",l:"VO2 Safe",c:"#27AE60"},{k:"vo2Med",l:"VO2 Med",c:"#27AE60"}].map(function(p){
+                    var v=a.paces[p.k];if(!v)return null;
+                    return <div key={p.k} style={{flex:"1 1 80px",maxWidth:120,background:p.c+"12",borderRadius:6,padding:"6px 8px",borderLeft:"3px solid "+p.c,textAlign:"center"}}>
+                      <div style={{fontSize:9,fontWeight:700,color:p.c,fontFamily:"monospace"}}>{p.l}</div>
+                      <div style={{fontSize:15,fontWeight:800,color:_tp,marginTop:2}}>{v}</div>
+                    </div>;
+                  })}
                 </div>):<div style={{fontSize:11,color:_tm,fontStyle:"italic"}}>No paces set yet. Your coach will add these.</div>}
               </div>
               {/* PRs */}
