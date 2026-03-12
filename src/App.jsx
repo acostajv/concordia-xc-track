@@ -566,19 +566,23 @@ export default function App(){
   }
   function getConsistency(athId){
     /* Returns {logPct, checkinPct} since APP_START (3/11/26) */
+    /* Loop through APP_START to today. Past days count toward total (denominator). */
+    /* Today only counts toward total if they already logged something. */
     var sp=APP_START.split("-");var start=new Date(parseInt(sp[0]),parseInt(sp[1])-1,parseInt(sp[2]));
     start.setHours(0,0,0,0);
-    var end=new Date();end.setDate(end.getDate()-1);end.setHours(23,59,59,999);/* through end of yesterday */
+    var now=new Date();now.setHours(23,59,59,999);/* include today */
+    var todayStr=fd(new Date());
     var totalDays=0;var logDays=0;var checkinDays=0;
     var d=new Date(start);
-    while(d<=end){
+    while(d<=now){
       var dow=d.getDay();
       if(dow>=1&&dow<=6){/* Mon-Sat */
-        totalDays++;
         var dk=fd(d);var entries=wlog[dk]||[];
-        /* Entry exists under this date key = counts (date key is selected by runner) */
         var hasLog=entries.some(function(e){return e.athId===athId&&e.type!=="readiness";});
         var hasCheckin=entries.some(function(e){return e.athId===athId&&e.type==="readiness";});
+        var isToday=(dk===todayStr);
+        /* Past completed days always count toward total. Today only counts if they have any entry. */
+        if(!isToday||(isToday&&(hasLog||hasCheckin))){totalDays++;}
         if(hasLog)logDays++;
         if(hasCheckin)checkinDays++;
       }
