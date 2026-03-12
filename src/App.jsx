@@ -450,6 +450,34 @@ export default function App(){
   function submitLog(){if(!logMod||!logAth||!logDate)return;addLog(logDate,{athId:logAth,difficulty:logDiff,mileage:parseFloat(logMi)||0,splits:logSpl,notes:logNt,ts:Date.now()});setLogMod(null);}
   function getAthLogs(athId){var logs={};Object.keys(wlog).forEach(function(dk){(wlog[dk]||[]).forEach(function(e){if(e.athId===athId){if(!logs[dk])logs[dk]=[];logs[dk].push(e);}});});return logs;}
   function getWeeklyMileage(athId,weeksBack){var result=[];var now=new Date();for(var w=0;w<weeksBack;w++){var mon=new Date(now);var dow=mon.getDay();mon.setDate(now.getDate()-(dow===0?6:dow-1)-w*7);mon.setHours(0,0,0,0);var total=0;for(var d=0;d<7;d++){var day=new Date(mon);day.setDate(mon.getDate()+d);var dk=fd(day);if(wlog[dk])(wlog[dk]).forEach(function(e){if(e.athId===athId)total+=e.mileage||0;});}var lbl=(mon.getMonth()+1)+"/"+mon.getDate();result.unshift({week:lbl,miles:Math.round(total*10)/10});}return result;}
+  function upTpl(t){setTemplates(t);sv1(TK,t);}
+  function togTheme(){var n=theme==="dark"?"light":"dark";setTheme(n);svLocal(THK,n);}
+  function saveMyAth(id){setMyAth(id);svLocal(MYK,id);}
+  function pinLogin(){var match=roster.find(function(a){return a.pin&&a.pin===pinEntry;});if(match){saveMyAth(match.id);setPinEntry("");setPinErr("");setMyShow(false);}else{setPinErr("Invalid PIN. Try again or ask your coach.");}}
+  function saveTemplate(wo){var nm=prompt("Template name:");if(!nm)return;var t=templates.slice();t.push(Object.assign({},wo,{_tplName:nm,_tplId:"t"+Date.now()}));upTpl(t);}
+  function deleteTemplate(id){upTpl(templates.filter(function(t){return t._tplId!==id;}));}
+  function saveMeetResult(meetId,evtName,athId,time){
+    upM(meets.map(function(m){if(m.id!==meetId)return m;var res=Object.assign({},m.results||{});var ev=Object.assign({},res[evtName]||{});ev[athId]=time;res[evtName]=ev;return Object.assign({},m,{results:res});}));
+  }
+  function parsePace(s){if(!s)return null;var clean=s.replace(/\/mi$/,"").trim();var parts=clean.split(":");if(parts.length!==2)return null;var m=parseInt(parts[0]);var sc=parseInt(parts[1]);if(isNaN(m)||isNaN(sc))return null;return m*60+sc;}
+  function fmtSec(s){var m=Math.floor(s/60);var sc=Math.round(s%60);return m+":"+(sc<10?"0":"")+sc;}
+  function groupByPace(athletes,paceKey,tolerance){
+    if(!tolerance)tolerance=15;
+    var withPace=athletes.map(function(a){return{ath:a,sec:parsePace(a.paces&&a.paces[paceKey])};}).filter(function(x){return x.sec!==null;}).sort(function(a,b){return a.sec-b.sec;});
+    var noPace=athletes.filter(function(a){return parsePace(a.paces&&a.paces[paceKey])===null;});
+    var groups=[];var used={};
+    for(var i=0;i<withPace.length;i++){
+      if(used[withPace[i].ath.id])continue;
+      var grp=[withPace[i]];used[withPace[i].ath.id]=true;
+      for(var j=i+1;j<withPace.length;j++){
+        if(used[withPace[j].ath.id])continue;
+        if(withPace[j].sec-grp[grp.length-1].sec<=tolerance){grp.push(withPace[j]);used[withPace[j].ath.id]=true;}
+      }
+      var avg=Math.round(grp.reduce(function(s,x){return s+x.sec;},0)/grp.length);
+      groups.push({runners:grp.map(function(x){return x.ath;}),avgPace:avg,minPace:grp[0].sec,maxPace:grp[grp.length-1].sec});
+    }
+    return{groups:groups,noPace:noPace};
+  }
   function savePF(id,f,v){upR(roster.map(function(a){if(a.id!==id)return a;var p=Object.assign({},a.paces||{});p[f]=v;return Object.assign({},a,{paces:p});}));}
   function savePB(id,dist,v){upR(roster.map(function(a){if(a.id!==id)return a;var p=Object.assign({},a.pbs||{});p[dist]=v;return Object.assign({},a,{pbs:p});}));}
   function saveSB(id,dist,v){upR(roster.map(function(a){if(a.id!==id)return a;var p=Object.assign({},a.sbs||{});p[dist]=v;return Object.assign({},a,{sbs:p});}));}
