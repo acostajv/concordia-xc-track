@@ -243,14 +243,18 @@ function Card(props){
   var meId=props.myAth||"";
   var amAssigned=meId&&arr.some(function(w){return w.athletes&&w.athletes.indexOf(meId)!==-1;});
   var _lt=props.lt;var _ctp=_lt?"#111a11":C.tp;var _cts=_lt?"#34432f":C.ts;var _ctm=_lt?"#556b50":C.tm;
-  var bg=hasMeet?(_lt?"rgba(13,71,161,0.06)":"linear-gradient(135deg,rgba(13,71,161,0.12),rgba(13,71,161,0.04))"):amAssigned?(_lt?"rgba(212,160,23,0.06)":"linear-gradient(135deg,rgba(212,160,23,0.10),rgba(212,160,23,0.03))"):props.today?(_lt?"rgba(27,94,32,0.06)":"linear-gradient(135deg,rgba(27,94,32,0.15),rgba(27,94,32,0.05))"):(_lt?"#fff":C.bgC);
-  var bd=hasMeet?"1px solid rgba(13,71,161,"+(_lt?"0.2":"0.4")+")":amAssigned?"1px solid rgba(212,160,23,"+(_lt?"0.25":"0.4")+")":props.today?"1px solid rgba(27,94,32,"+(_lt?"0.2":"0.4")+")":"1px solid "+(_lt?"rgba(0,0,0,0.1)":C.bd);
+  var bg=hasMeet?(_lt?"rgba(13,71,161,0.06)":"linear-gradient(135deg,rgba(13,71,161,0.12),rgba(13,71,161,0.04))"):amAssigned?(_lt?"rgba(212,160,23,0.06)":"linear-gradient(135deg,rgba(212,160,23,0.10),rgba(212,160,23,0.03))"):props.today?(_lt?"rgba(27,94,32,0.08)":"linear-gradient(135deg,rgba(46,125,50,0.18),rgba(27,94,32,0.06))"):(_lt?"#fff":C.bgC);
+  var bd=hasMeet?"1px solid rgba(13,71,161,"+(_lt?"0.2":"0.4")+")":amAssigned?"1px solid rgba(212,160,23,"+(_lt?"0.25":"0.4")+")":props.today?"2px solid "+C.greenLight:"1px solid "+(_lt?"rgba(0,0,0,0.1)":C.bd);
   var tg={fontSize:10,padding:"2px 5px",borderRadius:3,background:_lt?"#f0f1ec":"rgba(255,255,255,0.06)",color:_cts,fontFamily:"monospace"};
   return(
-    <div style={{background:bg,border:bd,borderRadius:12,padding:14,minHeight:100,position:"relative",overflow:"hidden"}} onMouseEnter={function(ev){ev.currentTarget.style.background=C.bgH;}} onMouseLeave={function(ev){ev.currentTarget.style.background=bg;}}>
-      {hasMeet?<div style={{position:"absolute",top:0,left:0,right:0,height:3,background:"#0D47A1"}}/>:arr.length>0?(function(){var f=gc(arr[0].category);return f?<div style={{position:"absolute",top:0,left:0,right:0,height:3,background:f.color}}/>:null;})():null}
+    <div style={{background:bg,border:bd,borderRadius:12,padding:14,minHeight:100,position:"relative",overflow:"hidden",boxShadow:props.today?"0 0 12px rgba(46,125,50,0.15)":"none"}} onMouseEnter={function(ev){ev.currentTarget.style.background=C.bgH;}} onMouseLeave={function(ev){ev.currentTarget.style.background=bg;}}>
+      {props.today?<div style={{position:"absolute",top:0,left:0,bottom:0,width:4,background:C.greenLight}}/>:null}
+      {hasMeet?<div style={{position:"absolute",top:0,left:props.today?4:0,right:0,height:3,background:"#0D47A1"}}/>:arr.length>0?(function(){var f=gc(arr[0].category);return f?<div style={{position:"absolute",top:0,left:props.today?4:0,right:0,height:3,background:f.color}}/>:null;})():null}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
-        <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,color:props.today?C.greenLight:_ctm,fontFamily:"monospace"}}>{props.day} <span style={{fontWeight:400,opacity:0.7}}>{fs(props.date)}</span></div>
+        <div style={{display:"flex",alignItems:"center",gap:6}}>
+          <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,color:props.today?C.greenLight:_ctm,fontFamily:"monospace"}}>{props.day} <span style={{fontWeight:400,opacity:0.7}}>{fs(props.date)}</span></div>
+          {props.today?<span style={{fontSize:9,fontWeight:800,padding:"2px 6px",borderRadius:4,background:C.greenLight,color:"#fff",letterSpacing:1}}>TODAY</span>:null}
+        </div>
         <div style={{display:"flex",gap:3,alignItems:"center"}}>
           {arr.map(function(w,i){var c=gc(w.category);return c?<span key={i} style={{width:18,height:18,borderRadius:3,background:c.color+"22",color:c.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,fontFamily:"monospace"}}>{c.icon}</span>:null;})}
         </div>
@@ -316,6 +320,7 @@ export default function App(){
   var _cp=useState({});var customPresets=_cp[0];var setCustomPresets=_cp[1];
   var _rt=useState({});var routines=_rt[0];var setRoutines=_rt[1];
   var _rv=useState(null);var routineView=_rv[0];var setRoutineView=_rv[1];
+  var _cs=useState(0);var coachSeen=_cs[0];var setCoachSeen=_cs[1];
   var _dtl=useState(null);var detail=_dtl[0];var setDetail=_dtl[1]; /* athlete workout detail */
   var _myA=useState("");var myAth=_myA[0];var setMyAth=_myA[1]; /* My Paces athlete id */
   var _aph=useState({});var athPhotos=_aph[0];var setAthPhotos=_aph[1];
@@ -412,6 +417,10 @@ export default function App(){
       if(photoData){setAthPhotos(photoData);rosterData=rosterData.map(function(a){if(!a.photo&&photoData[a.id])return Object.assign({},a,{photo:photoData[a.id]});return a;});}
       setSch(r[0]||{});setRoster(rosterData);setMeets(r[2]||DEFAULT_MEETS);setAnnounce(r[3]||"");setTemplates(r[4]||[]);setSchoolRecs(r[5]||{});setWlog(wlogData||{});
       if(r[8])setCustomPresets(r[8]);
+      /* Load coachSeen timestamp */
+      loadAthleteData("coachseen").then(function(raw){
+        if(raw){try{setCoachSeen(JSON.parse(raw));}catch(e){}}
+      });
       /* Load athlete self-edits and merge */
       loadAthleteData("athprofile").then(function(raw){
         if(!raw)return;try{var prof=JSON.parse(raw);
@@ -547,7 +556,27 @@ export default function App(){
   function saveRacePlans(id,plans){upR(roster.map(function(a){return a.id===id?Object.assign({},a,{racePlans:plans}):a;}));}
   /* Readiness - stored as wlog entry with type:"readiness" */
   function addReadiness(dk,athId,status,note){var n=Object.assign({},wlog);if(!n[dk])n[dk]=[];n[dk]=n[dk].filter(function(e){return!(e.type==="readiness"&&e.athId===athId);});n[dk]=n[dk].concat([{type:"readiness",athId:athId,status:status,notes:note,ts:Date.now()}]);upWL(n);}
-  function commentOnLog(dk,ts,comment){var n=Object.assign({},wlog);if(!n[dk])return;n[dk]=n[dk].map(function(e){if(e.ts===ts)return Object.assign({},e,{coachComment:comment});return e;});upWL(n);}
+  function commentOnLog(dk,ts,comment){var n=Object.assign({},wlog);if(!n[dk])return;n[dk]=n[dk].map(function(e){if(e.ts===ts)return Object.assign({},e,{coachComment:comment,commentTs:Date.now()});return e;});upWL(n);}
+  function getUnreadComments(athId){
+    var cutoff=coachSeen||0;
+    var twoDaysAgo=Date.now()-2*24*60*60*1000;
+    var unread=[];
+    Object.keys(wlog).forEach(function(dk){(wlog[dk]||[]).forEach(function(e){
+      if(e.athId===athId&&e.coachComment){
+        var ct=e.commentTs||e.ts||0;
+        if(ct>cutoff&&ct>twoDaysAgo){
+          var dp=dk.split("-");var dLbl=parseInt(dp[1])+"/"+parseInt(dp[2]);
+          unread.push({date:dLbl,comment:e.coachComment,type:e.type==="readiness"?"check-in":"workout",ts:ct});
+        }
+      }
+    });});
+    unread.sort(function(a,b){return b.ts-a.ts;});
+    return unread;
+  }
+  function dismissComments(){
+    var now=Date.now();setCoachSeen(now);
+    saveAthleteData("coachseen",JSON.stringify(now));
+  }
   function deleteReadiness(dk,athId){var n=Object.assign({},wlog);if(!n[dk])return;n[dk]=n[dk].filter(function(e){return!(e.type==="readiness"&&e.athId===athId);});if(n[dk].length===0)delete n[dk];upWL(n);}
   function getReadiness(dk){return(wlog[dk]||[]).filter(function(e){return e.type==="readiness";});}
   var BODY_AREAS=["Left Shin","Right Shin","Left Knee","Right Knee","Left Achilles","Right Achilles","Left Calf","Right Calf","Left Hamstring","Right Hamstring","Left Hip","Right Hip","Lower Back","Left Foot","Right Foot","Other"];
@@ -641,6 +670,7 @@ export default function App(){
           <button onClick={function(){setView("guide");}} style={tabS("guide")}>Training Guide</button>
           <button onClick={function(){setView("routines");}} style={tabS("routines")}>Routines</button>
           <button onClick={function(){setView("meets");}} style={tabS("meets")}>Meet Schedule ({meets.length})</button>
+          <button onClick={function(){setView("rewards");}} style={tabS("rewards")}>{"\u{1F3C6}"} Rewards</button>
           <button onClick={function(){setView("records");}} style={tabS("records")}>Records</button>
         </div>
       </div>
@@ -754,6 +784,26 @@ export default function App(){
 
       {/* ══════ ROSTER TAB ══════ */}
       {view==="roster"?(<div>
+        {/* Coach comment notifications */}
+        {myAth&&!cm?(function(){
+          var unread=getUnreadComments(myAth);
+          if(unread.length===0)return null;
+          return(<div style={{marginBottom:16,borderRadius:12,background:"linear-gradient(135deg,#3498DB15,#3498DB08)",border:"2px solid #3498DB44",padding:"14px 16px",position:"relative"}}>
+            <button onClick={function(){dismissComments();}} style={{position:"absolute",top:8,right:10,background:"none",border:"none",color:"#3498DB",fontSize:14,cursor:"pointer",fontWeight:700}}>{"✕"}</button>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+              <span style={{fontSize:18}}>{"💬"}</span>
+              <div style={{fontSize:13,fontWeight:700,color:"#3498DB"}}>New from Coach Acosta</div>
+              <span style={{fontSize:10,padding:"2px 8px",borderRadius:10,background:"#3498DB22",color:"#3498DB",fontWeight:700}}>{unread.length}</span>
+            </div>
+            {unread.slice(0,3).map(function(c,i){
+              return <div key={i} style={{padding:"6px 10px",marginBottom:4,borderRadius:6,background:lt?"#fff":"rgba(255,255,255,0.04)",borderLeft:"3px solid #3498DB44"}}>
+                <div style={{fontSize:10,color:_tm,marginBottom:2}}>{c.date} {c.type}</div>
+                <div style={{fontSize:12,color:_tp}}><span style={{fontWeight:700,color:"#3498DB"}}>Coach:</span> {c.comment}</div>
+              </div>;
+            })}
+            {unread.length>3?<div style={{fontSize:10,color:_tm,marginTop:4}}>+{unread.length-3} more — expand your card to see all</div>:null}
+          </div>);
+        })():null}
         {/* My Card - pinned at top for logged-in athlete */}
         {myAth&&!cm?(function(){
           var a=roster.find(function(x){return x.id===myAth;});
@@ -789,11 +839,8 @@ export default function App(){
                   <span style={{color:C.gold,fontSize:10}}>{isEx?"[-]":"[+]"}</span>
                 </div>
               </div>
-              <div style={{display:"flex",gap:4,marginTop:8,flexWrap:"wrap",alignItems:"center"}}>
-                {hp?[{l:"LT",v:a.paces.thrSafe,c:"#8E44AD"},{l:"CV",v:a.paces.cv,c:"#3498DB"},{l:"VO2",v:a.paces.vo2Safe,c:"#27AE60"}].map(function(b){return b.v?<span key={b.l} style={{fontSize:10,padding:"2px 5px",borderRadius:3,background:b.c+"18",color:b.c,fontFamily:"monospace",fontWeight:600}}>{b.l}:{b.v}</span>:null;}):null}
-                {hp&&(hasPBs||hasSBs)?<span style={{color:_tm,fontSize:8}}>|</span>:null}
-                {PB_DISTS.filter(function(d){return(a.pbs&&a.pbs[d])||(a.sbs&&a.sbs[d]);}).map(function(d){var ec=PB_CLR[d]||"#D4A017";var val=a.pbs&&a.pbs[d]?a.pbs[d]:a.sbs[d];return <span key={d} style={{fontSize:10,padding:"2px 5px",borderRadius:3,background:ec+"15",border:"1px solid "+ec+"33",fontFamily:"monospace",fontWeight:700,display:"inline-flex",alignItems:"center",gap:2}}><span style={{background:ec,color:"#fff",fontSize:8,padding:"1px 3px",borderRadius:2,fontWeight:800}}>{d}</span><span style={{color:lt?"#222":_tp,fontWeight:800}}>{val}</span></span>;})}
-              </div>
+              {hp?<div style={{marginTop:8}}><div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,color:_tm,fontFamily:"monospace",marginBottom:2}}>Training Paces</div><div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{[{l:"LT",v:a.paces.thrSafe,c:"#8E44AD"},{l:"CV",v:a.paces.cv,c:"#3498DB"},{l:"VO2",v:a.paces.vo2Safe,c:"#27AE60"}].map(function(b){return b.v?<span key={b.l} style={{fontSize:10,padding:"2px 5px",borderRadius:3,background:b.c+"18",color:b.c,fontFamily:"monospace",fontWeight:600}}>{b.l}:{b.v}</span>:null;})}</div></div>:null}
+              {hasPBs||hasSBs?<div style={{marginTop:hp?4:8}}><div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,color:_tm,fontFamily:"monospace",marginBottom:2}}>Personal Bests</div><div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{PB_DISTS.filter(function(d){return(a.pbs&&a.pbs[d])||(a.sbs&&a.sbs[d]);}).map(function(d){var ec=PB_CLR[d]||"#D4A017";var val=a.pbs&&a.pbs[d]?a.pbs[d]:a.sbs[d];return <span key={d} style={{fontSize:10,padding:"2px 5px",borderRadius:3,background:ec+"15",border:"1px solid "+ec+"33",fontFamily:"monospace",fontWeight:700,display:"inline-flex",alignItems:"center",gap:2}}><span style={{background:ec,color:"#fff",fontSize:8,padding:"1px 3px",borderRadius:2,fontWeight:800}}>{d}</span><span style={{color:lt?"#222":_tp,fontWeight:800}}>{val}</span></span>;})}</div></div>:null}
             </div>
             {/* ── Expanded Card (at top for logged-in athlete) ── */}
             {isEx?(<div style={{padding:"0 14px 16px",borderTop:"1px solid "+C.bd}}>
@@ -1062,11 +1109,8 @@ export default function App(){
                 </div>
               </div>
               {/* Paces + PBs + SBs in one row */}
-              <div style={{display:"flex",gap:4,marginTop:8,flexWrap:"wrap",alignItems:"center"}}>
-                {hp?[{l:"LT",v:a.paces.thrSafe,c:"#8E44AD"},{l:"CV",v:a.paces.cv,c:"#3498DB"},{l:"VO2",v:a.paces.vo2Safe,c:"#27AE60"}].map(function(b){return b.v?<span key={b.l} style={{fontSize:10,padding:"2px 5px",borderRadius:3,background:b.c+"18",color:b.c,fontFamily:"monospace",fontWeight:600}}>{b.l}:{b.v}</span>:null;}):null}
-                {hp&&(hasPBs||hasSBs)?<span style={{color:_tm,fontSize:8}}>|</span>:null}
-                {PB_DISTS.filter(function(d){return(a.pbs&&a.pbs[d])||(a.sbs&&a.sbs[d]);}).map(function(d){var ec=PB_CLR[d]||"#D4A017";var val=a.pbs&&a.pbs[d]?a.pbs[d]:a.sbs[d];var isSB=!(a.pbs&&a.pbs[d])&&a.sbs&&a.sbs[d];return <span key={d} style={{fontSize:10,padding:"2px 5px",borderRadius:3,background:ec+"15",border:"1px solid "+ec+"33",fontFamily:"monospace",fontWeight:700,display:"inline-flex",alignItems:"center",gap:2}}><span style={{background:ec,color:"#fff",fontSize:8,padding:"1px 3px",borderRadius:2,fontWeight:800}}>{d}</span><span style={{color:lt?"#222":_tp,fontWeight:800}}>{val}</span>{isSB?<span style={{fontSize:7,color:ec}}>SB</span>:null}</span>;})}
-              </div>
+              {hp?<div style={{marginTop:8}}><div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,color:_tm,fontFamily:"monospace",marginBottom:2}}>Training Paces</div><div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{[{l:"LT",v:a.paces.thrSafe,c:"#8E44AD"},{l:"CV",v:a.paces.cv,c:"#3498DB"},{l:"VO2",v:a.paces.vo2Safe,c:"#27AE60"}].map(function(b){return b.v?<span key={b.l} style={{fontSize:10,padding:"2px 5px",borderRadius:3,background:b.c+"18",color:b.c,fontFamily:"monospace",fontWeight:600}}>{b.l}:{b.v}</span>:null;})}</div></div>:null}
+              {hasPBs||hasSBs?<div style={{marginTop:hp?4:8}}><div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,color:_tm,fontFamily:"monospace",marginBottom:2}}>Personal Bests</div><div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{PB_DISTS.filter(function(d){return(a.pbs&&a.pbs[d])||(a.sbs&&a.sbs[d]);}).map(function(d){var ec=PB_CLR[d]||"#D4A017";var val=a.pbs&&a.pbs[d]?a.pbs[d]:a.sbs[d];var isSB=!(a.pbs&&a.pbs[d])&&a.sbs&&a.sbs[d];return <span key={d} style={{fontSize:10,padding:"2px 5px",borderRadius:3,background:ec+"15",border:"1px solid "+ec+"33",fontFamily:"monospace",fontWeight:700,display:"inline-flex",alignItems:"center",gap:2}}><span style={{background:ec,color:"#fff",fontSize:8,padding:"1px 3px",borderRadius:2,fontWeight:800}}>{d}</span><span style={{color:lt?"#222":_tp,fontWeight:800}}>{val}</span>{isSB?<span style={{fontSize:7,color:ec}}>SB</span>:null}</span>;})}</div></div>:null}
             </div>
 
             {/* ── Expanded Card ── */}
@@ -1817,7 +1861,70 @@ export default function App(){
         </div>):null}
       </div>):null}
 
-      {/* ══════ RECORDS TAB ══════ */}
+      {/* ══════ REWARDS TAB ══════ */}
+      {view==="rewards"?(<div>
+        {/* Incentives */}
+        <div style={{marginBottom:20,borderRadius:14,background:"linear-gradient(135deg,#E74C3C12,#E74C3C04)",border:"2px solid #E74C3C33",padding:"20px"}}>
+          <div style={{fontSize:18,fontWeight:800,color:"#E74C3C",marginBottom:12}}>🏆 Logging Rewards</div>
+          <div style={{fontSize:13,color:_tp,lineHeight:1.7,marginBottom:14}}>Every run you log matters — practices, long runs, races. Here’s what you earn:</div>
+
+          <div style={{padding:"14px 16px",borderRadius:10,background:"#E74C3C12",border:"1px solid #E74C3C33",marginBottom:14}}>
+            <div style={{fontSize:14,fontWeight:800,color:"#E74C3C",marginBottom:6}}>Monthly Goal — 80% of Runs Logged</div>
+            <div style={{fontSize:13,color:_tp,lineHeight:1.6}}>Log at least 80% of your runs (practices + races) for the month and you earn <span style={{fontWeight:700}}>homemade baked goods from Mrs. Acosta.</span> The runner with the top logging percentage gets to request what she bakes.</div>
+          </div>
+
+          <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:8}}>
+            <div style={{flex:"1 1 200px",padding:"12px 14px",borderRadius:10,background:C.gold+"12",border:"1px solid "+C.gold+"33"}}>
+              <div style={{fontSize:12,fontWeight:700,color:C.gold,marginBottom:4}}>Every Run = Raffle Ticket</div>
+              <div style={{fontSize:12,color:_ts,lineHeight:1.5}}>Each workout you log earns a raffle ticket. Monthly drawings for smaller prizes. End-of-season drawing for a bigger prize. More logs = more chances.</div>
+            </div>
+            <div style={{flex:"1 1 200px",padding:"12px 14px",borderRadius:10,background:C.greenLight+"12",border:"1px solid "+C.greenLight+"33"}}>
+              <div style={{fontSize:12,fontWeight:700,color:C.greenLight,marginBottom:4}}>Full Week = Snack + Sticker</div>
+              <div style={{fontSize:12,color:_ts,lineHeight:1.5}}>Log all your runs Mon–Sat (6/6 days) and you earn a treat from the Runner Snack Store plus a special sticker.</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Consistency Leaderboard - always visible */}
+        <div style={{fontSize:18,fontWeight:800,color:"#E74C3C",marginBottom:6}}>🔥 Consistency Leaderboard</div>
+        <div style={{fontSize:12,color:_tm,marginBottom:14}}>Mon–Sat practice days. Log a workout to earn percentage. 6/6 days = perfect week ⭐. 80%+ earns monthly rewards!</div>
+        {(function(){
+          var all=roster.filter(function(a){return a.name!=="Mr. Acosta"&&a.name!=="Coach Acosta";}).map(function(a){
+            return{id:a.id,name:a.name,team:a.team,photo:a.photo,grade:a.grade,pct:getLogPct(a.id),streak:getStreak(a.id),badges:getWeekBadges(a.id)};
+          }).sort(function(x,y){return y.pct-x.pct||y.streak-x.streak;});
+          return(<div style={{display:"flex",gap:16,flexWrap:"wrap"}}>
+            {[{label:"Boys",list:all.filter(function(a){return a.team==="boys";}),clr:C.greenLight},{label:"Girls",list:all.filter(function(a){return a.team==="girls";}),clr:C.gold}].map(function(grp){
+              return(<div key={grp.label} style={{flex:1,minWidth:220}}>
+                <div style={{fontSize:13,fontWeight:700,color:grp.clr,textTransform:"uppercase",letterSpacing:1.5,marginBottom:10,paddingBottom:6,borderBottom:"1px solid "+C.bd}}>{grp.label}</div>
+                {grp.list.map(function(a,i){
+                  var pClr=a.pct>=80?"#27AE60":a.pct>=50?"#D4A017":a.pct>=20?"#E67E22":"#E74C3C";
+                  var barW=Math.max(a.pct,2);
+                  return(<div key={a.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",marginBottom:4,borderRadius:10,background:i===0?grp.clr+"12":"transparent",border:i===0?"2px solid "+grp.clr+"33":"1px solid "+C.bd}}>
+                    <div style={{width:22,fontSize:13,fontWeight:800,color:i===0?grp.clr:_tm,textAlign:"center"}}>{i+1}</div>
+                    {a.photo?<img src={a.photo} style={{width:28,height:28,borderRadius:6,objectFit:"cover"}}/>:null}
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                        <span style={{fontSize:12,fontWeight:i===0?700:500,color:i===0?grp.clr:_tp,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.name}</span>
+                        <div style={{display:"flex",gap:4,alignItems:"center",flexShrink:0}}>
+                          {a.streak>=2?<span style={{fontSize:10,color:"#E74C3C",fontWeight:700}}>🔥{a.streak}d</span>:null}
+                          {a.badges>0?<span style={{fontSize:10,color:C.gold,fontWeight:700}}>⭐{a.badges}</span>:null}
+                        </div>
+                      </div>
+                      <div style={{height:8,borderRadius:4,background:lt?"#eee":"rgba(255,255,255,0.06)",marginTop:4,overflow:"hidden"}}>
+                        <div style={{height:"100%",borderRadius:4,width:barW+"%",background:pClr,transition:"width 0.3s"}}/>
+                      </div>
+                    </div>
+                    <div style={{fontSize:15,fontWeight:800,color:pClr,fontFamily:"monospace",minWidth:40,textAlign:"right"}}>{a.pct}%</div>
+                  </div>);
+                })}
+              </div>);
+            })}
+          </div>);
+        })()}
+      </div>):null}
+
+
+            {/* ══════ RECORDS TAB ══════ */}
       {view==="records"?(<div>
 
         {/* ── 1. TEAM LEADERBOARD ── */}
@@ -1872,50 +1979,6 @@ export default function App(){
             })()}
           </div>):null}
         </div>
-
-        <div style={{marginBottom:12,borderRadius:12,border:"1px solid "+C.bd,background:lt?"#fff":"rgba(255,255,255,0.02)",overflow:"hidden"}}>
-          <div onClick={function(){togRecSec("cons");}} style={{padding:"14px 16px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",background:lt?"#f5f6f2":"rgba(255,255,255,0.03)"}}>
-            <div style={{fontSize:15,fontWeight:800,color:"#E74C3C"}}>🔥 Consistency Leaderboard</div>
-            <span style={{color:_tm,fontSize:11}}>{recSec.cons?"[-]":"[+]"}</span>
-          </div>
-          {recSec.cons?(<div style={{padding:"12px 16px"}}>
-            <div style={{fontSize:11,color:_tm,marginBottom:12}}>Mon–Sat practice days. Log a workout to earn percentage. 6/6 days = perfect week ⭐. 80%+ earns monthly rewards!</div>
-            {(function(){
-              var all=roster.filter(function(a){return a.name!=="Mr. Acosta";}).map(function(a){
-                return{id:a.id,name:a.name,team:a.team,photo:a.photo,grade:a.grade,pct:getLogPct(a.id),streak:getStreak(a.id),badges:getWeekBadges(a.id)};
-              }).sort(function(x,y){return y.pct-x.pct||y.streak-x.streak;});
-              return(<div style={{display:"flex",gap:16,flexWrap:"wrap"}}>
-                {[{label:"Boys",list:all.filter(function(a){return a.team==="boys";}),clr:C.greenLight},{label:"Girls",list:all.filter(function(a){return a.team==="girls";}),clr:C.gold}].map(function(grp){
-                  return(<div key={grp.label} style={{flex:1,minWidth:200}}>
-                    <div style={{fontSize:12,fontWeight:700,color:grp.clr,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>{grp.label}</div>
-                    {grp.list.map(function(a,i){
-                      var pClr=a.pct>=80?"#27AE60":a.pct>=50?"#D4A017":a.pct>=20?"#E67E22":"#E74C3C";
-                      var barW=Math.max(a.pct,2);
-                      return(<div key={a.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",marginBottom:3,borderRadius:8,background:i===0?grp.clr+"12":"transparent",border:i===0?"1px solid "+grp.clr+"33":"1px solid "+C.bd}}>
-                        <div style={{width:20,fontSize:11,fontWeight:800,color:i===0?grp.clr:_tm,textAlign:"center"}}>{i+1}</div>
-                        {a.photo?<img src={a.photo} style={{width:24,height:24,borderRadius:5,objectFit:"cover"}}/>:null}
-                        <div style={{flex:1,minWidth:0}}>
-                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                            <span style={{fontSize:11,fontWeight:i===0?700:500,color:i===0?grp.clr:_tp,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.name}</span>
-                            <div style={{display:"flex",gap:4,alignItems:"center",flexShrink:0}}>
-                              {a.streak>=2?<span style={{fontSize:9,color:"#E74C3C",fontWeight:700}}>🔥{a.streak}d</span>:null}
-                              {a.badges>0?<span style={{fontSize:9,color:C.gold,fontWeight:700}}>⭐{a.badges}</span>:null}
-                            </div>
-                          </div>
-                          <div style={{height:6,borderRadius:3,background:lt?"#eee":"rgba(255,255,255,0.06)",marginTop:3,overflow:"hidden"}}>
-                            <div style={{height:"100%",borderRadius:3,width:barW+"%",background:pClr,transition:"width 0.3s"}}/>
-                          </div>
-                        </div>
-                        <div style={{fontSize:13,fontWeight:800,color:pClr,fontFamily:"monospace",minWidth:36,textAlign:"right"}}>{a.pct}%</div>
-                      </div>);
-                    })}
-                  </div>);
-                })}
-              </div>);
-            })()}
-          </div>):null}
-        </div>
-
 
         {/* ── 2. SEASON HIGHLIGHTS ── */}
         <div style={{marginBottom:12,borderRadius:12,border:"1px solid "+C.bd,background:lt?"#fff":"rgba(255,255,255,0.02)",overflow:"hidden"}}>
