@@ -71,13 +71,27 @@ function ldLocal(k){try{var v=localStorage.getItem(k);return v?JSON.parse(v):nul
 function svLocal(k,d){try{localStorage.setItem(k,JSON.stringify(d));}catch(e){console.error(e);}}
 
 var DEFAULT_MEETS=[
-  {id:"m1",date:"2026-04-09",name:"SCLA Conference Invite",time:"4:00 PM",location:"St. Croix Lutheran Academy",notes:"4:00 field events, 4:30 running events",type:"conference"},
-  {id:"m2",date:"2026-04-14",name:"Home Meet",time:"4:00 PM",location:"Concordia Academy",notes:"Boys 4:00, Girls 4:15",type:"dual"},
-  {id:"m3",date:"2026-04-17",name:"North Branch Meet",time:"TBD",location:"North Branch High School",notes:"",type:"away"},
-  {id:"m4",date:"2026-04-21",name:"Roseville Invitational",time:"3:30 PM",location:"Roseville Area High School",notes:"$150/gender, $300/school",type:"invitational"},
-  {id:"m5",date:"2026-04-28",name:"Home Invitational",time:"4:00 PM",location:"Concordia Academy",notes:"",type:"invitational"},
-  {id:"m6",date:"2026-05-05",name:"True Team",time:"2:00 PM",location:"Howard Lake-Waverly-Winsted HS",notes:"",type:"true_team"},
-  {id:"m7",date:"2026-05-08",name:"St. Thomas Academy Invitational",time:"3:00 PM",location:"St. Thomas Academy",notes:"",type:"invitational"}
+  {id:"m1",date:"2026-03-09",name:"First Day of Practice",time:"3:00 PM",location:"Home (Upper Gym)",notes:"ALL",type:"meet"},
+  {id:"m2",date:"2026-04-06",name:"Team Pictures",time:"3:00 PM",location:"Home",notes:"ALL",type:"meet"},
+  {id:"m3",date:"2026-04-09",name:"Skyline Conference Quad",time:"4:00 PM",location:"St. Croix Lutheran",notes:"ALL",type:"conference"},
+  {id:"m4",date:"2026-04-14",name:"Skyline Conference Quad (SCL, NLA, SA)",time:"4:15 PM",location:"Home",notes:"ALL",type:"conference"},
+  {id:"m5",date:"2026-04-17",name:"North Branch Invite",time:"4:00 PM",location:"North Branch HS",notes:"VARSITY",type:"invitational"},
+  {id:"m6",date:"2026-04-18",name:"St. Francis Invite",time:"10:00 AM",location:"St. Francis HS",notes:"VARSITY",type:"invitational"},
+  {id:"m7",date:"2026-04-21",name:"Roseville Invite",time:"3:30 PM",location:"Roseville Area HS",notes:"VARSITY",type:"invitational"},
+  {id:"m8",date:"2026-04-24",name:"Hamline Elite Meet",time:"TBA",location:"Hamline University",notes:"SELECT",type:"invitational"},
+  {id:"m9",date:"2026-04-28",name:"CA Invite (Liberty, SCL, Legacy, St. Anthony)",time:"4:15 PM",location:"Home",notes:"VARSITY",type:"invitational"},
+  {id:"m10",date:"2026-05-01",name:"Elementary Track & Field Day",time:"8:00 AM",location:"Home",notes:"10th/11th/12th",type:"meet"},
+  {id:"m11",date:"2026-05-05",name:"True Team Sections",time:"1:45 PM",location:"Howard Lake-Waverly-Winstead",notes:"VARSITY",type:"true_team"},
+  {id:"m12",date:"2026-05-07",name:"JV @ St. Francis",time:"3:30 PM",location:"St. Francis HS",notes:"JV",type:"away"},
+  {id:"m13",date:"2026-05-08",name:"St. Thomas Invite",time:"3:00 PM",location:"St. Thomas Academy",notes:"VARSITY",type:"invitational"},
+  {id:"m14",date:"2026-05-12",name:"Skyline Conference Championship",time:"2:00 PM",location:"St. Croix Lutheran",notes:"VARSITY",type:"conference"},
+  {id:"m15",date:"2026-05-16",name:"True Team State Championship",time:"10:00 AM",location:"Eden Prairie HS",notes:"VARSITY (if we qualify)",type:"state"},
+  {id:"m16",date:"2026-05-16",name:"Terry Nutter Classic",time:"10:00 AM",location:"St. Francis HS",notes:"VARSITY (if not at TT State)",type:"invitational"},
+  {id:"m17",date:"2026-05-18",name:"JV Skyline Meet",time:"4:15 PM",location:"Home",notes:"JV",type:"conference"},
+  {id:"m18",date:"2026-05-28",name:"Section Prelims",time:"12:00 PM",location:"Bethel University",notes:"VARSITY",type:"section"},
+  {id:"m19",date:"2026-05-30",name:"Section Finals",time:"9:00 AM",location:"Bethel University",notes:"VARSITY",type:"section"},
+  {id:"m20",date:"2026-06-04",name:"State Meet Prelims",time:"3:30 PM",location:"St. Michael-Albertville HS",notes:"SELECT",type:"state"},
+  {id:"m21",date:"2026-06-05",name:"State Meet Finals",time:"3:30 PM",location:"St. Michael-Albertville HS",notes:"SELECT",type:"state"}
 ];
 
 /* ─── COACH REFERENCE (from John Davis training strategies document) ─── */
