@@ -450,6 +450,56 @@ export default function App(){
   function submitLog(){if(!logMod||!logAth||!logDate)return;addLog(logDate,{athId:logAth,difficulty:logDiff,mileage:parseFloat(logMi)||0,splits:logSpl,notes:logNt,ts:Date.now()});setLogMod(null);}
   function getAthLogs(athId){var logs={};Object.keys(wlog).forEach(function(dk){(wlog[dk]||[]).forEach(function(e){if(e.athId===athId){if(!logs[dk])logs[dk]=[];logs[dk].push(e);}});});return logs;}
   function getWeeklyMileage(athId,weeksBack){var result=[];var now=new Date();for(var w=0;w<weeksBack;w++){var mon=new Date(now);var dow=mon.getDay();mon.setDate(now.getDate()-(dow===0?6:dow-1)-w*7);mon.setHours(0,0,0,0);var total=0;for(var d=0;d<7;d++){var day=new Date(mon);day.setDate(mon.getDate()+d);var dk=fd(day);if(wlog[dk])(wlog[dk]).forEach(function(e){if(e.athId===athId)total+=e.mileage||0;});}var lbl=(mon.getMonth()+1)+"/"+mon.getDate();result.unshift({week:lbl,miles:Math.round(total*10)/10});}return result;}
+  function savePF(id,f,v){upR(roster.map(function(a){if(a.id!==id)return a;var p=Object.assign({},a.paces||{});p[f]=v;return Object.assign({},a,{paces:p});}));}
+  function savePB(id,dist,v){upR(roster.map(function(a){if(a.id!==id)return a;var p=Object.assign({},a.pbs||{});p[dist]=v;return Object.assign({},a,{pbs:p});}));}
+  function saveSB(id,dist,v){upR(roster.map(function(a){if(a.id!==id)return a;var p=Object.assign({},a.sbs||{});p[dist]=v;return Object.assign({},a,{sbs:p});}));}
+  function savePhoto(id,dataUrl){upR(roster.map(function(a){if(a.id!==id)return a;return Object.assign({},a,{photo:dataUrl});}));}
+  function handlePhotoUpload(id,ev){var f=ev.target.files[0];if(!f)return;var r=new FileReader();r.onload=function(e){var img=new Image();img.onload=function(){var c=document.createElement("canvas");var cw=140;var ch=175;c.width=cw;c.height=ch;var ctx=c.getContext("2d");var ratio=cw/ch;var imgR=img.width/img.height;var sx,sy,sw,sh;if(imgR>ratio){sh=img.height;sw=sh*ratio;sx=(img.width-sw)/2;sy=0;}else{sw=img.width;sh=sw/ratio;sx=0;sy=(img.height-sh)/2;}ctx.drawImage(img,sx,sy,sw,sh,0,0,cw,ch);savePhoto(id,c.toDataURL("image/jpeg",0.7));};img.src=e.target.result;};r.readAsDataURL(f);}
+  /* Goals */
+  function saveGoals(id,goals){
+    if(cm){upR(roster.map(function(a){return a.id===id?Object.assign({},a,{goals:goals}):a;}));}
+    else{saveAthSelf(id,"goals",goals);}
+  }
+  function saveAthSelf(id,field,val){
+    setRoster(roster.map(function(a){return a.id===id?Object.assign({},a,Object.fromEntries([[field,val]])):a;}));
+    loadAthleteData("athprofile").then(function(raw){
+      var prof={};try{prof=raw?JSON.parse(raw):{};}catch(e){}
+      if(!prof[id])prof[id]={};prof[id][field]=val;
+      saveAthleteData("athprofile",JSON.stringify(prof));
+    });
+  }
+  /* Injuries */
+  function saveInjuries(id,inj){
+    if(cm){upR(roster.map(function(a){return a.id===id?Object.assign({},a,{injuries:inj}):a;}));}
+    else{saveAthSelf(id,"injuries",inj);}
+  }
+  /* Race Plans */
+  function saveRacePlans(id,plans){upR(roster.map(function(a){return a.id===id?Object.assign({},a,{racePlans:plans}):a;}));}
+  /* Readiness */
+  function addReadiness(dk,athId,status,note){var n=Object.assign({},wlog);if(!n[dk])n[dk]=[];n[dk]=n[dk].filter(function(e){return!(e.type==="readiness"&&e.athId===athId);});n[dk]=n[dk].concat([{type:"readiness",athId:athId,status:status,notes:note,ts:Date.now()}]);upWL(n);}
+  function commentOnLog(dk,ts,comment){var n=Object.assign({},wlog);if(!n[dk])return;n[dk]=n[dk].map(function(e){if(e.ts===ts)return Object.assign({},e,{coachComment:comment,commentTs:Date.now()});return e;});upWL(n);}
+  function getUnreadComments(athId){
+    var cutoff=coachSeen||0;
+    var twoDaysAgo=Date.now()-2*24*60*60*1000;
+    var unread=[];
+    Object.keys(wlog).forEach(function(dk){(wlog[dk]||[]).forEach(function(e){
+      if(e.athId===athId&&e.coachComment){
+        var ct=e.commentTs||e.ts||0;
+        if(ct>cutoff&&ct>twoDaysAgo){
+          var dp=dk.split("-");var dLbl=parseInt(dp[1])+"/"+parseInt(dp[2]);
+          unread.push({date:dLbl,comment:e.coachComment,type:e.type==="readiness"?"check-in":"workout",ts:ct});
+        }
+      }
+    });});
+    unread.sort(function(a,b){return b.ts-a.ts;});
+    return unread;
+  }
+  function dismissComments(){
+    var now=Date.now();setCoachSeen(now);
+    saveAthleteData("coachseen",JSON.stringify(now));
+  }
+  function deleteReadiness(dk,athId){var n=Object.assign({},wlog);if(!n[dk])return;n[dk]=n[dk].filter(function(e){return!(e.type==="readiness"&&e.athId===athId);});if(n[dk].length===0)delete n[dk];upWL(n);}
+  function getReadiness(dk){return(wlog[dk]||[]).filter(function(e){return e.type==="readiness";});}
   /* ── Streak / Badge / Consistency helpers ── */
   var APP_START="2026-03-11";/* First day app was introduced to team */
   function getStreak(athId,mode){
