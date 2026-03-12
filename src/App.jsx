@@ -565,34 +565,28 @@ export default function App(){
     }return badges;
   }
   function getConsistency(athId){
-    /* Returns {logPct, checkinPct, totalPct} since APP_START */
-    /* Workout log: counts if logged by end of next day (ts <= end of dk+1) */
-    /* Check-in: must be logged same day (ts <= end of dk) */
+    /* Returns {logPct, checkinPct} since APP_START (3/11/26) */
     var sp=APP_START.split("-");var start=new Date(parseInt(sp[0]),parseInt(sp[1])-1,parseInt(sp[2]));
-    var end=new Date();end.setDate(end.getDate()-1);/* through yesterday */
-    var totalDays=0;var logDays=0;var checkinDays=0;var bothDays=0;
+    start.setHours(0,0,0,0);
+    var end=new Date();end.setDate(end.getDate()-1);end.setHours(23,59,59,999);/* through end of yesterday */
+    var totalDays=0;var logDays=0;var checkinDays=0;
     var d=new Date(start);
     while(d<=end){
       var dow=d.getDay();
       if(dow>=1&&dow<=6){/* Mon-Sat */
         totalDays++;
         var dk=fd(d);var entries=wlog[dk]||[];
-        /* End of practice day (midnight ending dk) */
-        var eodMs=new Date(d.getFullYear(),d.getMonth(),d.getDate()+1).getTime();
-        /* End of next day (midnight ending dk+1) — deadline for late workout log */
-        var nextDayMs=eodMs+24*60*60*1000;
-        var hasLog=entries.some(function(e){return e.athId===athId&&e.type!=="readiness"&&(e.ts||0)<=nextDayMs;});
-        var hasCheckin=entries.some(function(e){return e.athId===athId&&e.type==="readiness"&&(e.ts||0)<=eodMs;});
+        /* Entry exists under this date key = counts (date key is selected by runner) */
+        var hasLog=entries.some(function(e){return e.athId===athId&&e.type!=="readiness";});
+        var hasCheckin=entries.some(function(e){return e.athId===athId&&e.type==="readiness";});
         if(hasLog)logDays++;
         if(hasCheckin)checkinDays++;
-        if(hasLog&&hasCheckin)bothDays++;
       }
       d.setDate(d.getDate()+1);
     }
     return{
       logPct:totalDays>0?Math.round(logDays/totalDays*100):0,
       checkinPct:totalDays>0?Math.round(checkinDays/totalDays*100):0,
-      totalPct:totalDays>0?Math.round(bothDays/totalDays*100):0,
       totalDays:totalDays,logDays:logDays,checkinDays:checkinDays
     };
   }
@@ -1906,7 +1900,6 @@ export default function App(){
         <div style={{fontSize:18,fontWeight:800,color:"#E74C3C",marginBottom:6}}>🔥 Consistency Leaderboard</div>
         <div style={{fontSize:12,color:_tm,marginBottom:6}}>Tracking since 3/11. Mon–Sat practice days. Workout log % determines rewards. Pre-practice check-in % is the tiebreaker.</div>
         <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
-          <div style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:10,height:10,borderRadius:2,background:"#9B59B6",display:"inline-block"}}/><span style={{fontSize:10,color:_tm}}>Total (both)</span></div>
           <div style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:10,height:10,borderRadius:2,background:"#E74C3C",display:"inline-block"}}/><span style={{fontSize:10,color:_tm}}>Workout Log</span></div>
           <div style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:10,height:10,borderRadius:2,background:"#3498DB",display:"inline-block"}}/><span style={{fontSize:10,color:_tm}}>Pre-Practice</span></div>
         </div>
@@ -1914,8 +1907,8 @@ export default function App(){
           var all=roster.filter(function(a){return a.name!=="Mr. Acosta"&&a.name!=="Coach Acosta";}).map(function(a){
             var c=getConsistency(a.id);
             return{id:a.id,name:a.name,team:a.team,photo:a.photo,
-              logPct:c.logPct,checkinPct:c.checkinPct,totalPct:c.totalPct,
-              sTotal:getStreak(a.id,"both"),sLog:getStreak(a.id,"log"),sCheckin:getStreak(a.id,"checkin"),
+              logPct:c.logPct,checkinPct:c.checkinPct,
+              sLog:getStreak(a.id,"log"),sCheckin:getStreak(a.id,"checkin"),
               badges:getWeekBadges(a.id)};
           }).sort(function(x,y){return y.logPct-x.logPct||y.checkinPct-x.checkinPct||y.sLog-x.sLog;});
           return(<div style={{display:"flex",gap:16,flexWrap:"wrap"}}>
@@ -1936,7 +1929,7 @@ export default function App(){
                     </div>
                     {/* 3 percentage bars */}
                     <div style={{display:"flex",gap:6}}>
-                      {[{label:"Log",pct:a.logPct,clr:"#E74C3C",streak:a.sLog},{label:"Check-in",pct:a.checkinPct,clr:"#3498DB",streak:a.sCheckin},{label:"Total",pct:a.totalPct,clr:"#9B59B6",streak:a.sTotal}].map(function(col){
+                      {[{label:"Log",pct:a.logPct,clr:"#E74C3C",streak:a.sLog},{label:"Check-in",pct:a.checkinPct,clr:"#3498DB",streak:a.sCheckin}].map(function(col){
                         var pClr=col.pct>=80?"#27AE60":col.pct>=50?"#D4A017":col.pct>=20?"#E67E22":"#E74C3C";
                         return(<div key={col.label} style={{flex:1}}>
                           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
