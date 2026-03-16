@@ -58,7 +58,7 @@ function ini(name){var p=name.trim().split(/\s+/);return p.length>=2?p[0].charAt
 function genPin(){return String(Math.floor(1000+Math.random()*9000));}
 function fmtMD(ds){var p=ds.split("-");var d=new Date(parseInt(p[0]),parseInt(p[1])-1,parseInt(p[2]));return["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d.getDay()]+", "+MO[d.getMonth()]+" "+d.getDate();}
 
-var SK="track-v14",RK="roster-v3",MK="meets-v2",AK="announce-v1",TK="templates-v1",THK="theme-v1",MYK="mypaces-v1",SRK="schoolrecs-v1",WLK="wlog-v1",CPK="custompresets-v1",RTK="routines-v1";
+var SK="track-v14",RK="roster-v3",MK="meets-v2",AK="announce-v1",TK="templates-v1",THK="theme-v1",MYK="mypaces-v1",SRK="schoolrecs-v1",WLK="wlog-v1",CPK="custompresets-v1",RTK="routines-v1",GDK="guide-v1";
 var ROUTINE_CATS=[
   {id:"core",label:"Core",icon:"\uD83E\uDDBB",color:"#E74C3C",desc:"Core strength and stability exercises"},
   {id:"hip",label:"Hip Strength",icon:"\uD83E\uDDBF",color:"#3498DB",desc:"Hip and glute strengthening for injury prevention"},
@@ -321,6 +321,10 @@ export default function App(){
   var _rt=useState({});var routines=_rt[0];var setRoutines=_rt[1];
   var _rv=useState(null);var routineView=_rv[0];var setRoutineView=_rv[1];
   var _cs=useState(0);var coachSeen=_cs[0];var setCoachSeen=_cs[1];
+  var _gd=useState([]);var guideSections=_gd[0];var setGuideSections=_gd[1];
+  var _gdEdit=useState(null);var gdEdit=_gdEdit[0];var setGdEdit=_gdEdit[1];
+  var _gdExp=useState({});var gdExp=_gdExp[0];var setGdExp=_gdExp[1];
+  var gdRef=useRef(null);
   var _dtl=useState(null);var detail=_dtl[0];var setDetail=_dtl[1]; /* athlete workout detail */
   var _myA=useState("");var myAth=_myA[0];var setMyAth=_myA[1]; /* My Paces athlete id */
   var _aph=useState({});var athPhotos=_aph[0];var setAthPhotos=_aph[1];
@@ -410,7 +414,7 @@ export default function App(){
     var localTheme=ldLocal(THK);if(localTheme)setTheme(localTheme);
     var localMyAth=ldLocal(MYK);if(localMyAth)setMyAth(localMyAth);
     /* Load team data from Firebase */
-    Promise.all([ld1(SK),ld1(RK),ld1(MK),ld1(AK),ld1(TK),ld1(SRK),loadAthleteData(WLK),loadAthleteData("athphotos"),ld1(CPK),ld1(RTK)]).then(function(r){
+    Promise.all([ld1(SK),ld1(RK),ld1(MK),ld1(AK),ld1(TK),ld1(SRK),loadAthleteData(WLK),loadAthleteData("athphotos"),ld1(CPK),ld1(RTK),ld1(GDK)]).then(function(r){
       var rosterData=r[1]||[];
       var wlogData=null;try{wlogData=r[6]?JSON.parse(r[6]):null;}catch(e){}
       var photoData=null;try{photoData=r[7]?JSON.parse(r[7]):null;}catch(e){}
@@ -429,6 +433,7 @@ export default function App(){
         });});}catch(e){}
       });
       if(r[9])setRoutines(r[9]);
+      if(r[10])setGuideSections(r[10]);
       setLoaded(true);
     });
   },[]);
@@ -522,9 +527,48 @@ export default function App(){
     unread.sort(function(a,b){return b.ts-a.ts;});
     return unread;
   }
-  function dismissComments(){
-    var now=Date.now();setCoachSeen(now);
-    saveAthleteData("coachseen",JSON.stringify(now));
+  function upGuide(g){setGuideSections(g);sv1(GDK,g);}
+  function gdInsert(type){
+    var ta=gdRef.current;if(!ta)return;
+    var s=ta.selectionStart;var e=ta.selectionEnd;
+    var txt=gdEdit.content||"";var sel=txt.slice(s,e);
+    var before=txt.slice(0,s);var after=txt.slice(e);
+    var ins="";var cursorOff=0;
+    if(type==="bold"){ins="**"+(sel||"bold text")+"**";cursorOff=sel?ins.length:2;}
+    else if(type==="h2"){var nl=s>0&&before[before.length-1]!=="\n"?"\n":"";ins=nl+"## "+(sel||"Heading");cursorOff=ins.length;}
+    else if(type==="h3"){var nl=s>0&&before[before.length-1]!=="\n"?"\n":"";ins=nl+"### "+(sel||"Subheading");cursorOff=ins.length;}
+    else if(type==="bullet"){var nl=s>0&&before[before.length-1]!=="\n"?"\n":"";ins=nl+"- "+(sel||"");cursorOff=ins.length;}
+    else if(type==="divider"){var nl=s>0&&before[before.length-1]!=="\n"?"\n":"";ins=nl+"---";cursorOff=ins.length;}
+    else if(type==="indent"){ins="  "+(sel||"");cursorOff=ins.length;}
+    var newTxt=before+ins+after;
+    setGdEdit(Object.assign({},gdEdit,{content:newTxt}));
+    setTimeout(function(){ta.focus();ta.selectionStart=ta.selectionEnd=s+cursorOff;},10);
+  }
+  function renderMd(text){
+    if(!text)return null;
+    return text.split("\n").map(function(line,i){
+      var trimmed=line.trim();
+      if(!trimmed)return <div key={i} style={{height:8}}/>;
+      if(trimmed==="---"||trimmed==="***")return <div key={i} style={{height:1,background:C.bd,margin:"10px 0"}}/>;
+      var isBullet=trimmed.startsWith("- ")||trimmed.startsWith("* ");
+      var isH2=trimmed.startsWith("## ")&&!trimmed.startsWith("### ");
+      var isH3=trimmed.startsWith("### ");
+      var isIndent=line.startsWith("  ")&&!isBullet&&!isH2&&!isH3;
+      var content=isH3?trimmed.slice(4):isH2?trimmed.slice(3):isBullet?trimmed.slice(2):trimmed;
+      /* Bold markers */
+      var parts=[];var re=/\*\*(.+?)\*\*/g;var last=0;var m;
+      while((m=re.exec(content))!==null){
+        if(m.index>last)parts.push(<span key={last}>{content.slice(last,m.index)}</span>);
+        parts.push(<span key={m.index} style={{fontWeight:700}}>{m[1]}</span>);
+        last=re.lastIndex;
+      }
+      if(last<content.length)parts.push(<span key={last}>{content.slice(last)}</span>);
+      if(isH3)return <div key={i} style={{fontSize:13,fontWeight:700,color:C.gold,marginTop:10,marginBottom:4}}>{parts}</div>;
+      if(isH2)return <div key={i} style={{fontSize:14,fontWeight:700,color:_tp,marginTop:12,marginBottom:4}}>{parts}</div>;
+      if(isBullet)return <div key={i} style={{fontSize:12,color:_ts,lineHeight:1.6,paddingLeft:16,position:"relative"}}><span style={{position:"absolute",left:4,color:C.gold}}>{"\u2022"}</span>{parts}</div>;
+      if(isIndent)return <div key={i} style={{fontSize:12,color:_ts,lineHeight:1.6,paddingLeft:20}}>{parts}</div>;
+      return <div key={i} style={{fontSize:12,color:_ts,lineHeight:1.6}}>{parts}</div>;
+    });
   }
   function deleteReadiness(dk,athId){var n=Object.assign({},wlog);if(!n[dk])return;n[dk]=n[dk].filter(function(e){return!(e.type==="readiness"&&e.athId===athId);});if(n[dk].length===0)delete n[dk];upWL(n);}
   function getReadiness(dk){return(wlog[dk]||[]).filter(function(e){return e.type==="readiness";});}
@@ -1735,11 +1779,110 @@ export default function App(){
 
       </div>):null}
       {/* ══════ GUIDE TAB ══════ */}
-      {view==="guide"?(<div style={{textAlign:"center",padding:"60px 20px"}}>
-        <div style={{fontSize:48,marginBottom:16}}>*</div>
-        <div style={{fontSize:20,fontWeight:800,color:_tp,marginBottom:8}}>Training Guide</div>
-        <div style={{fontSize:14,color:_tm,lineHeight:1.6,maxWidth:400,margin:"0 auto"}}>This section is currently under construction and will be updated soon. Check back later for detailed training information and workout guides.</div>
+      {view==="guide"?(<div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <div><div style={{fontSize:16,fontWeight:800,color:_tp}}>Training Guide</div><div style={{fontSize:11,color:_tm}}>Workout types, training concepts, and coaching resources.</div></div>
+          {cm?<button onClick={function(){var g=guideSections.slice();g.push({id:"gd"+Date.now(),title:"New Section",content:"",images:[]});upGuide(g);setGdEdit({idx:g.length-1,title:"New Section",content:"",images:[]});}} style={{padding:"8px 14px",borderRadius:8,background:"linear-gradient(135deg,"+C.green+","+C.greenLight+")",border:"none",color:C.white,fontWeight:700,fontSize:12,cursor:"pointer"}}>+ Add Section</button>:null}
+        </div>
+        {guideSections.length===0?<div style={{textAlign:"center",padding:"40px 20px"}}><div style={{fontSize:14,color:_tm,fontStyle:"italic"}}>{cm?"Click + Add Section to start building the training guide.":"No sections added yet."}</div></div>:null}
+        {guideSections.map(function(sec,si){
+          var isOpen=gdExp[si];
+          return(<div key={sec.id||si} style={{marginBottom:8,borderRadius:10,border:"1px solid "+C.bd,background:lt?"#fff":"rgba(255,255,255,0.02)",overflow:"hidden"}}>
+            {/* Collapsible header */}
+            <div onClick={function(){var n=Object.assign({},gdExp);n[si]=!n[si];setGdExp(n);}} style={{padding:"12px 16px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",background:lt?"#f5f6f2":"rgba(255,255,255,0.04)"}}>
+              <div style={{fontSize:14,fontWeight:700,color:isOpen?C.greenLight:_tp}}>{sec.title||"Untitled Section"}</div>
+              <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                {cm?<button onClick={function(ev){ev.stopPropagation();setGdEdit({idx:si,title:sec.title,content:sec.content,images:sec.images||[]});}} style={{background:"rgba(255,255,255,0.06)",border:"none",color:_ts,borderRadius:4,padding:"3px 8px",cursor:"pointer",fontSize:10}}>Edit</button>:null}
+                {cm?<button onClick={function(ev){ev.stopPropagation();if(confirm("Delete section '"+sec.title+"'?")){var g=guideSections.slice();g.splice(si,1);upGuide(g);}}} style={{background:"rgba(239,68,68,0.1)",border:"none",color:"#ef4444",borderRadius:4,padding:"3px 8px",cursor:"pointer",fontSize:10}}>X</button>:null}
+                <span style={{color:_tm,fontSize:10}}>{isOpen?"[-]":"[+]"}</span>
+              </div>
+            </div>
+            {/* Content */}
+            {isOpen?(<div style={{padding:"12px 16px",borderTop:"1px solid "+C.bd}}>
+              {renderMd(sec.content)}
+              {(sec.images||[]).map(function(img,ii){return <div key={ii} style={{marginTop:10,marginBottom:10}}><img src={img.data} style={{maxWidth:"100%",borderRadius:8,border:"1px solid "+C.bd}} alt={img.name||""}/>{img.caption?<div style={{fontSize:10,color:_tm,fontStyle:"italic",marginTop:4}}>{img.caption}</div>:null}</div>;})}
+              {!sec.content&&(!sec.images||sec.images.length===0)?<div style={{fontSize:12,color:_tm,fontStyle:"italic"}}>{cm?"Click Edit to add content.":"No content yet."}</div>:null}
+            </div>):null}
+          </div>);
+        })}
+        {/* Reorder buttons for coach */}
+        {cm&&guideSections.length>1?<div style={{marginTop:12,fontSize:10,color:_tm,textAlign:"center"}}>Use Edit to change content. Sections display in the order they were added.</div>:null}
+
+        {/* ── Edit Section Modal ── */}
+        {gdEdit!==null?(<div style={{position:"fixed",inset:0,zIndex:1100,background:"rgba(8,18,8,0.85)",backdropFilter:"blur(10px)",display:"flex",alignItems:"center",justifyContent:"center"}} onClick={function(){setGdEdit(null);}}>
+          <div onClick={function(ev){ev.stopPropagation();}} style={{background:lt?"#fff":"#141E14",borderRadius:16,width:"min(700px,94vw)",maxHeight:"90vh",overflow:"auto",border:"1px solid "+C.bd,boxShadow:"0 24px 80px rgba(0,0,0,0.6)"}}>
+            <div style={{padding:"16px 24px",borderBottom:"1px solid "+C.bd,display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:lt?"#fff":"#141E14",zIndex:10,borderRadius:"16px 16px 0 0"}}>
+              <div style={{fontSize:16,fontWeight:800,color:_tp}}>Edit Section</div>
+              <button onClick={function(){setGdEdit(null);}} style={{background:"rgba(255,255,255,0.06)",border:"none",color:_ts,width:32,height:32,borderRadius:8,cursor:"pointer",fontSize:16}}>X</button>
+            </div>
+            <div style={{padding:"16px 24px"}}>
+              {/* Title */}
+              <div style={{marginBottom:12}}>
+                <div style={{fontSize:11,fontWeight:700,color:_tm,marginBottom:4,textTransform:"uppercase",letterSpacing:1}}>Section Title</div>
+                <input value={gdEdit.title} onChange={function(ev){setGdEdit(Object.assign({},gdEdit,{title:ev.target.value}));}} style={Object.assign({},IS,{fontSize:16,fontWeight:700})}/>
+              </div>
+              {/* Content */}
+              <div style={{marginBottom:12}}>
+                <div style={{fontSize:11,fontWeight:700,color:_tm,marginBottom:4,textTransform:"uppercase",letterSpacing:1}}>Content</div>
+                {/* Formatting toolbar */}
+                <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:6,padding:"6px 8px",borderRadius:6,background:lt?"#f0f1ec":"rgba(255,255,255,0.04)",border:"1px solid "+C.bd}}>
+                  <button onClick={function(){gdInsert("bold");}} title="Bold" style={{padding:"4px 10px",borderRadius:4,border:"1px solid "+C.bd,background:"transparent",color:_tp,cursor:"pointer",fontSize:12,fontWeight:800}}>B</button>
+                  <button onClick={function(){gdInsert("h2");}} title="Heading" style={{padding:"4px 10px",borderRadius:4,border:"1px solid "+C.bd,background:"transparent",color:_tp,cursor:"pointer",fontSize:12,fontWeight:700}}>H2</button>
+                  <button onClick={function(){gdInsert("h3");}} title="Subheading" style={{padding:"4px 10px",borderRadius:4,border:"1px solid "+C.bd,background:"transparent",color:C.gold,cursor:"pointer",fontSize:11,fontWeight:700}}>H3</button>
+                  <button onClick={function(){gdInsert("bullet");}} title="Bullet point" style={{padding:"4px 10px",borderRadius:4,border:"1px solid "+C.bd,background:"transparent",color:_tp,cursor:"pointer",fontSize:14}}>{"\u2022"}</button>
+                  <button onClick={function(){gdInsert("divider");}} title="Horizontal divider" style={{padding:"4px 10px",borderRadius:4,border:"1px solid "+C.bd,background:"transparent",color:_tm,cursor:"pointer",fontSize:11}}>---</button>
+                  <button onClick={function(){gdInsert("indent");}} title="Indent" style={{padding:"4px 10px",borderRadius:4,border:"1px solid "+C.bd,background:"transparent",color:_tm,cursor:"pointer",fontSize:11}}>{"\u21E5"}</button>
+                  <span style={{fontSize:10,color:_tm,display:"flex",alignItems:"center",marginLeft:8}}>Select text then click to format, or click to insert at cursor</span>
+                </div>
+                <textarea ref={gdRef} value={gdEdit.content} onChange={function(ev){setGdEdit(Object.assign({},gdEdit,{content:ev.target.value}));}} style={Object.assign({},IS,{minHeight:300,resize:"vertical",fontFamily:"monospace",fontSize:12,lineHeight:"1.6"})}/>
+              </div>
+              {/* Images */}
+              <div style={{marginBottom:16}}>
+                <div style={{fontSize:11,fontWeight:700,color:_tm,marginBottom:4,textTransform:"uppercase",letterSpacing:1}}>Images / Diagrams</div>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
+                  {(gdEdit.images||[]).map(function(img,ii){return <div key={ii} style={{position:"relative",borderRadius:8,border:"1px solid "+C.bd,overflow:"hidden",width:100}}>
+                    <img src={img.data} style={{width:100,height:75,objectFit:"cover"}}/>
+                    <input value={img.caption||""} onChange={function(ev){var ni=(gdEdit.images||[]).slice();ni[ii]=Object.assign({},ni[ii],{caption:ev.target.value});setGdEdit(Object.assign({},gdEdit,{images:ni}));}} placeholder="Caption" style={{width:"100%",fontSize:9,padding:"2px 4px",border:"none",borderTop:"1px solid "+C.bd,background:"transparent",color:_ts,boxSizing:"border-box"}}/>
+                    <button onClick={function(){var ni=(gdEdit.images||[]).slice();ni.splice(ii,1);setGdEdit(Object.assign({},gdEdit,{images:ni}));}} style={{position:"absolute",top:2,right:2,background:"rgba(0,0,0,0.6)",border:"none",color:"#fff",borderRadius:4,width:18,height:18,cursor:"pointer",fontSize:10,display:"flex",alignItems:"center",justifyContent:"center"}}>X</button>
+                  </div>;})}
+                </div>
+                <label style={{display:"inline-block",padding:"6px 12px",borderRadius:6,background:C.greenLight+"15",border:"1px solid "+C.greenLight+"33",color:C.greenLight,fontSize:11,fontWeight:600,cursor:"pointer"}}>
+                  <input type="file" accept="image/*" multiple onChange={function(ev){
+                    var files=Array.from(ev.target.files);
+                    files.forEach(function(f){
+                      var reader=new FileReader();
+                      reader.onload=function(e){
+                        var img=new Image();img.onload=function(){
+                          var c=document.createElement("canvas");var maxW=800;var scale=img.width>maxW?maxW/img.width:1;
+                          c.width=img.width*scale;c.height=img.height*scale;
+                          c.getContext("2d").drawImage(img,0,0,c.width,c.height);
+                          setGdEdit(function(prev){var ni=(prev.images||[]).slice();ni.push({data:c.toDataURL("image/jpeg",0.8),name:f.name,caption:""});return Object.assign({},prev,{images:ni});});
+                        };img.src=e.target.result;
+                      };reader.readAsDataURL(f);
+                    });
+                    ev.target.value="";
+                  }} style={{display:"none"}}/>
+                  + Add Image
+                </label>
+              </div>
+              {/* Preview */}
+              <div style={{marginBottom:16}}>
+                <div style={{fontSize:11,fontWeight:700,color:_tm,marginBottom:6,textTransform:"uppercase",letterSpacing:1}}>Preview</div>
+                <div style={{padding:"12px 16px",borderRadius:8,border:"1px solid "+C.bd,background:lt?"#f8f9f6":"rgba(255,255,255,0.02)",maxHeight:200,overflow:"auto"}}>
+                  {renderMd(gdEdit.content)}
+                  {(gdEdit.images||[]).map(function(img,ii){return <div key={ii} style={{marginTop:8}}><img src={img.data} style={{maxWidth:"100%",borderRadius:6}} alt=""/>{img.caption?<div style={{fontSize:10,color:_tm,fontStyle:"italic",marginTop:2}}>{img.caption}</div>:null}</div>;})}
+                </div>
+              </div>
+              {/* Save / Cancel */}
+              <div style={{display:"flex",gap:10}}>
+                <button onClick={function(){var g=guideSections.slice();g[gdEdit.idx]={id:g[gdEdit.idx]?g[gdEdit.idx].id:"gd"+Date.now(),title:gdEdit.title,content:gdEdit.content,images:gdEdit.images||[]};upGuide(g);setGdEdit(null);var n=Object.assign({},gdExp);n[gdEdit.idx]=true;setGdExp(n);}} style={{flex:1,padding:"12px 16px",borderRadius:10,background:"linear-gradient(135deg,"+C.green+","+C.greenLight+")",border:"none",color:C.white,fontWeight:700,fontSize:14,cursor:"pointer"}}>Save Section</button>
+                <button onClick={function(){setGdEdit(null);}} style={{padding:"12px 16px",borderRadius:10,background:lt?"#f0f1ec":"rgba(255,255,255,0.06)",border:"1px solid "+C.bd,color:_ts,fontSize:12,cursor:"pointer"}}>Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>):null}
       </div>):null}
+
 
       {/* ══════ ROUTINES TAB ══════ */}
       {view==="routines"?(<div>
