@@ -644,6 +644,7 @@ export default function App(){
   /* Readiness modal state */
   var _rdMod=useState(null);var rdMod=_rdMod[0];var setRdMod=_rdMod[1];
   var _rdStat=useState("ready");var rdStat=_rdStat[0];var setRdStat=_rdStat[1];
+  var _dsMod=useState(null);var dsMod=_dsMod[0];var setDsMod=_dsMod[1];
   var _rdNote=useState("");var rdNote=_rdNote[0];var setRdNote=_rdNote[1];
   function openRdModal(){var t=new Date();var dk=fd(t);setRdMod({dateKey:dk,dateLbl:FDAYS[(t.getDay()+6)%7]+", "+fs(t)});setRdStat("ready");setRdNote("");}
   function submitRd(){if(!rdMod||!myAth)return;addReadiness(rdMod.dateKey,myAth,rdStat,rdNote);setRdMod(null);}
@@ -786,6 +787,7 @@ export default function App(){
           <div style={{display:"flex",gap:6}}>
             <button onClick={function(){var t=new Date();openLogModal(fd(t),FDAYS[(t.getDay()+6)%7]+", "+fs(t));}} style={{padding:"8px 16px",borderRadius:8,background:"linear-gradient(135deg,#9B59B6,#8E44AD)",border:"none",color:"#fff",fontWeight:700,fontSize:12,cursor:"pointer",boxShadow:"0 2px 8px rgba(155,89,182,0.3)"}}>Log Workout</button>
             <button onClick={openRdModal} style={{padding:"8px 16px",borderRadius:8,background:"linear-gradient(135deg,#27AE60,#2ECC71)",border:"none",color:"#fff",fontWeight:700,fontSize:12,cursor:"pointer",boxShadow:"0 2px 8px rgba(39,174,96,0.3)"}}>Pre-Practice Check-in</button>
+            {cm?<button onClick={function(){setDsMod(fd(new Date()));}} style={{padding:"8px 16px",borderRadius:8,background:"linear-gradient(135deg,#3498DB,#2980B9)",border:"none",color:"#fff",fontWeight:700,fontSize:12,cursor:"pointer",boxShadow:"0 2px 8px rgba(52,152,219,0.3)"}}>Daily Summary</button>:null}
           </div>
           <button onClick={function(){window.print();}} style={Object.assign({},hB,{fontSize:10})}>Print Week</button>
         </div>:null}
@@ -2474,6 +2476,88 @@ export default function App(){
               })}
             </div>):null}
           </div>):null}
+        </div>
+      </div>):null}
+
+      {/* Daily Summary Modal */}
+      {dsMod!==null?(<div style={{position:"fixed",inset:0,zIndex:1100,background:lt?"rgba(255,255,255,0.85)":"rgba(8,18,8,0.85)",backdropFilter:"blur(10px)",display:"flex",alignItems:"center",justifyContent:"center"}} onClick={function(){setDsMod(null);}}>
+        <div onClick={function(ev){ev.stopPropagation();}} style={{background:_modalBg,borderRadius:16,width:"min(600px,94vw)",maxHeight:"90vh",overflow:"auto",border:"1px solid "+C.bd,boxShadow:"0 24px 80px rgba(0,0,0,0.6)"}}>
+          <div style={{padding:"16px 24px",borderBottom:"1px solid "+C.bd,display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:_modalBg,zIndex:10,borderRadius:"16px 16px 0 0"}}>
+            <div style={{display:"flex",alignItems:"center",gap:12}}>
+              <div style={{fontSize:16,fontWeight:800,color:_tp}}>Daily Summary</div>
+              <input type="date" value={dsMod} onChange={function(ev){setDsMod(ev.target.value);}} style={Object.assign({},IS,{width:160,padding:"6px 10px",fontSize:13})}/>
+            </div>
+            <button onClick={function(){setDsMod(null);}} style={{background:"rgba(255,255,255,0.06)",border:"none",color:_ts,width:32,height:32,borderRadius:8,cursor:"pointer",fontSize:16}}>X</button>
+          </div>
+          {(function(){
+            var dk=dsMod;var entries=wlog[dk]||[];
+            var checkins=entries.filter(function(e){return e.type==="readiness";});
+            var logs=entries.filter(function(e){return e.type!=="readiness";});
+            var dp=dk.split("-");var dLbl=parseInt(dp[1])+"/"+parseInt(dp[2])+"/"+dp[0];
+            var dayNames=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+            var dd=new Date(parseInt(dp[0]),parseInt(dp[1])-1,parseInt(dp[2]));
+            var dayName=dayNames[dd.getDay()];
+            function getName(id){var a=roster.find(function(x){return x.id===id;});return a?a.name:"Unknown";}
+            checkins.sort(function(a,b){return getName(a.athId).localeCompare(getName(b.athId));});
+            logs.sort(function(a,b){return getName(a.athId).localeCompare(getName(b.athId));});
+            var checkedIn={};checkins.forEach(function(e){checkedIn[e.athId]=true;});
+            var logged={};logs.forEach(function(e){logged[e.athId]=true;});
+            var activeRoster=roster.filter(function(a){return a.name!=="Coach Acosta"&&a.name!=="Mr. Acosta";});
+            var missingCheckin=activeRoster.filter(function(a){return!checkedIn[a.id];});
+            var missingLog=activeRoster.filter(function(a){return!logged[a.id];});
+            return(<div style={{padding:"16px 24px"}}>
+              <div style={{fontSize:12,color:_tm,marginBottom:16}}>{dayName} {dLbl}</div>
+              <div style={{display:"flex",gap:6,marginBottom:16}}>
+                <button onClick={function(){var d=new Date(dd);d.setDate(d.getDate()-1);setDsMod(fd(d));}} style={hB}>&larr; Prev Day</button>
+                <button onClick={function(){setDsMod(fd(new Date()));}} style={hB}>Today</button>
+                <button onClick={function(){var d=new Date(dd);d.setDate(d.getDate()+1);setDsMod(fd(d));}} style={hB}>Next Day &rarr;</button>
+              </div>
+              <div style={{marginBottom:20}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                  <div style={{fontSize:13,fontWeight:700,color:"#27AE60"}}>Pre-Practice Check-ins</div>
+                  <span style={{fontSize:11,color:_tm}}>{checkins.length}/{activeRoster.length} checked in</span>
+                </div>
+                {checkins.length===0?<div style={{fontSize:12,color:_tm,fontStyle:"italic",padding:"8px 0"}}>No check-ins for this day.</div>:null}
+                {checkins.map(function(r,ri){
+                  var ath=roster.find(function(x){return x.id===r.athId;});
+                  var rc={"ready":"#27AE60","tired":"#D4A017","sore":"#E67E22","pain":"#E74C3C"}[r.status]||_tm;
+                  return(<div key={ri} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",marginBottom:3,borderRadius:8,background:lt?"#f8f9f6":"rgba(255,255,255,0.02)",border:"1px solid "+C.bd}}>
+                    <span style={{fontSize:18}}>{RD_EMOJI[r.status]||"?"}</span>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:12,fontWeight:600,color:_tp}}>{ath?ath.name:"Unknown"}</div>
+                      {r.notes?<div style={{fontSize:11,color:_tm}}>{r.notes}</div>:null}
+                    </div>
+                    <span style={{fontSize:12,fontWeight:700,color:rc,textTransform:"capitalize"}}>{r.status}</span>
+                  </div>);
+                })}
+                {missingCheckin.length>0?<div style={{marginTop:6}}><div style={{fontSize:10,fontWeight:700,color:"#E74C3C",marginBottom:4}}>Missing ({missingCheckin.length})</div><div style={{fontSize:11,color:_tm}}>{missingCheckin.map(function(a){return a.name.split(" ")[0];}).join(", ")}</div></div>:null}
+              </div>
+              <div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                  <div style={{fontSize:13,fontWeight:700,color:"#9B59B6"}}>Workout Logs</div>
+                  <span style={{fontSize:11,color:_tm}}>{logs.length}/{activeRoster.length} logged</span>
+                </div>
+                {logs.length===0?<div style={{fontSize:12,color:_tm,fontStyle:"italic",padding:"8px 0"}}>No workout logs for this day.</div>:null}
+                {logs.map(function(l,li){
+                  var ath=roster.find(function(x){return x.id===l.athId;});
+                  var dc=(l.difficulty||0)<=4?"#27AE60":(l.difficulty||0)<=6?"#D4A017":(l.difficulty||0)<=8?"#E67E22":"#E74C3C";
+                  return(<div key={li} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",marginBottom:3,borderRadius:8,background:lt?"#f8f9f6":"rgba(255,255,255,0.02)",border:"1px solid "+C.bd}}>
+                    <div style={{width:28,height:28,borderRadius:6,background:dc+"22",color:dc,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,flexShrink:0}}>{l.difficulty||"?"}</div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                        <span style={{fontSize:12,fontWeight:600,color:_tp}}>{ath?ath.name:"Unknown"}</span>
+                        {l.mileage?<span style={{fontSize:11,fontWeight:700,color:_ts,fontFamily:"monospace"}}>{l.mileage} mi</span>:null}
+                      </div>
+                      {l.splits?<div style={{fontSize:11,color:_tm,fontFamily:"monospace"}}>{l.splits}</div>:null}
+                      {l.notes?<div style={{fontSize:11,color:_tm,fontStyle:"italic"}}>{l.notes}</div>:null}
+                      {l.coachComment?<div style={{fontSize:11,color:"#3498DB",marginTop:2}}><span style={{fontWeight:700}}>Coach: </span>{l.coachComment}</div>:null}
+                    </div>
+                  </div>);
+                })}
+                {missingLog.length>0?<div style={{marginTop:6}}><div style={{fontSize:10,fontWeight:700,color:"#E74C3C",marginBottom:4}}>Missing ({missingLog.length})</div><div style={{fontSize:11,color:_tm}}>{missingLog.map(function(a){return a.name.split(" ")[0];}).join(", ")}</div></div>:null}
+              </div>
+            </div>);
+          })()}
         </div>
       </div>):null}
 
