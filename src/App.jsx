@@ -645,7 +645,7 @@ export default function App(){
   function deleteReadiness(dk,athId){freshSaveDayLog(dk,function(cur){return cur.filter(function(e){return!(e.type==="readiness"&&e.athId===athId);});});}
   function getReadiness(dk){return(wlog[dk]||[]).filter(function(e){return e.type==="readiness";});}
   /* ── Streak / Badge / Consistency helpers ── */
-  var APP_START="2026-03-11";/* First day app was introduced to team */
+  var APP_START="2026-03-19";/* First day app was introduced to team */
   function getStreak(athId,mode){
     /* mode: "both"=checkin+log, "log"=log only, "checkin"=checkin only */
     if(!mode)mode="both";
@@ -2138,7 +2138,7 @@ export default function App(){
             {[{k:"week",l:"This Week"},{k:"lastweek",l:"Last Week"},{k:"overall",l:"Overall"}].map(function(p){return <button key={p.k} onClick={function(){setRwPeriod(p.k);}} style={{padding:"5px 12px",fontSize:11,fontWeight:600,border:"none",cursor:"pointer",background:rwPeriod===p.k?"#E74C3C22":"transparent",color:rwPeriod===p.k?"#E74C3C":_tm}}>{p.l}</button>;})}
           </div>
         </div>
-        <div style={{fontSize:12,color:_tm,marginBottom:6}}>{rwPeriod==="week"?"Current week (Mon–Sat). ":rwPeriod==="lastweek"?"Previous week (Mon–Sat). ":"All-time since 3/11. "}Workout log % determines rewards. Check-in % is the tiebreaker.</div>
+        <div style={{fontSize:12,color:_tm,marginBottom:6}}>{rwPeriod==="week"?"Current week (Mon–Sat). ":rwPeriod==="lastweek"?"Previous week (Mon–Sat). ":"All-time since 3/19. "}Workout log % determines rewards. Check-in % is the tiebreaker.</div>
         <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
           <div style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:10,height:10,borderRadius:2,background:"#E74C3C",display:"inline-block"}}/><span style={{fontSize:10,color:_tm}}>Workout Log</span></div>
           <div style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:10,height:10,borderRadius:2,background:"#3498DB",display:"inline-block"}}/><span style={{fontSize:10,color:_tm}}>Pre-Practice</span></div>
