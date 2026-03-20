@@ -325,6 +325,7 @@ export default function App(){
   var _gdEdit=useState(null);var gdEdit=_gdEdit[0];var setGdEdit=_gdEdit[1];
   var _gdExp=useState({});var gdExp=_gdExp[0];var setGdExp=_gdExp[1];
   var gdRef=useRef(null);
+  var _rwPeriod=useState("week");var rwPeriod=_rwPeriod[0];var setRwPeriod=_rwPeriod[1];
   var _dtl=useState(null);var detail=_dtl[0];var setDetail=_dtl[1]; /* athlete workout detail */
   var _myA=useState("");var myAth=_myA[0];var setMyAth=_myA[1]; /* My Paces athlete id */
   var _aph=useState({});var athPhotos=_aph[0];var setAthPhotos=_aph[1];
@@ -417,6 +418,19 @@ export default function App(){
     Promise.all([ld1(SK),ld1(RK),ld1(MK),ld1(AK),ld1(TK),ld1(SRK),loadAthleteData(WLK),loadAthleteData("athphotos"),ld1(CPK),ld1(RTK),ld1(GDK)]).then(function(r){
       var rosterData=r[1]||[];
       var wlogData=null;try{wlogData=r[6]?JSON.parse(r[6]):null;}catch(e){}
+      /* Load per-day wlog docs and merge with legacy single-doc */
+      var allDks={};
+      if(wlogData){Object.keys(wlogData).forEach(function(dk){allDks[dk]=true;});}
+      /* Load per-day docs for last 60 days */
+      var dayPromises=[];var dayKeys=[];
+      (function(){var d=new Date();for(var i=0;i<60;i++){var dk2=fd(d);dayKeys.push(dk2);dayPromises.push(loadAthleteData("wlog:"+dk2));d.setDate(d.getDate()-1);}})();
+      Promise.all(dayPromises).then(function(dayResults){
+        var merged=Object.assign({},wlogData||{});
+        dayResults.forEach(function(raw,idx){
+          if(raw){try{var entries=JSON.parse(raw);if(entries&&entries.length>0)merged[dayKeys[idx]]=entries;}catch(e){}}
+        });
+        setWlog(merged);
+      });
       var photoData=null;try{photoData=r[7]?JSON.parse(r[7]):null;}catch(e){}
       if(photoData){setAthPhotos(photoData);rosterData=rosterData.map(function(a){if(!a.photo&&photoData[a.id])return Object.assign({},a,{photo:photoData[a.id]});return a;});}
       setSch(r[0]||{});setRoster(rosterData);setMeets(r[2]||DEFAULT_MEETS);setAnnounce(r[3]||"");setTemplates(r[4]||[]);setSchoolRecs(r[5]||{});setWlog(wlogData||{});
@@ -447,9 +461,21 @@ export default function App(){
   function upSR(nr){setSchoolRecs(nr);sv1(SRK,nr);}
   function upCP(nr){setCustomPresets(nr);sv1(CPK,nr);}
   function upRT(nr){setRoutines(nr);sv1(RTK,nr);}
-  function upWL(nr){setWlog(nr);saveAthleteData(WLK,JSON.stringify(nr));}
-  function addLog(dk,entry){var n=Object.assign({},wlog);if(!n[dk])n[dk]=[];n[dk]=n[dk].concat([entry]);upWL(n);}
-  function rmLog(dk,idx){var n=Object.assign({},wlog);if(!n[dk])return;n[dk]=n[dk].slice();n[dk].splice(idx,1);if(n[dk].length===0)delete n[dk];upWL(n);}
+  function upWL(nr){setWlog(nr);}
+  function saveDayLog(dk,entries){
+    setWlog(function(prev){var n=Object.assign({},prev);n[dk]=entries;return n;});
+    saveAthleteData("wlog:"+dk,JSON.stringify(entries));
+  }
+  function freshSaveDayLog(dk,updateFn){
+    loadAthleteData("wlog:"+dk).then(function(raw){
+      var current=[];try{current=raw?JSON.parse(raw):[];}catch(e){}
+      var updated=updateFn(current);
+      setWlog(function(prev){var n=Object.assign({},prev);n[dk]=updated;return n;});
+      saveAthleteData("wlog:"+dk,JSON.stringify(updated));
+    });
+  }
+  function addLog(dk,entry){freshSaveDayLog(dk,function(cur){return cur.concat([entry]);});}
+  function rmLog(dk,idx){freshSaveDayLog(dk,function(cur){var c=cur.slice();c.splice(idx,1);return c;});}
   var _logDt=useState("");var logDate=_logDt[0];var setLogDate=_logDt[1];
   function openLogModal(dk,lb){setLogMod({dateKey:dk,dateLbl:lb});setLogDate(dk);setLogAth(myAth||"");setLogDiff(5);setLogMi("");setLogSpl("");setLogNt("");}
   function submitLog(){if(!logMod||!logAth||!logDate)return;addLog(logDate,{athId:logAth,difficulty:logDiff,mileage:parseFloat(logMi)||0,splits:logSpl,notes:logNt,ts:Date.now()});setLogMod(null);}
@@ -509,8 +535,8 @@ export default function App(){
   /* Race Plans */
   function saveRacePlans(id,plans){upR(roster.map(function(a){return a.id===id?Object.assign({},a,{racePlans:plans}):a;}));}
   /* Readiness */
-  function addReadiness(dk,athId,status,note){var n=Object.assign({},wlog);if(!n[dk])n[dk]=[];n[dk]=n[dk].filter(function(e){return!(e.type==="readiness"&&e.athId===athId);});n[dk]=n[dk].concat([{type:"readiness",athId:athId,status:status,notes:note,ts:Date.now()}]);upWL(n);}
-  function commentOnLog(dk,ts,comment){var n=Object.assign({},wlog);if(!n[dk])return;n[dk]=n[dk].map(function(e){if(e.ts===ts)return Object.assign({},e,{coachComment:comment,commentTs:Date.now()});return e;});upWL(n);}
+  function addReadiness(dk,athId,status,note){freshSaveDayLog(dk,function(cur){return cur.filter(function(e){return!(e.type==="readiness"&&e.athId===athId);}).concat([{type:"readiness",athId:athId,status:status,notes:note,ts:Date.now()}]);});}
+  function commentOnLog(dk,ts,comment){freshSaveDayLog(dk,function(cur){return cur.map(function(e){if(e.ts===ts)return Object.assign({},e,{coachComment:comment,commentTs:Date.now()});return e;});});}
   function getUnreadComments(athId){
     var cutoff=coachSeen||0;
     var twoDaysAgo=Date.now()-2*24*60*60*1000;
@@ -570,7 +596,7 @@ export default function App(){
       return <div key={i} style={{fontSize:12,color:_ts,lineHeight:1.6}}>{parts}</div>;
     });
   }
-  function deleteReadiness(dk,athId){var n=Object.assign({},wlog);if(!n[dk])return;n[dk]=n[dk].filter(function(e){return!(e.type==="readiness"&&e.athId===athId);});if(n[dk].length===0)delete n[dk];upWL(n);}
+  function deleteReadiness(dk,athId){freshSaveDayLog(dk,function(cur){return cur.filter(function(e){return!(e.type==="readiness"&&e.athId===athId);});});}
   function getReadiness(dk){return(wlog[dk]||[]).filter(function(e){return e.type==="readiness";});}
   /* ── Streak / Badge / Consistency helpers ── */
   var APP_START="2026-03-11";/* First day app was introduced to team */
@@ -608,24 +634,37 @@ export default function App(){
       if(days>=6)badges++;
     }return badges;
   }
-  function getConsistency(athId){
-    /* Returns {logPct, checkinPct} since APP_START (3/11/26) */
-    /* Loop through APP_START to today. Past days count toward total (denominator). */
-    /* Today only counts toward total if they already logged something. */
-    var sp=APP_START.split("-");var start=new Date(parseInt(sp[0]),parseInt(sp[1])-1,parseInt(sp[2]));
-    start.setHours(0,0,0,0);
-    var now=new Date();now.setHours(23,59,59,999);/* include today */
-    var todayStr=fd(new Date());
+  function getConsistency(athId,period){
+    /* period: "week"=current Mon-Sat, "lastweek"=previous Mon-Sat, "overall"=since APP_START */
+    var now=new Date();var todayStr=fd(new Date());
+    var start,end;
+    if(period==="week"){
+      /* Current week Mon-today */
+      var dow=now.getDay();var monOff=dow===0?-6:1-dow;
+      start=new Date(now);start.setDate(now.getDate()+monOff);start.setHours(0,0,0,0);
+      end=new Date(now);end.setHours(23,59,59,999);
+    }else if(period==="lastweek"){
+      var dow=now.getDay();var monOff=dow===0?-6:1-dow;
+      start=new Date(now);start.setDate(now.getDate()+monOff-7);start.setHours(0,0,0,0);
+      end=new Date(start);end.setDate(start.getDate()+5);end.setHours(23,59,59,999);/* Sat */
+    }else{
+      var sp2=APP_START.split("-");start=new Date(parseInt(sp2[0]),parseInt(sp2[1])-1,parseInt(sp2[2]));
+      start.setHours(0,0,0,0);
+      end=new Date(now);end.setHours(23,59,59,999);
+    }
+    /* Don't go before APP_START */
+    var sp=APP_START.split("-");var appStart=new Date(parseInt(sp[0]),parseInt(sp[1])-1,parseInt(sp[2]));
+    appStart.setHours(0,0,0,0);
+    if(start<appStart)start=appStart;
     var totalDays=0;var logDays=0;var checkinDays=0;
     var d=new Date(start);
-    while(d<=now){
+    while(d<=end){
       var dow=d.getDay();
       if(dow>=1&&dow<=6){/* Mon-Sat */
         var dk=fd(d);var entries=wlog[dk]||[];
         var hasLog=entries.some(function(e){return e.athId===athId&&e.type!=="readiness";});
         var hasCheckin=entries.some(function(e){return e.athId===athId&&e.type==="readiness";});
         var isToday=(dk===todayStr);
-        /* Past completed days always count toward total. Today only counts if they have any entry. */
         if(!isToday||(isToday&&(hasLog||hasCheckin))){totalDays++;}
         if(hasLog)logDays++;
         if(hasCheckin)checkinDays++;
@@ -2046,15 +2085,20 @@ export default function App(){
         </div>
 
         {/* Consistency Leaderboard - multi-column */}
-        <div style={{fontSize:18,fontWeight:800,color:"#E74C3C",marginBottom:6}}>🔥 Consistency Leaderboard</div>
-        <div style={{fontSize:12,color:_tm,marginBottom:6}}>Tracking since 3/11. Mon–Sat practice days. Workout log % determines rewards. Pre-practice check-in % is the tiebreaker.</div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6,flexWrap:"wrap",gap:8}}>
+          <div style={{fontSize:18,fontWeight:800,color:"#E74C3C"}}>{"🔥"} Consistency Leaderboard</div>
+          <div style={{display:"flex",borderRadius:6,overflow:"hidden",border:"1px solid "+C.bd}}>
+            {[{k:"week",l:"This Week"},{k:"lastweek",l:"Last Week"},{k:"overall",l:"Overall"}].map(function(p){return <button key={p.k} onClick={function(){setRwPeriod(p.k);}} style={{padding:"5px 12px",fontSize:11,fontWeight:600,border:"none",cursor:"pointer",background:rwPeriod===p.k?"#E74C3C22":"transparent",color:rwPeriod===p.k?"#E74C3C":_tm}}>{p.l}</button>;})}
+          </div>
+        </div>
+        <div style={{fontSize:12,color:_tm,marginBottom:6}}>{rwPeriod==="week"?"Current week (Mon–Sat). ":rwPeriod==="lastweek"?"Previous week (Mon–Sat). ":"All-time since 3/11. "}Workout log % determines rewards. Check-in % is the tiebreaker.</div>
         <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
           <div style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:10,height:10,borderRadius:2,background:"#E74C3C",display:"inline-block"}}/><span style={{fontSize:10,color:_tm}}>Workout Log</span></div>
           <div style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:10,height:10,borderRadius:2,background:"#3498DB",display:"inline-block"}}/><span style={{fontSize:10,color:_tm}}>Pre-Practice</span></div>
         </div>
         {(function(){
           var all=roster.filter(function(a){return a.name!=="Mr. Acosta"&&a.name!=="Coach Acosta";}).map(function(a){
-            var c=getConsistency(a.id);
+            var c=getConsistency(a.id,rwPeriod);
             return{id:a.id,name:a.name,team:a.team,photo:a.photo,
               logPct:c.logPct,checkinPct:c.checkinPct,
               sLog:getStreak(a.id,"log"),sCheckin:getStreak(a.id,"checkin"),
@@ -2521,13 +2565,17 @@ export default function App(){
                 {checkins.map(function(r,ri){
                   var ath=roster.find(function(x){return x.id===r.athId;});
                   var rc={"ready":"#27AE60","tired":"#D4A017","sore":"#E67E22","pain":"#E74C3C"}[r.status]||_tm;
-                  return(<div key={ri} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",marginBottom:3,borderRadius:8,background:lt?"#f8f9f6":"rgba(255,255,255,0.02)",border:"1px solid "+C.bd}}>
-                    <span style={{fontSize:18}}>{RD_EMOJI[r.status]||"?"}</span>
-                    <div style={{flex:1}}>
-                      <div style={{fontSize:12,fontWeight:600,color:_tp}}>{ath?ath.name:"Unknown"}</div>
-                      {r.notes?<div style={{fontSize:11,color:_tm}}>{r.notes}</div>:null}
+                  return(<div key={ri} style={{padding:"8px 12px",marginBottom:3,borderRadius:8,background:lt?"#f8f9f6":"rgba(255,255,255,0.02)",border:"1px solid "+C.bd}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10}}>
+                      <span style={{fontSize:18}}>{RD_EMOJI[r.status]||"?"}</span>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:12,fontWeight:600,color:_tp}}>{ath?ath.name:"Unknown"}</div>
+                        {r.notes?<div style={{fontSize:11,color:_tm}}>{r.notes}</div>:null}
+                      </div>
+                      <span style={{fontSize:12,fontWeight:700,color:rc,textTransform:"capitalize"}}>{r.status}</span>
                     </div>
-                    <span style={{fontSize:12,fontWeight:700,color:rc,textTransform:"capitalize"}}>{r.status}</span>
+                    {r.coachComment?<div style={{fontSize:10,marginTop:4,padding:"3px 8px",borderRadius:4,background:"#3498DB10",borderLeft:"2px solid #3498DB44",color:"#3498DB"}}><span style={{fontWeight:700}}>Coach: </span>{r.coachComment}</div>:null}
+                    {cm?<input placeholder="Add comment..." defaultValue={r.coachComment||""} onBlur={function(ev){var v=ev.target.value.trim();if(v!==(r.coachComment||""))commentOnLog(dk,r.ts,v);}} onKeyDown={function(ev){if(ev.key==="Enter")ev.target.blur();}} style={{width:"100%",marginTop:4,fontSize:10,padding:"3px 8px",borderRadius:4,border:"1px solid "+C.bd,background:"transparent",color:_ts,boxSizing:"border-box"}}/>:null}
                   </div>);
                 })}
                 {missingCheckin.length>0?<div style={{marginTop:6}}><div style={{fontSize:10,fontWeight:700,color:"#E74C3C",marginBottom:4}}>Missing ({missingCheckin.length})</div><div style={{fontSize:11,color:_tm}}>{missingCheckin.map(function(a){return a.name.split(" ")[0];}).join(", ")}</div></div>:null}
@@ -2541,17 +2589,20 @@ export default function App(){
                 {logs.map(function(l,li){
                   var ath=roster.find(function(x){return x.id===l.athId;});
                   var dc=(l.difficulty||0)<=4?"#27AE60":(l.difficulty||0)<=6?"#D4A017":(l.difficulty||0)<=8?"#E67E22":"#E74C3C";
-                  return(<div key={li} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",marginBottom:3,borderRadius:8,background:lt?"#f8f9f6":"rgba(255,255,255,0.02)",border:"1px solid "+C.bd}}>
-                    <div style={{width:28,height:28,borderRadius:6,background:dc+"22",color:dc,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,flexShrink:0}}>{l.difficulty||"?"}</div>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                        <span style={{fontSize:12,fontWeight:600,color:_tp}}>{ath?ath.name:"Unknown"}</span>
-                        {l.mileage?<span style={{fontSize:11,fontWeight:700,color:_ts,fontFamily:"monospace"}}>{l.mileage} mi</span>:null}
+                  return(<div key={li} style={{padding:"8px 12px",marginBottom:3,borderRadius:8,background:lt?"#f8f9f6":"rgba(255,255,255,0.02)",border:"1px solid "+C.bd}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10}}>
+                      <div style={{width:28,height:28,borderRadius:6,background:dc+"22",color:dc,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,flexShrink:0}}>{l.difficulty||"?"}</div>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                          <span style={{fontSize:12,fontWeight:600,color:_tp}}>{ath?ath.name:"Unknown"}</span>
+                          {l.mileage?<span style={{fontSize:11,fontWeight:700,color:_ts,fontFamily:"monospace"}}>{l.mileage} mi</span>:null}
+                        </div>
+                        {l.splits?<div style={{fontSize:11,color:_tm,fontFamily:"monospace"}}>{l.splits}</div>:null}
+                        {l.notes?<div style={{fontSize:11,color:_tm,fontStyle:"italic"}}>{l.notes}</div>:null}
                       </div>
-                      {l.splits?<div style={{fontSize:11,color:_tm,fontFamily:"monospace"}}>{l.splits}</div>:null}
-                      {l.notes?<div style={{fontSize:11,color:_tm,fontStyle:"italic"}}>{l.notes}</div>:null}
-                      {l.coachComment?<div style={{fontSize:11,color:"#3498DB",marginTop:2}}><span style={{fontWeight:700}}>Coach: </span>{l.coachComment}</div>:null}
                     </div>
+                    {l.coachComment?<div style={{fontSize:10,marginTop:4,padding:"3px 8px",borderRadius:4,background:"#3498DB10",borderLeft:"2px solid #3498DB44",color:"#3498DB"}}><span style={{fontWeight:700}}>Coach: </span>{l.coachComment}</div>:null}
+                    {cm?<input placeholder="Add comment..." defaultValue={l.coachComment||""} onBlur={function(ev){var v=ev.target.value.trim();if(v!==(l.coachComment||""))commentOnLog(dk,l.ts,v);}} onKeyDown={function(ev){if(ev.key==="Enter")ev.target.blur();}} style={{width:"100%",marginTop:4,fontSize:10,padding:"3px 8px",borderRadius:4,border:"1px solid "+C.bd,background:"transparent",color:_ts,boxSizing:"border-box"}}/>:null}
                   </div>);
                 })}
                 {missingLog.length>0?<div style={{marginTop:6}}><div style={{fontSize:10,fontWeight:700,color:"#E74C3C",marginBottom:4}}>Missing ({missingLog.length})</div><div style={{fontSize:11,color:_tm}}>{missingLog.map(function(a){return a.name.split(" ")[0];}).join(", ")}</div></div>:null}
