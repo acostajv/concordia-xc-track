@@ -536,22 +536,46 @@ export default function App(){
   function saveRacePlans(id,plans){upR(roster.map(function(a){return a.id===id?Object.assign({},a,{racePlans:plans}):a;}));}
   /* Readiness */
   function addReadiness(dk,athId,status,note){freshSaveDayLog(dk,function(cur){return cur.filter(function(e){return!(e.type==="readiness"&&e.athId===athId);}).concat([{type:"readiness",athId:athId,status:status,notes:note,ts:Date.now()}]);});}
-  function commentOnLog(dk,ts,comment){freshSaveDayLog(dk,function(cur){return cur.map(function(e){if(e.ts===ts)return Object.assign({},e,{coachComment:comment,commentTs:Date.now()});return e;});});}
+  function commentOnLog(dk,ts,comment){
+    /* Update local state immediately (no network read) */
+    var now=Date.now();
+    setWlog(function(prev){
+      var n=Object.assign({},prev);
+      var entries=(n[dk]||[]).map(function(e){
+        if(e.ts===ts)return Object.assign({},e,{coachComment:comment,commentTs:now});
+        return e;
+      });
+      n[dk]=entries;
+      /* Also save to per-day Firebase doc */
+      saveAthleteData("wlog:"+dk,JSON.stringify(entries));
+      return n;
+    });
+  }
   function getUnreadComments(athId){
     var cutoff=coachSeen||0;
-    var twoDaysAgo=Date.now()-2*24*60*60*1000;
     var unread=[];
     Object.keys(wlog).forEach(function(dk){(wlog[dk]||[]).forEach(function(e){
       if(e.athId===athId&&e.coachComment){
         var ct=e.commentTs||e.ts||0;
-        if(ct>cutoff&&ct>twoDaysAgo){
+        if(ct>cutoff){
           var dp=dk.split("-");var dLbl=parseInt(dp[1])+"/"+parseInt(dp[2]);
-          unread.push({date:dLbl,comment:e.coachComment,type:e.type==="readiness"?"check-in":"workout",ts:ct});
+          unread.push({date:dLbl,comment:e.coachComment,type:e.type==="readiness"?"check-in":"workout",ts:ct,dk:dk});
         }
       }
     });});
     unread.sort(function(a,b){return b.ts-a.ts;});
     return unread;
+  }
+  function getAllComments(athId){
+    var all=[];
+    Object.keys(wlog).forEach(function(dk){(wlog[dk]||[]).forEach(function(e){
+      if(e.athId===athId&&e.coachComment){
+        var dp=dk.split("-");var dLbl=parseInt(dp[1])+"/"+parseInt(dp[2]);
+        all.push({date:dLbl,comment:e.coachComment,type:e.type==="readiness"?"check-in":"workout",ts:e.commentTs||e.ts||0,dk:dk});
+      }
+    });});
+    all.sort(function(a,b){return b.ts-a.ts;});
+    return all;
   }
   function upGuide(g){setGuideSections(g);sv1(GDK,g);}
   function gdInsert(type){
@@ -887,21 +911,22 @@ export default function App(){
         {/* Coach comment notifications */}
         {myAth&&!cm?(function(){
           var unread=getUnreadComments(myAth);
-          if(unread.length===0)return null;
-          return(<div style={{marginBottom:16,borderRadius:12,background:"linear-gradient(135deg,#3498DB15,#3498DB08)",border:"2px solid #3498DB44",padding:"14px 16px",position:"relative"}}>
-            <button onClick={function(){dismissComments();}} style={{position:"absolute",top:8,right:10,background:"none",border:"none",color:"#3498DB",fontSize:14,cursor:"pointer",fontWeight:700}}>{"✕"}</button>
-            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-              <span style={{fontSize:18}}>{"💬"}</span>
-              <div style={{fontSize:13,fontWeight:700,color:"#3498DB"}}>New from Coach Acosta</div>
-              <span style={{fontSize:10,padding:"2px 8px",borderRadius:10,background:"#3498DB22",color:"#3498DB",fontWeight:700}}>{unread.length}</span>
-            </div>
-            {unread.slice(0,3).map(function(c,i){
-              return <div key={i} style={{padding:"6px 10px",marginBottom:4,borderRadius:6,background:lt?"#fff":"rgba(255,255,255,0.04)",borderLeft:"3px solid #3498DB44"}}>
-                <div style={{fontSize:10,color:_tm,marginBottom:2}}>{c.date} {c.type}</div>
-                <div style={{fontSize:12,color:_tp}}><span style={{fontWeight:700,color:"#3498DB"}}>Coach:</span> {c.comment}</div>
-              </div>;
-            })}
-            {unread.length>3?<div style={{fontSize:10,color:_tm,marginTop:4}}>+{unread.length-3} more — expand your card to see all</div>:null}
+          var allC=getAllComments(myAth);
+          if(allC.length===0)return null;
+          var showHist=gdExp["cmtHist"];
+          return(<div style={{marginBottom:12}}>
+            {unread.length>0?<div style={{padding:"12px 16px",borderRadius:10,background:"#3498DB12",border:"1px solid #3498DB33",position:"relative",marginBottom:8}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#3498DB",marginBottom:6}}>New Coach Comments ({unread.length})</div>
+              {unread.slice(0,5).map(function(c,ci){return <div key={ci} style={{fontSize:12,color:_tp,marginBottom:4,paddingLeft:8,borderLeft:"2px solid #3498DB33"}}><span style={{fontSize:10,color:_tm}}>{c.date} {c.type}: </span>{c.comment}</div>;})}
+              {unread.length>5?<div style={{fontSize:10,color:_tm}}>+{unread.length-5} more</div>:null}
+              <button onClick={function(){dismissComments();}} style={{position:"absolute",top:8,right:10,background:"none",border:"none",color:"#3498DB",fontSize:10,cursor:"pointer",fontWeight:600}}>Dismiss</button>
+            </div>:null}
+            {allC.length>0?<div>
+              <button onClick={function(){var n=Object.assign({},gdExp);n["cmtHist"]=!n["cmtHist"];setGdExp(n);}} style={{fontSize:10,color:_tm,background:"none",border:"none",cursor:"pointer",textDecoration:"underline",padding:0,marginBottom:4}}>{showHist?"Hide comment history ("+allC.length+")":"View all coach comments ("+allC.length+")"}</button>
+              {showHist?<div style={{padding:"8px 12px",borderRadius:8,border:"1px solid "+C.bd,maxHeight:200,overflow:"auto"}}>
+                {allC.map(function(c,ci){var d=new Date(c.ts);var tLbl=(d.getMonth()+1)+"/"+d.getDate()+" "+(d.getHours()%12||12)+":"+(d.getMinutes()<10?"0":"")+d.getMinutes()+(d.getHours()>=12?"pm":"am");return <div key={ci} style={{fontSize:11,marginBottom:6,paddingBottom:4,borderBottom:ci<allC.length-1?"1px solid "+C.bd:"none"}}><div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:_tm,fontSize:9}}>{c.date} {c.type}</span><span style={{color:_tm,fontSize:9}}>{tLbl}</span></div><div style={{color:_tp}}>{c.comment}</div></div>;})}
+              </div>:null}
+            </div>:null}
           </div>);
         })():null}
         {/* My Card - pinned at top for logged-in athlete */}
