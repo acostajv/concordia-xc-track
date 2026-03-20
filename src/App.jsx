@@ -419,21 +419,41 @@ export default function App(){
       var rosterData=r[1]||[];
       var wlogData=null;try{wlogData=r[6]?JSON.parse(r[6]):null;}catch(e){}
       /* Load per-day wlog docs and merge with legacy single-doc */
-      var allDks={};
-      if(wlogData){Object.keys(wlogData).forEach(function(dk){allDks[dk]=true;});}
-      /* Load per-day docs for last 60 days */
       var dayPromises=[];var dayKeys=[];
       (function(){var d=new Date();for(var i=0;i<60;i++){var dk2=fd(d);dayKeys.push(dk2);dayPromises.push(loadAthleteData("wlog:"+dk2));d.setDate(d.getDate()-1);}})();
       Promise.all(dayPromises).then(function(dayResults){
         var merged=Object.assign({},wlogData||{});
+        var perDayCount=0;
         dayResults.forEach(function(raw,idx){
-          if(raw){try{var entries=JSON.parse(raw);if(entries&&entries.length>0)merged[dayKeys[idx]]=entries;}catch(e){}}
+          if(raw){try{var entries=JSON.parse(raw);if(entries&&entries.length>0){merged[dayKeys[idx]]=entries;perDayCount++;}}catch(e){}}
+        });
+        console.log("[WLOG] Legacy keys:",Object.keys(wlogData||{}).length,"Per-day docs found:",perDayCount,"Merged total keys:",Object.keys(merged).length);
+        /* Log details for debugging */
+        Object.keys(merged).sort().forEach(function(dk){
+          var entries=merged[dk]||[];
+          var logs=entries.filter(function(e){return e.type!=="readiness";}).length;
+          var checkins=entries.filter(function(e){return e.type==="readiness";}).length;
+          if(logs>0||checkins>0)console.log("[WLOG]",dk,":",logs,"logs,",checkins,"checkins");
+        });
+        /* Migrate: save legacy-only days to per-day docs */
+        var legacyKeys=Object.keys(wlogData||{});
+        legacyKeys.forEach(function(dk){
+          var legacyEntries=wlogData[dk];
+          if(legacyEntries&&legacyEntries.length>0){
+            /* Check if per-day doc had data */
+            var idx=dayKeys.indexOf(dk);
+            var perDayHadData=idx>=0&&dayResults[idx];
+            if(!perDayHadData){
+              console.log("[WLOG] Migrating legacy data for",dk,"(",legacyEntries.length,"entries)");
+              saveAthleteData("wlog:"+dk,JSON.stringify(legacyEntries));
+            }
+          }
         });
         setWlog(merged);
       });
       var photoData=null;try{photoData=r[7]?JSON.parse(r[7]):null;}catch(e){}
       if(photoData){setAthPhotos(photoData);rosterData=rosterData.map(function(a){if(!a.photo&&photoData[a.id])return Object.assign({},a,{photo:photoData[a.id]});return a;});}
-      setSch(r[0]||{});setRoster(rosterData);setMeets(r[2]||DEFAULT_MEETS);setAnnounce(r[3]||"");setTemplates(r[4]||[]);setSchoolRecs(r[5]||{});setWlog(wlogData||{});
+      setSch(r[0]||{});setRoster(rosterData);setMeets(r[2]||DEFAULT_MEETS);setAnnounce(r[3]||"");setTemplates(r[4]||[]);setSchoolRecs(r[5]||{});
       if(r[8])setCustomPresets(r[8]);
       /* Load coachSeen timestamp */
       loadAthleteData("coachseen").then(function(raw){
@@ -468,7 +488,9 @@ export default function App(){
   }
   function freshSaveDayLog(dk,updateFn){
     loadAthleteData("wlog:"+dk).then(function(raw){
-      var current=[];try{current=raw?JSON.parse(raw):[];}catch(e){}
+      var fromFirebase=[];try{fromFirebase=raw?JSON.parse(raw):[];}catch(e){}
+      /* If per-day doc is empty, fall back to local state (legacy data) */
+      var current=fromFirebase.length>0?fromFirebase:(wlog[dk]||[]).slice();
       var updated=updateFn(current);
       setWlog(function(prev){var n=Object.assign({},prev);n[dk]=updated;return n;});
       saveAthleteData("wlog:"+dk,JSON.stringify(updated));
