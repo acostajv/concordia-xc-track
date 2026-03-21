@@ -58,7 +58,7 @@ function ini(name){var p=name.trim().split(/\s+/);return p.length>=2?p[0].charAt
 function genPin(){return String(Math.floor(1000+Math.random()*9000));}
 function fmtMD(ds){var p=ds.split("-");var d=new Date(parseInt(p[0]),parseInt(p[1])-1,parseInt(p[2]));return["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d.getDay()]+", "+MO[d.getMonth()]+" "+d.getDate();}
 
-var SK="track-v14",RK="roster-v3",MK="meets-v2",AK="announce-v1",TK="templates-v1",THK="theme-v1",MYK="mypaces-v1",SRK="schoolrecs-v1",WLK="wlog-v1",CPK="custompresets-v1",RTK="routines-v1",GDK="guide-v1";
+var SK="track-v14",RK="roster-v3",MK="meets-v2",AK="announce-v1",TK="templates-v1",THK="theme-v1",MYK="mypaces-v1",SRK="schoolrecs-v1",WLK="wlog-v1",CPK="custompresets-v1",RTK="routines-v1",GDK="guide-v1",QAK="qa-v1";
 var ROUTINE_CATS=[
   {id:"core",label:"Core",icon:"\uD83E\uDDBB",color:"#E74C3C",desc:"Core strength and stability exercises"},
   {id:"hip",label:"Hip Strength",icon:"\uD83E\uDDBF",color:"#3498DB",desc:"Hip and glute strengthening for injury prevention"},
@@ -325,6 +325,8 @@ export default function App(){
   var _gdEdit=useState(null);var gdEdit=_gdEdit[0];var setGdEdit=_gdEdit[1];
   var _gdExp=useState({});var gdExp=_gdExp[0];var setGdExp=_gdExp[1];
   var gdRef=useRef(null);
+  var _qa=useState([]);var qaData=_qa[0];var setQaData=_qa[1];
+  var _qaInput=useState("");var qaInput=_qaInput[0];var setQaInput=_qaInput[1];
   var _rwPeriod=useState("week");var rwPeriod=_rwPeriod[0];var setRwPeriod=_rwPeriod[1];
   var _dtl=useState(null);var detail=_dtl[0];var setDetail=_dtl[1]; /* athlete workout detail */
   var _myA=useState("");var myAth=_myA[0];var setMyAth=_myA[1]; /* My Paces athlete id */
@@ -468,6 +470,7 @@ export default function App(){
       });
       if(r[9])setRoutines(r[9]);
       if(r[10])setGuideSections(r[10]);
+      loadAthleteData("qa-v1").then(function(raw){if(raw){try{setQaData(JSON.parse(raw));}catch(e){}}});
       setLoaded(true);
     });
   },[]);
@@ -600,6 +603,10 @@ export default function App(){
     return all;
   }
   function upGuide(g){setGuideSections(g);sv1(GDK,g);}
+  function upQA(q){setQaData(q);saveAthleteData("qa-v1",JSON.stringify(q));}
+  function submitQuestion(){if(!qaInput.trim()||!myAth)return;var q=qaData.slice();q.push({id:"q"+Date.now(),athId:myAth,question:qaInput.trim(),ts:Date.now(),answer:"",answerTs:0});upQA(q);setQaInput("");}
+  function answerQuestion(qid,answer){upQA(qaData.map(function(q){return q.id===qid?Object.assign({},q,{answer:answer,answerTs:Date.now()}):q;}));}
+  function deleteQuestion(qid){upQA(qaData.filter(function(q){return q.id!==qid;}));}
   function gdInsert(type){
     var ta=gdRef.current;if(!ta)return;
     var s=ta.selectionStart;var e=ta.selectionEnd;
@@ -1023,7 +1030,7 @@ export default function App(){
                       {weekRd.map(function(r,ri){
                         var rc={"ready":"#27AE60","tired":"#D4A017","sore":"#E67E22","pain":"#E74C3C"}[r.status]||_tm;
                         var dp=r.date.split("-");var dLbl=parseInt(dp[1])+"/"+parseInt(dp[2]);
-                        return <div key={ri} style={{marginBottom:4}}><div style={{display:"flex",gap:6,alignItems:"center",fontSize:11}}><span style={{fontSize:14}}>{RD_EMOJI[r.status]||"?"}</span><span style={{fontWeight:600,color:_tp}}>{dLbl}</span><span style={{color:rc,fontWeight:600}}>{r.status}</span>{r.notes?<span style={{color:_tm,fontSize:10}}>{r.notes}</span>:null}</div>{r.coachComment?<div style={{fontSize:10,marginTop:2,marginLeft:22,padding:"3px 8px",borderRadius:4,background:"#3498DB10",borderLeft:"2px solid #3498DB44",color:"#3498DB"}}><span style={{fontWeight:700}}>Coach: </span>{r.coachComment}</div>:null}{cm?<div style={{marginLeft:22,marginTop:2}}><input key={r.ts+"-"+(r.coachComment||"")} placeholder="Add comment..." defaultValue="" onKeyDown={function(ev){if(ev.key==="Enter"){var v=ev.target.value.trim();if(v){commentOnLog(r.date,r.ts,v);ev.target.value="";ev.target.blur();}}}} style={{fontSize:10,padding:"2px 6px",borderRadius:3,border:"1px solid "+C.bd,background:"transparent",color:_ts,width:"100%"}}/></div>:null}</div>;
+                        return <div key={ri} style={{marginBottom:4}}><div style={{display:"flex",gap:6,alignItems:"center",fontSize:11}}><span style={{fontSize:14}}>{RD_EMOJI[r.status]||"?"}</span><span style={{fontWeight:600,color:_tp}}>{dLbl}</span><span style={{color:rc,fontWeight:600}}>{r.status}</span>{r.notes?<span style={{color:_tm,fontSize:10}}>{r.notes}</span>:null}</div>{r.coachComment?<div style={{fontSize:10,marginTop:2,marginLeft:22,padding:"3px 8px",borderRadius:4,background:"#3498DB10",borderLeft:"2px solid #3498DB44",color:"#3498DB"}}><span style={{fontWeight:700}}>Coach: </span>{r.coachComment}</div>:null}{cm?<div style={{marginLeft:22,marginTop:2}}><input placeholder="Add comment..." defaultValue={r.coachComment||""} onKeyDown={function(ev){if(ev.key==="Enter"){var v=ev.target.value.trim();if(v){commentOnLog(r.date,r.ts,v);ev.target.value="";ev.target.blur();}}}} style={{fontSize:10,padding:"2px 6px",borderRadius:3,border:"1px solid "+C.bd,background:"transparent",color:_ts,width:"100%"}}/></div>:null}</div>;
                       })}
                     </div>):null}
                     {weekWL.length>0?(<div>
@@ -1031,7 +1038,7 @@ export default function App(){
                       {weekWL.map(function(l,li){
                         var dc=(l.difficulty||0)<=4?"#27AE60":(l.difficulty||0)<=6?"#D4A017":(l.difficulty||0)<=8?"#E67E22":"#E74C3C";
                         var dp=l.date.split("-");var dLbl=parseInt(dp[1])+"/"+parseInt(dp[2]);
-                        return <div key={li} style={{marginBottom:4}}><div style={{display:"flex",gap:6,alignItems:"center",fontSize:11}}><div style={{width:20,height:20,borderRadius:4,background:dc+"22",color:dc,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}}>{l.difficulty}</div><span style={{fontWeight:600,color:_tp}}>{dLbl}</span>{l.mileage?<span style={{color:_ts,fontFamily:"monospace"}}>{l.mileage}mi</span>:null}{l.splits?<span style={{color:_tm,fontSize:10}}>{l.splits}</span>:null}</div>{l.notes?<div style={{fontSize:10,color:_tm,marginLeft:26,fontStyle:"italic"}}>{l.notes}</div>:null}{l.coachComment?<div style={{fontSize:10,marginTop:2,marginLeft:26,padding:"3px 8px",borderRadius:4,background:"#3498DB10",borderLeft:"2px solid #3498DB44",color:"#3498DB"}}><span style={{fontWeight:700}}>Coach: </span>{l.coachComment}</div>:null}{cm?<div style={{marginLeft:26,marginTop:2}}><input key={l.ts+"-"+(l.coachComment||"")} placeholder="Add comment..." defaultValue="" onKeyDown={function(ev){if(ev.key==="Enter"){var v=ev.target.value.trim();if(v){commentOnLog(l.date,l.ts,v);ev.target.value="";ev.target.blur();}}}} style={{fontSize:10,padding:"2px 6px",borderRadius:3,border:"1px solid "+C.bd,background:"transparent",color:_ts,width:"100%"}}/></div>:null}</div>;
+                        return <div key={li} style={{marginBottom:4}}><div style={{display:"flex",gap:6,alignItems:"center",fontSize:11}}><div style={{width:20,height:20,borderRadius:4,background:dc+"22",color:dc,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}}>{l.difficulty}</div><span style={{fontWeight:600,color:_tp}}>{dLbl}</span>{l.mileage?<span style={{color:_ts,fontFamily:"monospace"}}>{l.mileage}mi</span>:null}{l.splits?<span style={{color:_tm,fontSize:10}}>{l.splits}</span>:null}</div>{l.notes?<div style={{fontSize:10,color:_tm,marginLeft:26,fontStyle:"italic"}}>{l.notes}</div>:null}{l.coachComment?<div style={{fontSize:10,marginTop:2,marginLeft:26,padding:"3px 8px",borderRadius:4,background:"#3498DB10",borderLeft:"2px solid #3498DB44",color:"#3498DB"}}><span style={{fontWeight:700}}>Coach: </span>{l.coachComment}</div>:null}{cm?<div style={{marginLeft:26,marginTop:2}}><input placeholder="Add comment..." defaultValue={l.coachComment||""} onKeyDown={function(ev){if(ev.key==="Enter"){var v=ev.target.value.trim();if(v){commentOnLog(l.date,l.ts,v);ev.target.value="";ev.target.blur();}}}} style={{fontSize:10,padding:"2px 6px",borderRadius:3,border:"1px solid "+C.bd,background:"transparent",color:_ts,width:"100%"}}/></div>:null}</div>;
                       })}
                     </div>):null}
                   </div>);
@@ -1294,7 +1301,7 @@ export default function App(){
                       {weekRd.map(function(r,ri){
                         var rc={"ready":"#27AE60","tired":"#D4A017","sore":"#E67E22","pain":"#E74C3C"}[r.status]||_tm;
                         var dp=r.date.split("-");var dLbl=parseInt(dp[1])+"/"+parseInt(dp[2]);
-                        return <div key={ri} style={{marginBottom:4}}><div style={{display:"flex",gap:6,alignItems:"center",fontSize:11}}><span style={{fontSize:14}}>{RD_EMOJI[r.status]||"?"}</span><span style={{fontWeight:600,color:_tp}}>{dLbl}</span><span style={{color:rc,fontWeight:600}}>{r.status}</span>{r.notes?<span style={{color:_tm,fontSize:10}}>{r.notes}</span>:null}</div>{r.coachComment?<div style={{fontSize:10,marginTop:2,marginLeft:22,padding:"3px 8px",borderRadius:4,background:"#3498DB10",borderLeft:"2px solid #3498DB44",color:"#3498DB"}}><span style={{fontWeight:700}}>Coach: </span>{r.coachComment}</div>:null}{cm?<div style={{marginLeft:22,marginTop:2}}><input key={r.ts+"-"+(r.coachComment||"")} placeholder="Add comment..." defaultValue="" onKeyDown={function(ev){if(ev.key==="Enter"){var v=ev.target.value.trim();if(v){commentOnLog(r.date,r.ts,v);ev.target.value="";ev.target.blur();}}}} style={{fontSize:10,padding:"2px 6px",borderRadius:3,border:"1px solid "+C.bd,background:"transparent",color:_ts,width:"100%"}}/></div>:null}</div>;
+                        return <div key={ri} style={{marginBottom:4}}><div style={{display:"flex",gap:6,alignItems:"center",fontSize:11}}><span style={{fontSize:14}}>{RD_EMOJI[r.status]||"?"}</span><span style={{fontWeight:600,color:_tp}}>{dLbl}</span><span style={{color:rc,fontWeight:600}}>{r.status}</span>{r.notes?<span style={{color:_tm,fontSize:10}}>{r.notes}</span>:null}</div>{r.coachComment?<div style={{fontSize:10,marginTop:2,marginLeft:22,padding:"3px 8px",borderRadius:4,background:"#3498DB10",borderLeft:"2px solid #3498DB44",color:"#3498DB"}}><span style={{fontWeight:700}}>Coach: </span>{r.coachComment}</div>:null}{cm?<div style={{marginLeft:22,marginTop:2}}><input placeholder="Add comment..." defaultValue={r.coachComment||""} onKeyDown={function(ev){if(ev.key==="Enter"){var v=ev.target.value.trim();if(v){commentOnLog(r.date,r.ts,v);ev.target.value="";ev.target.blur();}}}} style={{fontSize:10,padding:"2px 6px",borderRadius:3,border:"1px solid "+C.bd,background:"transparent",color:_ts,width:"100%"}}/></div>:null}</div>;
                       })}
                     </div>):null}
                     {weekWL.length>0?(<div>
@@ -1302,7 +1309,7 @@ export default function App(){
                       {weekWL.map(function(l,li){
                         var dc=(l.difficulty||0)<=4?"#27AE60":(l.difficulty||0)<=6?"#D4A017":(l.difficulty||0)<=8?"#E67E22":"#E74C3C";
                         var dp=l.date.split("-");var dLbl=parseInt(dp[1])+"/"+parseInt(dp[2]);
-                        return <div key={li} style={{marginBottom:4}}><div style={{display:"flex",gap:6,alignItems:"center",fontSize:11}}><div style={{width:20,height:20,borderRadius:4,background:dc+"22",color:dc,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}}>{l.difficulty}</div><span style={{fontWeight:600,color:_tp}}>{dLbl}</span>{l.mileage?<span style={{color:_ts,fontFamily:"monospace"}}>{l.mileage}mi</span>:null}{l.splits?<span style={{color:_tm,fontSize:10}}>{l.splits}</span>:null}</div>{l.notes?<div style={{fontSize:10,color:_tm,marginLeft:26,fontStyle:"italic"}}>{l.notes}</div>:null}{l.coachComment?<div style={{fontSize:10,marginTop:2,marginLeft:26,padding:"3px 8px",borderRadius:4,background:"#3498DB10",borderLeft:"2px solid #3498DB44",color:"#3498DB"}}><span style={{fontWeight:700}}>Coach: </span>{l.coachComment}</div>:null}{cm?<div style={{marginLeft:26,marginTop:2}}><input key={l.ts+"-"+(l.coachComment||"")} placeholder="Add comment..." defaultValue="" onKeyDown={function(ev){if(ev.key==="Enter"){var v=ev.target.value.trim();if(v){commentOnLog(l.date,l.ts,v);ev.target.value="";ev.target.blur();}}}} style={{fontSize:10,padding:"2px 6px",borderRadius:3,border:"1px solid "+C.bd,background:"transparent",color:_ts,width:"100%"}}/></div>:null}</div>;
+                        return <div key={li} style={{marginBottom:4}}><div style={{display:"flex",gap:6,alignItems:"center",fontSize:11}}><div style={{width:20,height:20,borderRadius:4,background:dc+"22",color:dc,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}}>{l.difficulty}</div><span style={{fontWeight:600,color:_tp}}>{dLbl}</span>{l.mileage?<span style={{color:_ts,fontFamily:"monospace"}}>{l.mileage}mi</span>:null}{l.splits?<span style={{color:_tm,fontSize:10}}>{l.splits}</span>:null}</div>{l.notes?<div style={{fontSize:10,color:_tm,marginLeft:26,fontStyle:"italic"}}>{l.notes}</div>:null}{l.coachComment?<div style={{fontSize:10,marginTop:2,marginLeft:26,padding:"3px 8px",borderRadius:4,background:"#3498DB10",borderLeft:"2px solid #3498DB44",color:"#3498DB"}}><span style={{fontWeight:700}}>Coach: </span>{l.coachComment}</div>:null}{cm?<div style={{marginLeft:26,marginTop:2}}><input placeholder="Add comment..." defaultValue={l.coachComment||""} onKeyDown={function(ev){if(ev.key==="Enter"){var v=ev.target.value.trim();if(v){commentOnLog(l.date,l.ts,v);ev.target.value="";ev.target.blur();}}}} style={{fontSize:10,padding:"2px 6px",borderRadius:3,border:"1px solid "+C.bd,background:"transparent",color:_ts,width:"100%"}}/></div>:null}</div>;
                       })}
                     </div>):null}
                   </div>);
@@ -1869,110 +1876,104 @@ export default function App(){
       {/* ══════ GUIDE TAB ══════ */}
       {view==="guide"?(<div>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-          <div><div style={{fontSize:16,fontWeight:800,color:_tp}}>Training Guide</div><div style={{fontSize:11,color:_tm}}>Workout types, training concepts, and coaching resources.</div></div>
-          {cm?<button onClick={function(){var g=guideSections.slice();g.push({id:"gd"+Date.now(),title:"New Section",content:"",images:[]});upGuide(g);setGdEdit({idx:g.length-1,title:"New Section",content:"",images:[]});}} style={{padding:"8px 14px",borderRadius:8,background:"linear-gradient(135deg,"+C.green+","+C.greenLight+")",border:"none",color:C.white,fontWeight:700,fontSize:12,cursor:"pointer"}}>+ Add Section</button>:null}
+          <div><div style={{fontSize:16,fontWeight:800,color:_tp}}>Training Guide</div><div style={{fontSize:11,color:_tm}}>Reference documents and resources for runners.</div></div>
         </div>
-        {guideSections.length===0?<div style={{textAlign:"center",padding:"40px 20px"}}><div style={{fontSize:14,color:_tm,fontStyle:"italic"}}>{cm?"Click + Add Section to start building the training guide.":"No sections added yet."}</div></div>:null}
-        {guideSections.map(function(sec,si){
-          var isOpen=gdExp[si];
-          return(<div key={sec.id||si} style={{marginBottom:8,borderRadius:10,border:"1px solid "+C.bd,background:lt?"#fff":"rgba(255,255,255,0.02)",overflow:"hidden"}}>
-            {/* Collapsible header */}
-            <div onClick={function(){var n=Object.assign({},gdExp);n[si]=!n[si];setGdExp(n);}} style={{padding:"12px 16px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",background:lt?"#f5f6f2":"rgba(255,255,255,0.04)"}}>
-              <div style={{fontSize:14,fontWeight:700,color:isOpen?C.greenLight:_tp}}>{sec.title||"Untitled Section"}</div>
-              <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                {cm?<button onClick={function(ev){ev.stopPropagation();setGdEdit({idx:si,title:sec.title,content:sec.content,images:sec.images||[]});}} style={{background:"rgba(255,255,255,0.06)",border:"none",color:_ts,borderRadius:4,padding:"3px 8px",cursor:"pointer",fontSize:10}}>Edit</button>:null}
-                {cm?<button onClick={function(ev){ev.stopPropagation();if(confirm("Delete section '"+sec.title+"'?")){var g=guideSections.slice();g.splice(si,1);upGuide(g);}}} style={{background:"rgba(239,68,68,0.1)",border:"none",color:"#ef4444",borderRadius:4,padding:"3px 8px",cursor:"pointer",fontSize:10}}>X</button>:null}
-                <span style={{color:_tm,fontSize:10}}>{isOpen?"[-]":"[+]"}</span>
-              </div>
-            </div>
-            {/* Content */}
-            {isOpen?(<div style={{padding:"12px 16px",borderTop:"1px solid "+C.bd}}>
-              {renderMd(sec.content)}
-              {(sec.images||[]).map(function(img,ii){return <div key={ii} style={{marginTop:10,marginBottom:10}}><img src={img.data} style={{maxWidth:"100%",borderRadius:8,border:"1px solid "+C.bd}} alt={img.name||""}/>{img.caption?<div style={{fontSize:10,color:_tm,fontStyle:"italic",marginTop:4}}>{img.caption}</div>:null}</div>;})}
-              {!sec.content&&(!sec.images||sec.images.length===0)?<div style={{fontSize:12,color:_tm,fontStyle:"italic"}}>{cm?"Click Edit to add content.":"No content yet."}</div>:null}
-            </div>):null}
-          </div>);
-        })}
-        {/* Reorder buttons for coach */}
-        {cm&&guideSections.length>1?<div style={{marginTop:12,fontSize:10,color:_tm,textAlign:"center"}}>Use Edit to change content. Sections display in the order they were added.</div>:null}
 
-        {/* ── Edit Section Modal ── */}
-        {gdEdit!==null?(<div style={{position:"fixed",inset:0,zIndex:1100,background:"rgba(8,18,8,0.85)",backdropFilter:"blur(10px)",display:"flex",alignItems:"center",justifyContent:"center"}} onClick={function(){setGdEdit(null);}}>
-          <div onClick={function(ev){ev.stopPropagation();}} style={{background:lt?"#fff":"#141E14",borderRadius:16,width:"min(700px,94vw)",maxHeight:"90vh",overflow:"auto",border:"1px solid "+C.bd,boxShadow:"0 24px 80px rgba(0,0,0,0.6)"}}>
-            <div style={{padding:"16px 24px",borderBottom:"1px solid "+C.bd,display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:lt?"#fff":"#141E14",zIndex:10,borderRadius:"16px 16px 0 0"}}>
-              <div style={{fontSize:16,fontWeight:800,color:_tp}}>Edit Section</div>
-              <button onClick={function(){setGdEdit(null);}} style={{background:"rgba(255,255,255,0.06)",border:"none",color:_ts,width:32,height:32,borderRadius:8,cursor:"pointer",fontSize:16}}>X</button>
-            </div>
-            <div style={{padding:"16px 24px"}}>
-              {/* Title */}
-              <div style={{marginBottom:12}}>
-                <div style={{fontSize:11,fontWeight:700,color:_tm,marginBottom:4,textTransform:"uppercase",letterSpacing:1}}>Section Title</div>
-                <input value={gdEdit.title} onChange={function(ev){setGdEdit(Object.assign({},gdEdit,{title:ev.target.value}));}} style={Object.assign({},IS,{fontSize:16,fontWeight:700})}/>
-              </div>
-              {/* Content */}
-              <div style={{marginBottom:12}}>
-                <div style={{fontSize:11,fontWeight:700,color:_tm,marginBottom:4,textTransform:"uppercase",letterSpacing:1}}>Content</div>
-                {/* Formatting toolbar */}
-                <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:6,padding:"6px 8px",borderRadius:6,background:lt?"#f0f1ec":"rgba(255,255,255,0.04)",border:"1px solid "+C.bd}}>
-                  <button onClick={function(){gdInsert("bold");}} title="Bold" style={{padding:"4px 10px",borderRadius:4,border:"1px solid "+C.bd,background:"transparent",color:_tp,cursor:"pointer",fontSize:12,fontWeight:800}}>B</button>
-                  <button onClick={function(){gdInsert("h2");}} title="Heading" style={{padding:"4px 10px",borderRadius:4,border:"1px solid "+C.bd,background:"transparent",color:_tp,cursor:"pointer",fontSize:12,fontWeight:700}}>H2</button>
-                  <button onClick={function(){gdInsert("h3");}} title="Subheading" style={{padding:"4px 10px",borderRadius:4,border:"1px solid "+C.bd,background:"transparent",color:C.gold,cursor:"pointer",fontSize:11,fontWeight:700}}>H3</button>
-                  <button onClick={function(){gdInsert("bullet");}} title="Bullet point" style={{padding:"4px 10px",borderRadius:4,border:"1px solid "+C.bd,background:"transparent",color:_tp,cursor:"pointer",fontSize:14}}>{"\u2022"}</button>
-                  <button onClick={function(){gdInsert("divider");}} title="Horizontal divider" style={{padding:"4px 10px",borderRadius:4,border:"1px solid "+C.bd,background:"transparent",color:_tm,cursor:"pointer",fontSize:11}}>---</button>
-                  <button onClick={function(){gdInsert("indent");}} title="Indent" style={{padding:"4px 10px",borderRadius:4,border:"1px solid "+C.bd,background:"transparent",color:_tm,cursor:"pointer",fontSize:11}}>{"\u21E5"}</button>
-                  <span style={{fontSize:10,color:_tm,display:"flex",alignItems:"center",marginLeft:8}}>Select text then click to format, or click to insert at cursor</span>
-                </div>
-                <textarea ref={gdRef} value={gdEdit.content} onChange={function(ev){setGdEdit(Object.assign({},gdEdit,{content:ev.target.value}));}} style={Object.assign({},IS,{minHeight:300,resize:"vertical",fontFamily:"monospace",fontSize:12,lineHeight:"1.6"})}/>
-              </div>
-              {/* Images */}
-              <div style={{marginBottom:16}}>
-                <div style={{fontSize:11,fontWeight:700,color:_tm,marginBottom:4,textTransform:"uppercase",letterSpacing:1}}>Images / Diagrams</div>
-                <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
-                  {(gdEdit.images||[]).map(function(img,ii){return <div key={ii} style={{position:"relative",borderRadius:8,border:"1px solid "+C.bd,overflow:"hidden",width:100}}>
-                    <img src={img.data} style={{width:100,height:75,objectFit:"cover"}}/>
-                    <input value={img.caption||""} onChange={function(ev){var ni=(gdEdit.images||[]).slice();ni[ii]=Object.assign({},ni[ii],{caption:ev.target.value});setGdEdit(Object.assign({},gdEdit,{images:ni}));}} placeholder="Caption" style={{width:"100%",fontSize:9,padding:"2px 4px",border:"none",borderTop:"1px solid "+C.bd,background:"transparent",color:_ts,boxSizing:"border-box"}}/>
-                    <button onClick={function(){var ni=(gdEdit.images||[]).slice();ni.splice(ii,1);setGdEdit(Object.assign({},gdEdit,{images:ni}));}} style={{position:"absolute",top:2,right:2,background:"rgba(0,0,0,0.6)",border:"none",color:"#fff",borderRadius:4,width:18,height:18,cursor:"pointer",fontSize:10,display:"flex",alignItems:"center",justifyContent:"center"}}>X</button>
-                  </div>;})}
-                </div>
-                <label style={{display:"inline-block",padding:"6px 12px",borderRadius:6,background:C.greenLight+"15",border:"1px solid "+C.greenLight+"33",color:C.greenLight,fontSize:11,fontWeight:600,cursor:"pointer"}}>
-                  <input type="file" accept="image/*" multiple onChange={function(ev){
-                    var files=Array.from(ev.target.files);
-                    files.forEach(function(f){
-                      var reader=new FileReader();
-                      reader.onload=function(e){
-                        var img=new Image();img.onload=function(){
-                          var c=document.createElement("canvas");var maxW=800;var scale=img.width>maxW?maxW/img.width:1;
-                          c.width=img.width*scale;c.height=img.height*scale;
-                          c.getContext("2d").drawImage(img,0,0,c.width,c.height);
-                          setGdEdit(function(prev){var ni=(prev.images||[]).slice();ni.push({data:c.toDataURL("image/jpeg",0.8),name:f.name,caption:""});return Object.assign({},prev,{images:ni});});
-                        };img.src=e.target.result;
-                      };reader.readAsDataURL(f);
-                    });
-                    ev.target.value="";
-                  }} style={{display:"none"}}/>
-                  + Add Image
-                </label>
-              </div>
-              {/* Preview */}
-              <div style={{marginBottom:16}}>
-                <div style={{fontSize:11,fontWeight:700,color:_tm,marginBottom:6,textTransform:"uppercase",letterSpacing:1}}>Preview</div>
-                <div style={{padding:"12px 16px",borderRadius:8,border:"1px solid "+C.bd,background:lt?"#f8f9f6":"rgba(255,255,255,0.02)",maxHeight:200,overflow:"auto"}}>
-                  {renderMd(gdEdit.content)}
-                  {(gdEdit.images||[]).map(function(img,ii){return <div key={ii} style={{marginTop:8}}><img src={img.data} style={{maxWidth:"100%",borderRadius:6}} alt=""/>{img.caption?<div style={{fontSize:10,color:_tm,fontStyle:"italic",marginTop:2}}>{img.caption}</div>:null}</div>;})}
-                </div>
-              </div>
-              {/* Save / Cancel */}
-              <div style={{display:"flex",gap:10}}>
-                <button onClick={function(){var g=guideSections.slice();g[gdEdit.idx]={id:g[gdEdit.idx]?g[gdEdit.idx].id:"gd"+Date.now(),title:gdEdit.title,content:gdEdit.content,images:gdEdit.images||[]};upGuide(g);setGdEdit(null);var n=Object.assign({},gdExp);n[gdEdit.idx]=true;setGdExp(n);}} style={{flex:1,padding:"12px 16px",borderRadius:10,background:"linear-gradient(135deg,"+C.green+","+C.greenLight+")",border:"none",color:C.white,fontWeight:700,fontSize:14,cursor:"pointer"}}>Save Section</button>
-                <button onClick={function(){setGdEdit(null);}} style={{padding:"12px 16px",borderRadius:10,background:lt?"#f0f1ec":"rgba(255,255,255,0.06)",border:"1px solid "+C.bd,color:_ts,fontSize:12,cursor:"pointer"}}>Cancel</button>
-              </div>
-            </div>
+        {/* ── Document Library ── */}
+        <div style={{marginBottom:24}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+            <div style={{fontSize:13,fontWeight:700,color:C.greenLight}}>Documents</div>
+            {cm?<label style={{display:"inline-block",padding:"6px 14px",borderRadius:8,background:"linear-gradient(135deg,"+C.green+","+C.greenLight+")",border:"none",color:C.white,fontWeight:700,fontSize:12,cursor:"pointer"}}>
+              <input type="file" accept=".pdf,image/*" onChange={function(ev){
+                var f=ev.target.files[0];if(!f)return;
+                var title=prompt("Document title:",f.name.replace(/\.[^.]+$/,""));
+                if(!title)return;
+                var reader=new FileReader();
+                reader.onload=function(e){
+                  var g=guideSections.slice();
+                  g.push({id:"doc"+Date.now(),title:title,data:e.target.result,type:f.type,fileName:f.name,ts:Date.now()});
+                  upGuide(g);
+                };reader.readAsDataURL(f);
+                ev.target.value="";
+              }} style={{display:"none"}}/>
+              + Upload Document
+            </label>:null}
           </div>
-        </div>):null}
+          {guideSections.length===0?<div style={{padding:"24px 16px",textAlign:"center",borderRadius:10,border:"1px dashed "+C.bd}}><div style={{fontSize:12,color:_tm,fontStyle:"italic"}}>{cm?"Upload PDFs or images for your runners to reference.":"No documents uploaded yet."}</div></div>:null}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:10}}>
+            {guideSections.map(function(doc,di){
+              var isPdf=doc.type&&doc.type.indexOf("pdf")>=0;
+              var isImg=doc.type&&doc.type.indexOf("image")>=0;
+              return(<div key={doc.id||di} style={{borderRadius:10,border:"1px solid "+C.bd,background:lt?"#fff":"rgba(255,255,255,0.02)",overflow:"hidden"}}>
+                <div style={{padding:"12px 14px",display:"flex",alignItems:"center",gap:10}}>
+                  <div style={{width:36,height:36,borderRadius:8,background:isPdf?"#E74C3C18":C.greenLight+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:isPdf?16:14,flexShrink:0}}>{isPdf?"\uD83D\uDCC4":"\uD83D\uDDBC\uFE0F"}</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:13,fontWeight:600,color:_tp,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{doc.title}</div>
+                    <div style={{fontSize:10,color:_tm}}>{isPdf?"PDF":"Image"}{doc.fileName?" \u2022 "+doc.fileName:""}</div>
+                  </div>
+                  <div style={{display:"flex",gap:4}}>
+                    <button onClick={function(){
+                      if(isPdf){
+                        var parts=doc.data.split(",");var mime=parts[0].match(/:(.*?);/)[1];
+                        var raw=atob(parts[1]);var arr=new Uint8Array(raw.length);
+                        for(var i=0;i<raw.length;i++)arr[i]=raw.charCodeAt(i);
+                        var blob=new Blob([arr],{type:mime});
+                        window.open(URL.createObjectURL(blob),"_blank");
+                      }else{window.open(doc.data,"_blank");}
+                    }} style={{padding:"4px 10px",borderRadius:6,background:C.greenLight+"15",border:"1px solid "+C.greenLight+"33",color:C.greenLight,fontSize:11,fontWeight:600,cursor:"pointer"}}>View</button>
+                    {cm?<button onClick={function(){
+                      var t=prompt("Rename document:",doc.title);
+                      if(t&&t!==doc.title){var g=guideSections.slice();g[di]=Object.assign({},g[di],{title:t});upGuide(g);}
+                    }} style={{padding:"4px 8px",borderRadius:6,background:"transparent",border:"1px solid "+C.bd,color:_tm,fontSize:10,cursor:"pointer"}}>Rename</button>:null}
+                    {cm?<button onClick={function(){if(confirm("Delete \'"+doc.title+"\'?")){var g=guideSections.slice();g.splice(di,1);upGuide(g);}}} style={{padding:"4px 8px",borderRadius:6,background:"rgba(239,68,68,0.1)",border:"none",color:"#ef4444",fontSize:10,cursor:"pointer"}}>X</button>:null}
+                  </div>
+                </div>
+                {isImg?<div style={{padding:"0 14px 12px"}}><img src={doc.data} style={{width:"100%",borderRadius:6,border:"1px solid "+C.bd}} alt={doc.title}/></div>:null}
+              </div>);
+            })}
+          </div>
+        </div>
+
+        {/* ── Q&A Section ── */}
+        <div>
+          <div style={{fontSize:13,fontWeight:700,color:"#3498DB",marginBottom:10}}>Questions & Answers</div>
+          {/* Runner question input */}
+          {myAth&&!cm?<div style={{display:"flex",gap:8,marginBottom:14}}>
+            <input value={qaInput} onChange={function(ev){setQaInput(ev.target.value);}} onKeyDown={function(ev){if(ev.key==="Enter")submitQuestion();}} placeholder="Ask Coach Acosta a question..." style={Object.assign({},IS,{flex:1})}/>
+            <button onClick={submitQuestion} style={{padding:"8px 16px",borderRadius:8,background:"linear-gradient(135deg,#3498DB,#2980B9)",border:"none",color:"#fff",fontWeight:700,fontSize:12,cursor:"pointer",flexShrink:0}}>Ask</button>
+          </div>:null}
+          {cm?<div style={{fontSize:10,color:_tm,marginBottom:10}}>Runners can submit questions below. Click to answer.</div>:null}
+          {qaData.length===0?<div style={{padding:"20px 16px",textAlign:"center",borderRadius:10,border:"1px dashed "+C.bd}}><div style={{fontSize:12,color:_tm,fontStyle:"italic"}}>{myAth&&!cm?"No questions yet. Ask a question above!":"No questions from runners yet."}</div></div>:null}
+          {qaData.slice().sort(function(a,b){return b.ts-a.ts;}).map(function(q){
+            var ath=roster.find(function(x){return x.id===q.athId;});
+            var d=new Date(q.ts);
+            var dLbl=(d.getMonth()+1)+"/"+d.getDate();
+            var isOwn=q.athId===myAth;
+            var unanswered=!q.answer;
+            return(<div key={q.id} style={{marginBottom:8,borderRadius:10,border:"1px solid "+(unanswered?"#3498DB33":C.bd),background:lt?"#fff":"rgba(255,255,255,0.02)",overflow:"hidden"}}>
+              <div style={{padding:"10px 14px"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                  <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                    <span style={{fontSize:12,fontWeight:600,color:isOwn?C.gold:_tp}}>{ath?ath.name:"Runner"}</span>
+                    <span style={{fontSize:10,color:_tm}}>{dLbl}</span>
+                    {unanswered?<span style={{fontSize:9,padding:"1px 6px",borderRadius:3,background:"#3498DB22",color:"#3498DB",fontWeight:600}}>Pending</span>:null}
+                  </div>
+                  {cm?<button onClick={function(){deleteQuestion(q.id);}} style={{background:"none",border:"none",color:"#ef4444",fontSize:10,cursor:"pointer"}}>X</button>:null}
+                </div>
+                <div style={{fontSize:12,color:_tp,marginBottom:q.answer||cm?8:0}}>{q.question}</div>
+                {q.answer?<div style={{padding:"8px 10px",borderRadius:6,background:C.greenLight+"10",borderLeft:"3px solid "+C.greenLight}}>
+                  <div style={{fontSize:10,fontWeight:700,color:C.greenLight,marginBottom:2}}>Coach Acosta</div>
+                  <div style={{fontSize:12,color:_tp}}>{q.answer}</div>
+                </div>:null}
+                {cm&&unanswered?<input placeholder="Type your answer..." onKeyDown={function(ev){if(ev.key==="Enter"){var v=ev.target.value.trim();if(v){answerQuestion(q.id,v);ev.target.value="";};}}} style={Object.assign({},IS,{marginTop:4,fontSize:11})}/>:null}
+                {cm&&q.answer?<input key={q.id+"-"+q.answer} placeholder="Update answer..." onKeyDown={function(ev){if(ev.key==="Enter"){var v=ev.target.value.trim();if(v){answerQuestion(q.id,v);ev.target.value="";};}}} style={Object.assign({},IS,{marginTop:4,fontSize:11})}/>:null}
+              </div>
+            </div>);
+          })}
+        </div>
       </div>):null}
 
-
-      {/* ══════ ROUTINES TAB ══════ */}
+            {/* ══════ ROUTINES TAB ══════ */}
       {view==="routines"?(<div>
         <div style={{fontSize:11,color:_tm,marginBottom:16}}>Supplemental training routines for the team. {cm?"Upload documents for each category.":"Tap a routine to view the exercises."}</div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:12}}>
