@@ -1134,7 +1134,8 @@ export default function App(){
                         <option value="">-- Area --</option>{BODY_AREAS.map(function(b){return <option key={b} value={b}>{b}</option>;})}
                       </select>
                       <select value={inj.severity} onChange={function(ev){var ni=(a.injuries||[]).slice();ni[ii]=Object.assign({},ni[ii],{severity:parseInt(ev.target.value)});saveInjuries(a.id,ni);}} style={Object.assign({},IS,{width:50,padding:"3px 6px",fontSize:10})}>
-                        <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option>
+                        <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="5">5</option>
+                    <option value="10">10</option>
                       </select>
                       <select value={inj.status} onChange={function(ev){var ni=(a.injuries||[]).slice();ni[ii]=Object.assign({},ni[ii],{status:ev.target.value});saveInjuries(a.id,ni);}} style={Object.assign({},IS,{width:90,padding:"3px 6px",fontSize:10})}>
                         <option value="monitoring">Monitoring</option><option value="limited">Limited</option><option value="out">Out</option><option value="resolved">Resolved</option>
@@ -1405,7 +1406,8 @@ export default function App(){
                         <option value="">-- Area --</option>{BODY_AREAS.map(function(b){return <option key={b} value={b}>{b}</option>;})}
                       </select>
                       <select value={inj.severity} onChange={function(ev){var ni=(a.injuries||[]).slice();ni[ii]=Object.assign({},ni[ii],{severity:parseInt(ev.target.value)});saveInjuries(a.id,ni);}} style={Object.assign({},IS,{width:50,padding:"3px 6px",fontSize:10})}>
-                        <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option>
+                        <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="5">5</option>
+                    <option value="10">10</option>
                       </select>
                       <select value={inj.status} onChange={function(ev){var ni=(a.injuries||[]).slice();ni[ii]=Object.assign({},ni[ii],{status:ev.target.value});saveInjuries(a.id,ni);}} style={Object.assign({},IS,{width:90,padding:"3px 6px",fontSize:10})}>
                         <option value="monitoring">Monitoring</option><option value="limited">Limited</option><option value="out">Out</option><option value="resolved">Resolved</option>
@@ -1503,6 +1505,7 @@ export default function App(){
                 <div>
                   <div style={{fontSize:10,fontWeight:700,color:_tm,fontFamily:"monospace",textTransform:"uppercase",marginBottom:3}}>Tolerance (sec/mi)</div>
                   <select value={grpTol} onChange={function(ev){setGrpTol(parseInt(ev.target.value));}} style={Object.assign({},IS,{width:80,padding:"6px 8px"})}>
+                    <option value="5">5</option>
                     <option value="10">10</option>
                     <option value="15">15</option>
                     <option value="20">20</option>
