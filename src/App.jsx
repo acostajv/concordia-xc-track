@@ -333,7 +333,7 @@ export default function App(){
   var _aph=useState({});var athPhotos=_aph[0];var setAthPhotos=_aph[1];
   var _myS=useState(false);var myShow=_myS[0];var setMyShow=_myS[1];
   var _grpKey=useState("thrSafe");var grpKey=_grpKey[0];var setGrpKey=_grpKey[1];
-  var _grpTol=useState(15);var grpTol=_grpTol[0];var setGrpTol=_grpTol[1];
+  var _grpTol=useState(14);var grpTol=_grpTol[0];var setGrpTol=_grpTol[1];
   var _grpShow=useState(false);var grpShow=_grpShow[0];var setGrpShow=_grpShow[1];
   var _calcOpen=useState("");var calcOpen=_calcOpen[0];var setCalcOpen=_calcOpen[1];
   /* Race calc */var _cRd=useState("5km");var cRd=_cRd[0];var sCRd=_cRd[1];var _cRm=useState("");var cRm=_cRm[0];var sCRm=_cRm[1];var _cRs=useState("");var cRs=_cRs[0];var sCRs=_cRs[1];var _cRr=useState(null);var cRr=_cRr[0];var sCRr=_cRr[1];
@@ -518,7 +518,7 @@ export default function App(){
   function parsePace(s){if(!s)return null;var clean=s.replace(/\/mi$/,"").trim();var parts=clean.split(":");if(parts.length!==2)return null;var m=parseInt(parts[0]);var sc=parseInt(parts[1]);if(isNaN(m)||isNaN(sc))return null;return m*60+sc;}
   function fmtSec(s){var m=Math.floor(s/60);var sc=Math.round(s%60);return m+":"+(sc<10?"0":"")+sc;}
   function groupByPace(athletes,paceKey,tolerance){
-    if(!tolerance)tolerance=15;
+    if(!tolerance)tolerance=14;
     var withPace=athletes.map(function(a){return{ath:a,sec:parsePace(a.paces&&a.paces[paceKey])};}).filter(function(x){return x.sec!==null;}).sort(function(a,b){return a.sec-b.sec;});
     var noPace=athletes.filter(function(a){return parsePace(a.paces&&a.paces[paceKey])===null;});
     var groups=[];var used={};
@@ -1505,10 +1505,20 @@ export default function App(){
                 <div>
                   <div style={{fontSize:10,fontWeight:700,color:_tm,fontFamily:"monospace",textTransform:"uppercase",marginBottom:3}}>Tolerance (sec/mi)</div>
                   <select value={grpTol} onChange={function(ev){setGrpTol(parseInt(ev.target.value));}} style={Object.assign({},IS,{width:80,padding:"6px 8px"})}>
-                    <option value="5">5</option>
+                    <option value="2">2</option>
+                    <option value="4">4</option>
+                    <option value="6">6</option>
+                    <option value="8">8</option>
                     <option value="10">10</option>
-                    <option value="15">15</option>
+                    <option value="12">12</option>
+                    <option value="14">14</option>
+                    <option value="16">16</option>
+                    <option value="18">18</option>
                     <option value="20">20</option>
+                    <option value="22">22</option>
+                    <option value="24">24</option>
+                    <option value="26">26</option>
+                    <option value="28">28</option>
                     <option value="30">30</option>
                   </select>
                 </div>
