@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { loadData, saveData, loadAthleteData, saveAthleteData, IS_COACH_BUILD } from "./firebase.js";
+import SplitTimer from "./SplitTimer";
 
 var C={green:"#1B5E20",greenLight:"#2E7D32",greenDark:"#0D3B12",gold:"#D4A017",goldLight:"#F0C040",goldBg:"rgba(212,160,23,0.08)",white:"#FFF",tp:"#F0F0EA",ts:"#A8B5A0",tm:"#6B7F65",bgD:"#081208",bgC:"rgba(255,255,255,0.03)",bgH:"rgba(255,255,255,0.07)",bd:"rgba(255,255,255,0.08)"};
 var LS={display:"block",fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:C.tm,marginBottom:5,marginTop:14,fontFamily:"monospace"};
@@ -824,6 +825,7 @@ export default function App(){
           <button onClick={function(){setView("meets");}} style={tabS("meets")}>Meet Schedule ({meets.length})</button>
           <button onClick={function(){setView("rewards");}} style={tabS("rewards")}>{"\u{1F3C6}"} Rewards</button>
           <button onClick={function(){setView("records");}} style={tabS("records")}>Records</button>
+          {cm?<button onClick={function(){setView("splits");}} style={tabS("splits")}>Split Timer</button>:null}
         </div>
       </div>
 
@@ -2583,6 +2585,8 @@ export default function App(){
           </div>):null}
         </div>
       </div>):null}
+
+      {view==="splits"?<SplitTimer />:null}
 
       {/* Daily Summary Modal */}
       {dsMod!==null?(<div style={{position:"fixed",inset:0,zIndex:1100,background:lt?"rgba(255,255,255,0.85)":"rgba(8,18,8,0.85)",backdropFilter:"blur(10px)",display:"flex",alignItems:"center",justifyContent:"center"}} onClick={function(){setDsMod(null);}}>
