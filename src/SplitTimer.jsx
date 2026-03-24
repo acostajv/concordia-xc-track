@@ -88,7 +88,7 @@ function RaceCard(props){
 
 /* ─── MAIN ───────────────────────────────────────────────────────────────── */
 export default function SplitTimer(props){
-  var onRaceFinish=props.onRaceFinish;var parentMeets=props.meets||[];var parentRoster=props.roster||[];var raceResults=props.raceResults||[];
+  var onRaceFinish=props.onRaceFinish;var onDeleteHistory=props.onDeleteHistory;var parentMeets=props.meets||[];var parentRoster=props.roster||[];var raceResults=props.raceResults||[];
   var _scr=useState("setup");var screen=_scr[0];var setScreen=_scr[1];
   var _mode=useState("meet");var mode=_mode[0];var setMode=_mode[1]; /* meet | workout */
   var _ath=useState([]);var allAthletes=_ath[0];var setAllAthletes=_ath[1];
@@ -209,7 +209,7 @@ export default function SplitTimer(props){
 
         {/* Mode toggle */}
         <div style={{display:"flex",borderBottom:"2px solid "+C.border,marginBottom:16}}>
-          {[{k:"meet",l:"Meet Races"},{k:"workout",l:"Workout"}].map(function(m){return(<button key={m.k} onClick={function(){setMode(m.k);}} style={{padding:"8px 16px",background:"none",border:"none",borderBottom:"2px solid "+(mode===m.k?C.orange:"transparent"),color:mode===m.k?C.orange:C.muted,cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:-2}}>{m.l}</button>);})}
+          {[{k:"meet",l:"Meet Races"},{k:"workout",l:"Workout"},{k:"open",l:"Open Timer"}].map(function(m){return(<button key={m.k} onClick={function(){setMode(m.k);}} style={{padding:"8px 16px",background:"none",border:"none",borderBottom:"2px solid "+(mode===m.k?C.orange:"transparent"),color:mode===m.k?C.orange:C.muted,cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:-2}}>{m.l}</button>);})}
         </div>
 
         {/* Split distance */}
@@ -285,6 +285,41 @@ export default function SplitTimer(props){
           })}
         </div>):null}
 
+        {/* ── OPEN MODE ── */}
+        {mode==="open"?(<div>
+          <div style={{marginBottom:12}}>
+            <div style={{fontSize:9,letterSpacing:4,color:C.orange,textTransform:"uppercase",marginBottom:6}}>Session Label</div>
+            <input value={woName} onChange={function(e){setWoName(e.target.value);}} placeholder="e.g. Practice, Time Trial, Tempo Run..." style={{width:"100%",boxSizing:"border-box",background:C.card,border:"1px solid "+(woName.trim()?C.orange:C.border),color:"white",padding:"8px 12px",borderRadius:3,fontSize:14,fontFamily:"inherit",outline:"none"}}/>
+          </div>
+          <div style={{background:C.card,border:"1px solid "+C.border,borderLeft:"3px solid "+C.orange,borderRadius:4,padding:"12px 14px",marginBottom:12}}>
+            <div style={{fontSize:13,fontWeight:800,color:"white",marginBottom:8}}>Select Runners</div>
+            <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+              {[{label:"Boys",list:boys,clr:C.boys},{label:"Girls",list:girls,clr:C.girls}].map(function(grp){
+                var selected=(races[0]&&races[0].runnerIds)||[];
+                return(<div key={grp.label} style={{flex:1,minWidth:140}}>
+                  <div style={{fontSize:10,fontWeight:700,color:grp.clr,textTransform:"uppercase",letterSpacing:1,marginBottom:4}}>{grp.label}</div>
+                  {grp.list.map(function(a){
+                    var isIn=selected.includes(String(a.id));
+                    return(<button key={a.id} onClick={function(){
+                      setRaces(function(prev){
+                        var r=prev[0]||{id:"open_"+Date.now(),event:woName.trim()||"Open",team:"",label:woName.trim()||"Open Timer",runnerIds:[],splits:{},elapsed:0,status:"ready",meetName:woName.trim()||"Open Timer",meetDate:sessionDate,type:"open"};
+                        var ids=(r.runnerIds||[]).slice();
+                        if(isIn)ids=ids.filter(function(x){return x!==String(a.id);});
+                        else ids.push(String(a.id));
+                        return[Object.assign({},r,{runnerIds:ids,event:woName.trim()||"Open",label:woName.trim()||"Open Timer",meetName:woName.trim()||"Open Timer"})];
+                      });
+                    }} style={{display:"block",width:"100%",textAlign:"left",padding:"4px 8px",marginBottom:2,borderRadius:3,cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:isIn?700:500,background:isIn?grp.clr+"18":"transparent",border:"1px solid "+(isIn?grp.clr+"44":C.dim),color:isIn?"white":C.muted}}>{isIn?"\u2713 ":""}{a.name}</button>);
+                  })}
+                </div>);
+              })}
+            </div>
+            <button onClick={function(){
+              var allIds=allAthletes.map(function(a){return String(a.id);});
+              setRaces([{id:"open_"+Date.now(),event:woName.trim()||"Open",team:"",label:woName.trim()||"Open Timer",runnerIds:allIds,splits:{},elapsed:0,status:"ready",meetName:woName.trim()||"Open Timer",meetDate:sessionDate,type:"open"}]);
+            }} style={{marginTop:8,padding:"4px 10px",background:"transparent",color:C.muted,border:"1px solid "+C.dim,borderRadius:3,cursor:"pointer",fontSize:10,fontFamily:"inherit"}}>Select All</button>
+          </div>
+        </div>):null}
+
         {/* Race preview */}
         {races.length>0?<div style={{marginTop:16,marginBottom:12}}><div style={{fontSize:9,letterSpacing:4,color:C.orange,textTransform:"uppercase",marginBottom:6}}>Race Cards ({races.length})</div>
           {races.map(function(r){var evClr=EVENT_COLORS[r.event]||r.color||"#4a9eff";return(<div key={r.id} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 10px",marginBottom:3,background:C.card,border:"1px solid "+C.border,borderLeft:"3px solid "+evClr,borderRadius:4}}>
@@ -299,6 +334,7 @@ export default function SplitTimer(props){
         <div style={{marginTop:12,display:"flex",gap:8}}>
           {mode==="meet"?<button onClick={function(){if(races.length)setScreen("race");}} disabled={!races.length} style={{flex:1,padding:"13px",borderRadius:3,cursor:races.length?"pointer":"not-allowed",background:races.length?C.orange:C.card,color:races.length?C.bg:C.muted,border:"1px solid "+(races.length?C.orange:C.border),fontSize:15,fontWeight:900,fontFamily:"inherit",letterSpacing:3,textTransform:"uppercase"}}>{races.length?"Begin \u2192":"Import a meet"}</button>:null}
           {mode==="workout"?<button onClick={function(){if(woGroups.length>0){startWorkout();setScreen("race");}}} disabled={!woGroups.length} style={{flex:1,padding:"13px",borderRadius:3,cursor:woGroups.length?"pointer":"not-allowed",background:woGroups.length?C.orange:C.card,color:woGroups.length?C.bg:C.muted,border:"1px solid "+(woGroups.length?C.orange:C.border),fontSize:15,fontWeight:900,fontFamily:"inherit",letterSpacing:3,textTransform:"uppercase"}}>{woGroups.length?"Start Workout \u2192":"Create groups first"}</button>:null}
+          {mode==="open"?(function(){var hasRunners=races.length>0&&(races[0].runnerIds||[]).length>0;return <button onClick={function(){if(hasRunners)setScreen("race");}} disabled={!hasRunners} style={{flex:1,padding:"13px",borderRadius:3,cursor:hasRunners?"pointer":"not-allowed",background:hasRunners?C.orange:C.card,color:hasRunners?C.bg:C.muted,border:"1px solid "+(hasRunners?C.orange:C.border),fontSize:15,fontWeight:900,fontFamily:"inherit",letterSpacing:3,textTransform:"uppercase"}}>{hasRunners?"Start Timer \u2192":"Select runners"}</button>;})():null}
         </div>
 
         {/* ── HISTORY ── */}
@@ -310,9 +346,10 @@ export default function SplitTimer(props){
           {histOpen?<div style={{marginTop:8}}>
             {histKeys.length===0?<div style={{fontSize:12,color:C.muted,fontStyle:"italic",padding:"12px"}}>No saved sessions yet. Finish a race to save results.</div>:null}
             {histKeys.map(function(key){var sess=histBySession[key];return(<div key={key} style={{marginBottom:12,background:C.card,border:"1px solid "+C.border,borderRadius:4,overflow:"hidden"}}>
-              <div style={{padding:"8px 12px",borderBottom:"1px solid "+C.border}}>
-                <div style={{fontSize:13,fontWeight:700,color:"white"}}>{sess.name}</div>
-                <div style={{fontSize:10,color:C.muted}}>{sess.date} — {sess.type==="workout"?"Workout":"Meet"} — {sess.races.length} race{sess.races.length!==1?"s":""}</div>
+              <div style={{padding:"8px 12px",borderBottom:"1px solid "+C.border,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div><div style={{fontSize:13,fontWeight:700,color:"white"}}>{sess.name}</div>
+                <div style={{fontSize:10,color:C.muted}}>{sess.date} — {sess.type==="workout"?"Workout":"Meet"} — {sess.races.length} race{sess.races.length!==1?"s":""}</div></div>
+                <button onClick={function(){if(confirm("Delete all results for "+sess.name+"?")){if(onRaceFinish){var keep=raceResults.filter(function(r){return!((r.meetName||"Session")+" \u2014 "+(r.meetDate||"")===key);});onDeleteHistory(keep);}}}} style={{background:"rgba(239,68,68,0.1)",border:"none",color:"#ef4444",borderRadius:3,padding:"3px 8px",cursor:"pointer",fontSize:10,fontWeight:700,fontFamily:"inherit"}}>Delete</button>
               </div>
               {sess.races.map(function(race){var evClr=EVENT_COLORS[race.event]||"#4a9eff";var runners=(race.runners||[]).slice().sort(function(a,b){return(a.finalTime||999999)-(b.finalTime||999999);});return(<div key={race.id||race.event+race.team} style={{padding:"8px 12px",borderBottom:"1px solid "+C.dim}}>
                 <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>

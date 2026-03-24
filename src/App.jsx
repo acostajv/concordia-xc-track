@@ -620,6 +620,7 @@ export default function App(){
       return n;
     });
   }
+  function onDeleteHistory(remaining){setRaceResults(remaining);saveAthleteData("raceresults-v1",JSON.stringify(remaining));}
   function upQA(q){setQaData(q);saveAthleteData("qa-v1",JSON.stringify(q));}
   function submitQuestion(){if(!qaInput.trim()||!myAth)return;var q=qaData.slice();q.push({id:"q"+Date.now(),athId:myAth,question:qaInput.trim(),ts:Date.now(),answer:"",answerTs:0});upQA(q);setQaInput("");}
   function answerQuestion(qid,answer){upQA(qaData.map(function(q){return q.id===qid?Object.assign({},q,{answer:answer,answerTs:Date.now()}):q;}));}
@@ -2675,7 +2676,7 @@ export default function App(){
       </div>):null}
 
       {/* ══════ SPLIT TIMER TAB ══════ */}
-      {view==="splits"?<SplitTimer onRaceFinish={onRaceFinish} meets={meets} roster={roster} raceResults={raceResults} />:null}
+      {view==="splits"?<SplitTimer onRaceFinish={onRaceFinish} onDeleteHistory={onDeleteHistory} meets={meets} roster={roster} raceResults={raceResults} />:null}
 
       {/* Daily Summary Modal */}
       {dsMod!==null?(<div style={{position:"fixed",inset:0,zIndex:1100,background:lt?"rgba(255,255,255,0.85)":"rgba(8,18,8,0.85)",backdropFilter:"blur(10px)",display:"flex",alignItems:"center",justifyContent:"center"}} onClick={function(){setDsMod(null);}}>
