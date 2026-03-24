@@ -21,9 +21,14 @@ var THEMES={
   dark:{name:"Dark",bg:"#07090e",card:"#0b0f18",border:"#1a2233",text:"#ffffff",muted:"#6a7a90",dim:"#1a2233",timerBg:"#050709",accent:"#FF5722",splitClr:"#7aff8a",timeClr:"#b0c4d8",oldSplit:"#90b8dd"},
   midnight:{name:"Midnight",bg:"#0a0e1a",card:"#0f1526",border:"#1e2d50",text:"#f0f2ff",muted:"#7888b8",dim:"#1e2d50",timerBg:"#080c16",accent:"#7B68EE",splitClr:"#99ccff",timeClr:"#b0bbdd",oldSplit:"#a0b8ee"},
   forest:{name:"Forest",bg:"#0a100e",card:"#0e1a14",border:"#1e3828",text:"#f0fff0",muted:"#5a9a68",dim:"#1e3828",timerBg:"#080e0c",accent:"#66BB6A",splitClr:"#b9f6ca",timeClr:"#90c8a0",oldSplit:"#a0d8b0"},
-  light:{name:"Light",bg:"#f5f6f2",card:"#ffffff",border:"#bbb",text:"#111",muted:"#555",dim:"#e0e0e0",timerBg:"#eaeaea",accent:"#d84315",splitClr:"#1b5e20",timeClr:"#333",oldSplit:"#444"},
+  ember:{name:"Ember",bg:"#1a0a0a",card:"#221010",border:"#3a1818",text:"#ffe8e0",muted:"#9a6060",dim:"#3a1818",timerBg:"#140808",accent:"#ff6b35",splitClr:"#ffab91",timeClr:"#d0a090",oldSplit:"#c09080"},
+  ocean:{name:"Ocean",bg:"#0a1520",card:"#0e1c2c",border:"#1a3050",text:"#e0f0ff",muted:"#5588aa",dim:"#1a3050",timerBg:"#081420",accent:"#00bcd4",splitClr:"#80deea",timeClr:"#90b8d0",oldSplit:"#a0c8e0"},
   slate:{name:"Slate",bg:"#1e293b",card:"#273449",border:"#3d5060",text:"#f1f5f9",muted:"#8a9eb8",dim:"#3d5060",timerBg:"#1a2435",accent:"#f97316",splitClr:"#fdd835",timeClr:"#b0c4d8",oldSplit:"#c0d0e0"},
+  light:{name:"Light",bg:"#f5f6f2",card:"#ffffff",border:"#bbb",text:"#111",muted:"#555",dim:"#e0e0e0",timerBg:"#eaeaea",accent:"#d84315",splitClr:"#1b5e20",timeClr:"#333",oldSplit:"#444"},
   outdoor:{name:"Outdoor",bg:"#ffffff",card:"#f8f8f4",border:"#999",text:"#000000",muted:"#444",dim:"#ddd",timerBg:"#f0f0ec",accent:"#d32f2f",splitClr:"#1a6b1a",timeClr:"#222",oldSplit:"#333"},
+  cream:{name:"Cream",bg:"#fdf8f0",card:"#fff9f2",border:"#d4c4aa",text:"#2a2018",muted:"#8a7a60",dim:"#e8dcc8",timerBg:"#f4eee4",accent:"#c75000",splitClr:"#2e7d32",timeClr:"#4a3a28",oldSplit:"#5a4a38"},
+  overcast:{name:"Overcast",bg:"#e8eaee",card:"#f0f2f5",border:"#b0b8c4",text:"#1a1e28",muted:"#6a7488",dim:"#d0d4dc",timerBg:"#dde0e6",accent:"#1565c0",splitClr:"#1b5e20",timeClr:"#2a3040",oldSplit:"#3a4050"},
+  track:{name:"Track",bg:"#c23b22",card:"#d44a30",border:"#a03020",text:"#ffffff",muted:"#ffccbb",dim:"#a03020",timerBg:"#b03020",accent:"#ffffff",splitClr:"#ffff00",timeClr:"#ffe0d0",oldSplit:"#ffd0c0"},
 };
 
 function PacePill(p){if(!p.value)return null;return(<span style={{display:"inline-flex",alignItems:"center",gap:2,padding:"1px 5px",borderRadius:2,background:p.color+"14",border:"1px solid "+p.color+"35"}}><span style={{color:p.color,fontWeight:800,fontSize:9,letterSpacing:0.5}}>{p.label}</span><span style={{color:"#ccc",fontFamily:"'Share Tech Mono',monospace",fontSize:11,fontWeight:600}}>{p.value}</span></span>);}
