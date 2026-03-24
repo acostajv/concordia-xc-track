@@ -5,31 +5,32 @@ var pad=function(n){return String(n).padStart(2,"0");};
 var fmtTime=function(ms){if(ms<0)ms=0;return pad(Math.floor(ms/60000))+":"+pad(Math.floor((ms%60000)/1000))+"."+pad(Math.floor((ms%1000)/10));};
 var fmtSplit=function(ms){if(ms<0)ms=0;return ms<60000?Math.floor(ms/1000)+"."+pad(Math.floor((ms%1000)/10)):fmtTime(ms);};
 
-var STORAGE_KEY="beacon_split_v5";
+var STORAGE_KEY="beacon_split_v6";
 var PRESET_DISTANCES=["200m","400m","800m","1200m","1600m","Half Mile","1 Mile","3K","5K"];
 var DIST_METERS={"200m":200,"400m":400,"800m":800,"1200m":1200,"1600m":1600,"3200m":3200,"Half Mile":805,"1 Mile":1609,"Quarter Mile":402,"3K":3000,"5K":5000,"4x800":3200,"800":800,"1600":1600,"3200":3200};
-function getSplitsToFinish(raceEvent,splitDist){
-  var raceDist=DIST_METERS[raceEvent]||DIST_METERS[raceEvent+"m"]||0;
-  var splitD=DIST_METERS[splitDist]||0;
-  if(!raceDist||!splitD||splitD>=raceDist)return 0;/* 0 = no auto-detect */
-  return Math.round(raceDist/splitD);
-}
 var EVENT_COLORS={"800":"#F39C12","1600":"#D4A017","3200":"#27ae60","4x800":"#a855f7"};
 var TEAM_COLORS={boys:"#4a9eff",girls:"#ff7eb3"};
 var GROUP_COLORS=["#FF5722","#4a9eff","#ff7eb3","#27ae60","#f0a500","#a855f7","#14b8a6","#f43f5e","#fb923c","#84cc16"];
 var PACE_KEYS=[{k:"thrSafe",l:"LT Safe"},{k:"thrMed",l:"LT Med"},{k:"cv",l:"CV"},{k:"vo2Safe",l:"VO2 Safe"},{k:"vo2Med",l:"VO2 Med"}];
+var EVT_ORDER={"4x800":0,"800":1,"1600":2,"3200":3};
 
-function PacePill(props){
-  if(!props.value)return null;
-  return(<span style={{display:"inline-flex",alignItems:"center",gap:2,padding:"1px 5px",borderRadius:2,background:props.color+"14",border:"1px solid "+props.color+"35"}}>
-    <span style={{color:props.color,fontWeight:800,fontSize:9,letterSpacing:0.5}}>{props.label}</span>
-    <span style={{color:"#aaa",fontFamily:"'Share Tech Mono',monospace",fontSize:10}}>{props.value}</span>
-  </span>);
-}
+function getSplitsToFinish(ev,sd){var rd=DIST_METERS[ev]||DIST_METERS[ev+"m"]||0;var s=DIST_METERS[sd]||0;if(!rd||!s||s>=rd)return 0;return Math.round(rd/s);}
 
-/* ─── RACE CARD ──────────────────────────────────────────────────────────── */
+/* ── THEMES ────────────────────────────────────────────────────────────── */
+var THEMES={
+  dark:{name:"Dark",bg:"#07090e",card:"#0b0f18",border:"#1a2233",text:"#ffffff",muted:"#6a7a90",dim:"#1a2233",timerBg:"#050709",accent:"#FF5722",splitClr:"#7aff8a",timeClr:"#b0c4d8",oldSplit:"#90b8dd"},
+  midnight:{name:"Midnight",bg:"#0a0e1a",card:"#0f1526",border:"#1e2d50",text:"#f0f2ff",muted:"#7888b8",dim:"#1e2d50",timerBg:"#080c16",accent:"#7B68EE",splitClr:"#99ccff",timeClr:"#b0bbdd",oldSplit:"#a0b8ee"},
+  forest:{name:"Forest",bg:"#0a100e",card:"#0e1a14",border:"#1e3828",text:"#f0fff0",muted:"#5a9a68",dim:"#1e3828",timerBg:"#080e0c",accent:"#66BB6A",splitClr:"#b9f6ca",timeClr:"#90c8a0",oldSplit:"#a0d8b0"},
+  light:{name:"Light",bg:"#f5f6f2",card:"#ffffff",border:"#bbb",text:"#111",muted:"#555",dim:"#e0e0e0",timerBg:"#eaeaea",accent:"#d84315",splitClr:"#1b5e20",timeClr:"#333",oldSplit:"#444"},
+  slate:{name:"Slate",bg:"#1e293b",card:"#273449",border:"#3d5060",text:"#f1f5f9",muted:"#8a9eb8",dim:"#3d5060",timerBg:"#1a2435",accent:"#f97316",splitClr:"#fdd835",timeClr:"#b0c4d8",oldSplit:"#c0d0e0"},
+  outdoor:{name:"Outdoor",bg:"#ffffff",card:"#f8f8f4",border:"#999",text:"#000000",muted:"#444",dim:"#ddd",timerBg:"#f0f0ec",accent:"#d32f2f",splitClr:"#1a6b1a",timeClr:"#222",oldSplit:"#333"},
+};
+
+function PacePill(p){if(!p.value)return null;return(<span style={{display:"inline-flex",alignItems:"center",gap:2,padding:"1px 5px",borderRadius:2,background:p.color+"14",border:"1px solid "+p.color+"35"}}><span style={{color:p.color,fontWeight:800,fontSize:9,letterSpacing:0.5}}>{p.label}</span><span style={{color:"#ccc",fontFamily:"'Share Tech Mono',monospace",fontSize:11,fontWeight:600}}>{p.value}</span></span>);}
+
+/* ── RACE CARD ─────────────────────────────────────────────────────────── */
 function RaceCard(props){
-  var race=props.race,rosterMap=props.rosterMap,paces=props.paces,onUpdateRace=props.onUpdateRace,onFinishRace=props.onFinishRace,splitLabel=props.splitLabel||"400m",C=props.C;
+  var race=props.race,rosterMap=props.rosterMap,paces=props.paces,onUpdateRace=props.onUpdateRace,splitLabel=props.splitLabel||"400m",T=props.T;
   var _r=useState(false);var isRunning=_r[0];var setIsRunning=_r[1];
   var _e=useState(race.elapsed||0);var elapsed=_e[0];var setElapsed=_e[1];
   var _f=useState({});var flashMap=_f[0];var setFlashMap=_f[1];
@@ -39,105 +40,89 @@ function RaceCard(props){
   var startTimer=function(){startRef.current=Date.now();setIsRunning(true);rafRef.current=requestAnimationFrame(tick);};
   var pauseTimer=function(){
     cancelAnimationFrame(rafRef.current);var now=elapsedRef.current;pausedRef.current=now;setIsRunning(false);
-    /* Auto-record final split for unfinished runners who have at least one split */
-    var ns=Object.assign({},race.splits||{});var nf=Object.assign({},finishedMap);var changed=false;
-    (race.runnerIds||[]).forEach(function(rid){
-      if(nf[rid])return;/* already finished */
-      var sp=ns[rid]||[];
-      if(sp.length>0){
-        var last=sp[sp.length-1].total;
-        if(now>last+500){
-          ns[rid]=sp.concat([{split:now-last,total:now}]);changed=true;
-          nf[rid]=true;
-        }
-      }
-    });
+    var ns=Object.assign({},race.splits||{});var nf=Object.assign({},race.finished||{});var changed=false;
+    (race.runnerIds||[]).forEach(function(rid){if(nf[rid])return;var sp=ns[rid]||[];if(sp.length>0){var last=sp[sp.length-1].total;if(now>last+500){ns[rid]=sp.concat([{split:now-last,total:now}]);nf[rid]=true;changed=true;}}});
     onUpdateRace(race.id,{elapsed:now,status:"paused",splits:changed?ns:race.splits,finished:nf});
   };
-  var resetRace=function(){cancelAnimationFrame(rafRef.current);setIsRunning(false);setElapsed(0);elapsedRef.current=0;pausedRef.current=0;onUpdateRace(race.id,{elapsed:0,splits:{},status:"ready"});};
+  var finishRace=function(){
+    cancelAnimationFrame(rafRef.current);var now=elapsedRef.current;pausedRef.current=now;setIsRunning(false);
+    var ns=Object.assign({},race.splits||{});var nf=Object.assign({},race.finished||{});
+    (race.runnerIds||[]).forEach(function(rid){if(nf[rid])return;var sp=ns[rid]||[];if(sp.length>0){var last=sp[sp.length-1].total;if(now>last+500){ns[rid]=sp.concat([{split:now-last,total:now}]);}}nf[rid]=true;});
+    onUpdateRace(race.id,{status:"done",elapsed:now,splits:ns,finished:nf});
+  };
+  var resetRace=function(){cancelAnimationFrame(rafRef.current);setIsRunning(false);setElapsed(0);elapsedRef.current=0;pausedRef.current=0;onUpdateRace(race.id,{elapsed:0,splits:{},status:"ready",finished:{}});};
   useEffect(function(){return function(){cancelAnimationFrame(rafRef.current);};},[]);
 
-  var recordSplit=function(rid){var now=elapsedRef.current;if(now===0&&!isRunning)return;
-    if(finishedMap[rid])return;/* already finished */
+  var splitsToFinish=getSplitsToFinish(race.event,splitLabel);
+  var finishedMap=race.finished||{};
+  var recordSplit=function(rid){var now=elapsedRef.current;if(now===0&&!isRunning)return;if(finishedMap[rid])return;
     var prev=(race.splits||{})[rid]||[];var last=prev.length>0?prev[prev.length-1].total:0;
     var ns=Object.assign({},race.splits||{});ns[rid]=prev.concat([{split:now-last,total:now}]);
-    var newFinished=Object.assign({},finishedMap);
-    /* Check if this runner just finished */
-    if(splitsToFinish>0&&ns[rid].length>=splitsToFinish){newFinished[rid]=true;}
-    onUpdateRace(race.id,{splits:ns,status:"running",finished:newFinished});
-    setFlashMap(function(p){var n=Object.assign({},p);n[rid]=true;return n;});setTimeout(function(){setFlashMap(function(p){var n=Object.assign({},p);n[rid]=false;return n;});},350);};
+    var nf=Object.assign({},finishedMap);if(splitsToFinish>0&&ns[rid].length>=splitsToFinish)nf[rid]=true;
+    onUpdateRace(race.id,{splits:ns,status:"running",finished:nf});
+    setFlashMap(function(p){var n=Object.assign({},p);n[rid]=true;return n;});setTimeout(function(){setFlashMap(function(p){var n=Object.assign({},p);n[rid]=false;return n;});},350);
+  };
 
-  var splitsToFinish=getSplitsToFinish(race.event,splitLabel);
-  var finishedMap=race.finished||{};/* rid→true */
   var runners=(race.runnerIds||[]).map(function(rid){return rosterMap[rid]||rosterMap[String(rid)];}).filter(Boolean);
   var hasSplits=runners.some(function(a){return((race.splits||{})[a.id]||[]).length>0;});
-  var evClr=EVENT_COLORS[race.event]||race.color||"#4a9eff";
+  var evClr=EVENT_COLORS[race.event]||race.color||T.accent;
   var teamClr=TEAM_COLORS[race.team]||evClr;
   var isDone=race.status==="done";
+  var finCount=Object.keys(finishedMap).length;
 
-  return(<div style={{borderRadius:6,border:"1px solid "+(isRunning?evClr+"66":"#141c2a"),background:isRunning?"#0c0f18":"#0b0f18",borderLeft:"3px solid "+evClr,overflow:"hidden",marginBottom:8}}>
+  return(<div style={{borderRadius:6,border:"1px solid "+(isRunning?evClr+"66":T.border),background:isRunning?T.card:T.card,borderLeft:"3px solid "+evClr,overflow:"hidden",marginBottom:8}}>
     <div style={{padding:"10px 12px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
       <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
         <div style={{fontSize:15,fontWeight:800,color:evClr}}>{race.label||race.event}</div>
         {race.team?<span style={{fontSize:11,fontWeight:700,color:teamClr,padding:"1px 8px",borderRadius:3,background:teamClr+"18",textTransform:"uppercase",letterSpacing:1}}>{race.team}</span>:null}
-        <span style={{fontSize:10,color:"#2a3448"}}>{runners.length} runners</span>
-        {splitsToFinish>0?<span style={{fontSize:9,color:"#2a3448",fontFamily:"'Share Tech Mono',monospace"}}>{splitsToFinish} splits = done</span>:null}
+        <span style={{fontSize:10,color:T.muted}}>{runners.length} runners</span>
+        {splitsToFinish>0?<span style={{fontSize:9,color:T.muted,fontFamily:"'Share Tech Mono',monospace"}}>{splitsToFinish} splits=done</span>:null}
       </div>
       <div style={{display:"flex",gap:4,alignItems:"center"}}>
-        {(function(){var fc=Object.keys(finishedMap).length;return fc>0&&!isDone?<span style={{fontSize:10,padding:"2px 8px",borderRadius:3,background:"#27ae6022",color:"#5ddb6a",fontWeight:700}}>{fc}/{runners.length} finished</span>:isDone?<span style={{fontSize:10,padding:"2px 8px",borderRadius:3,background:"#27ae6022",color:"#5ddb6a",fontWeight:700}}>Done</span>:null;})()}
-        {hasSplits&&!isDone?<button onClick={function(){
-          cancelAnimationFrame(rafRef.current);var now=elapsedRef.current;pausedRef.current=now;setIsRunning(false);
-          /* Record final splits for any unfinished runners */
-          var ns=Object.assign({},race.splits||{});var nf=Object.assign({},finishedMap);
-          (race.runnerIds||[]).forEach(function(rid){
-            if(nf[rid])return;
-            var sp=ns[rid]||[];
-            if(sp.length>0){var last=sp[sp.length-1].total;if(now>last+500){ns[rid]=sp.concat([{split:now-last,total:now}]);}}
-            nf[rid]=true;
-          });
-          var updatedRace=Object.assign({},race,{splits:ns,finished:nf,elapsed:now,status:"done"});
-          onUpdateRace(race.id,{status:"done",elapsed:now,splits:ns,finished:nf});
-          if(onFinishRace)onFinishRace(updatedRace,now);
-        }} style={{padding:"3px 8px",background:"#27ae6022",color:"#5ddb6a",border:"1px solid #27ae6044",borderRadius:3,cursor:"pointer",fontSize:10,fontWeight:700,fontFamily:"inherit"}}>Finish</button>:null}
+        {finCount>0&&!isDone?<span style={{fontSize:10,padding:"2px 8px",borderRadius:3,background:"#27ae6022",color:"#5ddb6a",fontWeight:700}}>{finCount}/{runners.length}</span>:null}
+        {isDone?<span style={{fontSize:10,padding:"2px 8px",borderRadius:3,background:"#27ae6022",color:"#5ddb6a",fontWeight:700}}>Done</span>:null}
+        {hasSplits&&!isDone?<button onClick={finishRace} style={{padding:"3px 8px",background:"#27ae6022",color:"#5ddb6a",border:"1px solid #27ae6044",borderRadius:3,cursor:"pointer",fontSize:10,fontWeight:700,fontFamily:"inherit"}}>Finish</button>:null}
       </div>
     </div>
-    <div style={{padding:"6px 12px",background:"#050709",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-      <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:32,color:isRunning?"#fff":elapsed>0?evClr:"#2a3448",letterSpacing:2,lineHeight:1}}>{fmtTime(elapsed)}</div>
+    <div style={{padding:"6px 12px",background:T.timerBg,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+      <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:36,color:isRunning?T.text:elapsed>0?evClr:T.muted,letterSpacing:2,lineHeight:1}}>{fmtTime(elapsed)}</div>
       <div style={{display:"flex",gap:5}}>
-        {!isDone&&!isRunning?<button onClick={startTimer} style={{padding:"6px 16px",background:evClr,color:"#07090e",border:"none",borderRadius:3,cursor:"pointer",fontSize:13,fontWeight:900,fontFamily:"inherit",letterSpacing:2}}>{elapsed>0?"GO":"START"}</button>:!isDone?<button onClick={pauseTimer} style={{padding:"6px 16px",background:"transparent",color:evClr,border:"1.5px solid "+evClr,borderRadius:3,cursor:"pointer",fontSize:13,fontWeight:900,fontFamily:"inherit",letterSpacing:2}}>STOP</button>:null}
-        <button onClick={resetRace} style={{padding:"6px 10px",background:"transparent",color:"#2a3448",border:"1px solid #141c2a",borderRadius:3,cursor:"pointer",fontSize:10,fontWeight:700,fontFamily:"inherit"}}>Reset</button>
+        {!isDone&&!isRunning?<button onClick={startTimer} style={{padding:"6px 16px",background:evClr,color:T.bg,border:"none",borderRadius:3,cursor:"pointer",fontSize:13,fontWeight:900,fontFamily:"inherit",letterSpacing:2}}>{elapsed>0?"GO":"START"}</button>:!isDone?<button onClick={pauseTimer} style={{padding:"6px 16px",background:"transparent",color:evClr,border:"1.5px solid "+evClr,borderRadius:3,cursor:"pointer",fontSize:13,fontWeight:900,fontFamily:"inherit",letterSpacing:2}}>STOP</button>:null}
+        <button onClick={function(){if(confirm("Reset this race? All splits will be lost."))resetRace();}} style={{padding:"6px 10px",background:"transparent",color:T.muted,border:"1px solid "+T.border,borderRadius:3,cursor:"pointer",fontSize:10,fontWeight:700,fontFamily:"inherit"}}>Reset</button>
       </div>
     </div>
     <div style={{padding:"6px"}}>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4}}>
-        {runners.map(function(ath){var sp=(race.splits||{})[ath.id]||[];var last=sp[sp.length-1];var flash=flashMap[ath.id];var hasSp=sp.length>0;var isFinished=!!finishedMap[ath.id];var canClick=(isRunning||elapsed>0)&&!isDone&&!isFinished;var p=paces[ath.name]||{};
-          return(<button key={ath.id} onClick={function(){if(canClick)recordSplit(ath.id);}} style={{width:"100%",padding:"8px 10px",background:flash?"#0c1f0e":"#0b0f18",border:"1px solid "+(flash?"#2d7a35":hasSp?"#1a2e1a":"#141c2a"),borderTop:"2px solid "+(isFinished?"#27ae60":flash?"#5ddb6a":hasSp?"#1e4a1e":teamClr+"44"),borderRadius:4,cursor:canClick?"pointer":"default",textAlign:"left",userSelect:"none",fontFamily:"inherit",display:"flex",flexDirection:"column",gap:2}}>
+        {runners.map(function(ath){var sp=(race.splits||{})[ath.id]||[];var last=sp[sp.length-1];var flash=flashMap[ath.id];var hasSp=sp.length>0;var isFin=!!finishedMap[ath.id];var canClick=(isRunning||elapsed>0)&&!isDone&&!isFin;var p=paces[ath.name]||{};
+          return(<button key={ath.id} onClick={function(){if(canClick)recordSplit(ath.id);}} style={{width:"100%",padding:"8px 10px",background:flash?"#0c1f0e":T.card,border:"1px solid "+(flash?"#2d7a35":isFin?"#27ae6044":hasSp?"#1a2e1a":T.border),borderTop:"2px solid "+(isFin?"#27ae60":flash?"#5ddb6a":hasSp?"#1e4a1e":teamClr+"44"),borderRadius:4,cursor:canClick?"pointer":"default",textAlign:"left",userSelect:"none",fontFamily:"inherit",display:"flex",flexDirection:"column",gap:2,opacity:isFin&&!flash?0.7:1}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:4}}>
-              <span style={{fontSize:14,fontWeight:800,color:flash?"#5ddb6a":"white",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",flex:1,minWidth:0,lineHeight:1.1}}>{ath.name}</span>
-              <span style={{fontSize:16,fontWeight:900,lineHeight:1,color:hasSp?(flash?"#5ddb6a":"#FF5722"):"#141c2a",flexShrink:0}}>{sp.length}</span>
+              <span style={{fontSize:16,fontWeight:800,color:flash?"#5ddb6a":isFin?"#27ae60":T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",flex:1,minWidth:0,lineHeight:1.1}}>{ath.name}</span>
+              <span style={{fontSize:18,fontWeight:900,lineHeight:1,color:hasSp?(flash?"#5ddb6a":isFin?"#27ae60":T.accent):T.dim,flexShrink:0}}>{sp.length}</span>
             </div>
-            <div style={{minHeight:16}}>{last?<div style={{display:"flex",alignItems:"baseline",gap:5}}><span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:15,color:flash?"#5ddb6a":"#3a9a48"}}>{fmtSplit(last.split)}</span><span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:10,color:"#2a3448"}}>{fmtTime(last.total)}</span></div>:<span style={{fontSize:9,color:isFinished?"#27ae60":"#1a2235"}}>{isFinished?"\u2713 FINISHED":canClick?"tap to split":isDone?"":"start timer"}</span>}</div>
+            <div style={{minHeight:22}}>{last?<div style={{display:"flex",alignItems:"baseline",gap:5}}><span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:19,fontWeight:800,color:flash?"#5ddb6a":isFin?"#27ae60":T.splitClr}}>{fmtSplit(last.split)}</span><span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:13,fontWeight:700,color:T.timeClr}}>{fmtTime(last.total)}</span></div>:<span style={{fontSize:9,color:isFin?"#27ae60":T.dim}}>{isFin?"\u2713 FINISHED":canClick?"tap to split":""}</span>}</div>
             {(p.thrSafe||p.cv||p.vo2Safe)?<div style={{display:"flex",flexWrap:"wrap",gap:3,marginTop:1}}>{p.thrSafe?<PacePill label="T" value={p.thrSafe} color="#f0a500"/>:null}{p.cv?<PacePill label="CV" value={p.cv} color="#4a9eff"/>:null}{p.vo2Safe?<PacePill label="V2" value={p.vo2Safe} color="#e84393"/>:null}</div>:null}
           </button>);
         })}
       </div>
-      {hasSplits?<div style={{marginTop:8}}><div style={{fontSize:9,letterSpacing:3,color:"#2a3448",textTransform:"uppercase",marginBottom:4}}>Split Log</div>
+      {hasSplits?<div style={{marginTop:8}}><div style={{fontSize:9,letterSpacing:3,color:T.muted,textTransform:"uppercase",marginBottom:4}}>Split Log</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4}}>
-          {runners.filter(function(a){return((race.splits||{})[a.id]||[]).length>0;}).map(function(ath){var sp=(race.splits||{})[ath.id];return(<div key={ath.id} style={{background:"#080c14",border:"1px solid #0f151f",borderTop:"2px solid "+teamClr+"33",borderRadius:4,padding:"6px 8px"}}>
-            <div style={{fontSize:11,fontWeight:700,color:"#FF5722",marginBottom:3}}>{ath.name}</div>
-            {sp.map(function(s,i){return(<div key={i} style={{display:"flex",justifyContent:"space-between",padding:"1px 0",borderTop:i>0?"1px solid #0f141e":"none"}}><span style={{fontSize:9,color:"#2a3448"}}>{"#"+(i+1)}</span><span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:12,color:i===sp.length-1?"#ccc":"#555"}}>{fmtSplit(s.split)}</span><span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:10,color:"#2a3448"}}>{fmtTime(s.total)}</span></div>);})}
+          {runners.filter(function(a){return((race.splits||{})[a.id]||[]).length>0;}).map(function(ath){var sp=(race.splits||{})[ath.id];return(<div key={ath.id} style={{background:T.timerBg,border:"1px solid "+T.border,borderTop:"2px solid "+teamClr+"33",borderRadius:4,padding:"6px 8px"}}>
+            <div style={{fontSize:11,fontWeight:700,color:evClr,marginBottom:3}}>{ath.name}</div>
+            {sp.map(function(s,i){return(<div key={i} style={{display:"flex",justifyContent:"space-between",padding:"1px 0",borderTop:i>0?"1px solid "+T.dim:"none"}}><span style={{fontSize:12,fontWeight:700,color:T.timeClr}}>{"#"+(i+1)}</span><span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:16,fontWeight:800,color:i===sp.length-1?T.splitClr:T.oldSplit}}>{fmtSplit(s.split)}</span><span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:13,fontWeight:700,color:T.timeClr}}>{fmtTime(s.total)}</span></div>);})}
           </div>);})}
-        </div>
-      </div>:null}
+        </div></div>:null}
     </div>
   </div>);
 }
 
-/* ─── MAIN ───────────────────────────────────────────────────────────────── */
+/* ── MAIN ────────────────────────────────────────────────────────────── */
 export default function SplitTimer(props){
   var onRaceFinish=props.onRaceFinish;var onDeleteHistory=props.onDeleteHistory;var parentMeets=props.meets||[];var parentRoster=props.roster||[];var raceResults=props.raceResults||[];
   var _scr=useState("setup");var screen=_scr[0];var setScreen=_scr[1];
-  var _mode=useState("meet");var mode=_mode[0];var setMode=_mode[1]; /* meet | workout */
+  var _mode=useState("meet");var mode=_mode[0];var setMode=_mode[1];
+  var _theme=useState(localStorage.getItem("beacon_theme")||"dark");var theme=_theme[0];var setThemeState=_theme[1];
+  var setTheme=function(t){setThemeState(t);localStorage.setItem("beacon_theme",t);};
+  var T=THEMES[theme]||THEMES.dark;
   var _ath=useState([]);var allAthletes=_ath[0];var setAllAthletes=_ath[1];
   var _races=useState([]);var races=_races[0];var setRaces=_races[1];
   var _sl=useState("400m");var splitLabel=_sl[0];var setSplitLabel=_sl[1];
@@ -147,286 +132,215 @@ export default function SplitTimer(props){
   var _fbStatus=useState("connecting");var fbStatus=_fbStatus[0];var setFbStatus=_fbStatus[1];
   var _impMeet=useState(null);var importedMeetId=_impMeet[0];var setImportedMeetId=_impMeet[1];
   var _histOpen=useState(false);var histOpen=_histOpen[0];var setHistOpen=_histOpen[1];
-  /* Workout group state */
-  var _woGroups=useState([]);var woGroups=_woGroups[0];var setWoGroups=_woGroups[1]; /* [{id,name,color,runnerIds}] */
+  var _woGroups=useState([]);var woGroups=_woGroups[0];var setWoGroups=_woGroups[1];
   var _newGrpName=useState("");var newGrpName=_newGrpName[0];var setNewGrpName=_newGrpName[1];
   var _paceKey=useState("thrSafe");var paceKey=_paceKey[0];var setPaceKey=_paceKey[1];
   var _paceTol=useState(14);var paceTol=_paceTol[0];var setPaceTol=_paceTol[1];
-
   var sessionDate=useRef(new Date().toISOString().slice(0,10)).current;
-  var C={bg:"#07090e",card:"#0b0f18",border:"#141c2a",orange:"#FF5722",green:"#27ae60",greenLight:"#5ddb6a",muted:"#2a3448",dim:"#141c2a",boys:"#4a9eff",girls:"#ff7eb3"};
 
   useEffect(function(){var l=document.createElement("link");l.href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@400;600;700;800;900&display=swap";l.rel="stylesheet";document.head.appendChild(l);return function(){document.head.removeChild(l);};},[]);
-
-  /* Load roster from parent or Firebase */
   useEffect(function(){
-    if(parentRoster.length>0){
-      var clean=parentRoster.filter(function(a){return a.name&&!a.name.toLowerCase().includes("coach");}).map(function(a){return{id:String(a.id),name:a.name,team:a.team||"boys"};});
-      setAllAthletes(clean);
-      var pm={};parentRoster.forEach(function(a){if(a.name&&a.paces)pm[a.name]=a.paces;});
-      setFbPaces(pm);setFbStatus("ok");
-    } else {
-      loadData("roster-v3").then(function(val){
-        var raw=val?JSON.parse(val):null;
-        if(!Array.isArray(raw)){setFbStatus("offline");return;}
-        var pm={};raw.forEach(function(a){if(a.name&&a.paces)pm[a.name]=a.paces;});setFbPaces(pm);setFbStatus("ok");
-        setAllAthletes(raw.filter(function(a){return a.name&&!a.name.toLowerCase().includes("coach");}).map(function(a){return{id:String(a.id),name:a.name,team:a.team||"boys"};}));
-      }).catch(function(){setFbStatus("offline");});
-    }
+    if(parentRoster.length>0){var clean=parentRoster.filter(function(a){return a.name&&!a.name.toLowerCase().includes("coach");}).map(function(a){return{id:String(a.id),name:a.name,team:a.team||"boys"};});setAllAthletes(clean);var pm={};parentRoster.forEach(function(a){if(a.name&&a.paces)pm[a.name]=a.paces;});setFbPaces(pm);setFbStatus("ok");}
+    else{loadData("roster-v3").then(function(val){var raw=val?JSON.parse(val):null;if(!Array.isArray(raw)){setFbStatus("offline");return;}var pm={};raw.forEach(function(a){if(a.name&&a.paces)pm[a.name]=a.paces;});setFbPaces(pm);setFbStatus("ok");setAllAthletes(raw.filter(function(a){return a.name&&!a.name.toLowerCase().includes("coach");}).map(function(a){return{id:String(a.id),name:a.name,team:a.team||"boys"};}));}).catch(function(){setFbStatus("offline");});}
   },[parentRoster]);
-
-  /* LocalStorage restore */
-  useEffect(function(){try{var saved=localStorage.getItem(STORAGE_KEY);if(!saved)return;var d=JSON.parse(saved);if(d.races&&d.races.length>0){setRaces(d.races);if(d.splitLabel)setSplitLabel(d.splitLabel);if(d.customLabel)setCustomLabel(d.customLabel);if(d.mode)setMode(d.mode);setScreen("race");}}catch(e){}},[]);
-  useEffect(function(){if(!races.length)return;try{localStorage.setItem(STORAGE_KEY,JSON.stringify({races:races,splitLabel:splitLabel,customLabel:customLabel,mode:mode,savedAt:Date.now()}));}catch(e){}},[races,splitLabel,customLabel,mode]);
+  useEffect(function(){try{var saved=localStorage.getItem(STORAGE_KEY);if(!saved)return;var d=JSON.parse(saved);if(d.races&&d.races.length>0){setRaces(d.races);if(d.splitLabel)setSplitLabel(d.splitLabel);if(d.customLabel)setCustomLabel(d.customLabel);if(d.mode)setMode(d.mode);if(d.importedMeetId)setImportedMeetId(d.importedMeetId);setScreen("race");}}catch(e){}},[]);
+  useEffect(function(){if(!races.length)return;try{localStorage.setItem(STORAGE_KEY,JSON.stringify({races:races,splitLabel:splitLabel,customLabel:customLabel,mode:mode,importedMeetId:importedMeetId,savedAt:Date.now()}));}catch(e){}},[races,splitLabel,customLabel,mode,importedMeetId]);
 
   var rosterMap={};allAthletes.forEach(function(a){rosterMap[String(a.id)]=a;});
   var label=customLabel.trim()||splitLabel;
   var boys=allAthletes.filter(function(a){return a.team==="boys";});
   var girls=allAthletes.filter(function(a){return a.team==="girls";});
-
   var updateRace=function(raceId,updates){setRaces(function(prev){return prev.map(function(r){return r.id===raceId?Object.assign({},r,updates):r;});});};
 
-  var handleFinishRace=function(race,finalElapsed){
-    var runners=(race.runnerIds||[]).map(function(rid){var ath=rosterMap[String(rid)];var sp=(race.splits||{})[rid]||[];var ft=sp.length>0?sp[sp.length-1].total:finalElapsed;return{id:rid,name:ath?ath.name:"Unknown",team:ath?ath.team:"",splits:sp,finalTime:ft};});
-    if(onRaceFinish){onRaceFinish({meetId:race.meetId||"",meetName:race.meetName||(mode==="workout"?(woName||"Workout"):"Practice"),meetDate:race.meetDate||sessionDate,event:race.event||race.label||label,team:race.team||"",runners:runners,elapsed:finalElapsed,type:mode});}
+  /* ── Submit all results (batch save) ── */
+  var submitAllResults=function(){
+    var sessionRaces=races.filter(function(r){return Object.keys(r.splits||{}).length>0;});
+    sessionRaces.sort(function(a,b){var ea=EVT_ORDER[a.event]!==undefined?EVT_ORDER[a.event]:9;var eb=EVT_ORDER[b.event]!==undefined?EVT_ORDER[b.event]:9;return ea!==eb?ea-eb:a.team==="boys"?-1:1;});
+    sessionRaces.forEach(function(race){
+      var runners=(race.runnerIds||[]).map(function(rid){var ath=rosterMap[String(rid)];var sp=(race.splits||{})[rid]||[];var ft=sp.length>0?sp[sp.length-1].total:race.elapsed||0;return{id:rid,name:ath?ath.name:"Unknown",team:ath?ath.team:"",splits:sp,finalTime:ft};});
+      if(onRaceFinish)onRaceFinish({meetId:race.meetId||"",meetName:race.meetName||"Session",meetDate:race.meetDate||sessionDate,event:race.event||race.label||label,team:race.team||"",runners:runners,elapsed:race.elapsed||0,type:mode});
+    });
+    setRaces([]);setImportedMeetId(null);try{localStorage.removeItem(STORAGE_KEY);}catch(e){}
+    setScreen("setup");
   };
 
-  /* Pace grouping */
   var parsePace=function(s){if(!s)return null;var clean=s.replace(/\/mi$/,"").trim();var pts=clean.split(":");if(pts.length!==2)return null;var m=parseInt(pts[0]);var sc=parseInt(pts[1]);if(isNaN(m)||isNaN(sc))return null;return m*60+sc;};
   var fmtPaceSec=function(s){var m=Math.floor(s/60);var sc=Math.round(s%60);return m+":"+(sc<10?"0":"")+sc;};
+  var importPaceGroups=function(){var withPace=allAthletes.map(function(a){var p=fbPaces[a.name];return{ath:a,sec:parsePace(p&&p[paceKey])};}).filter(function(x){return x.sec!==null;}).sort(function(a,b){return a.sec-b.sec;});var used={};var groups=[];for(var i=0;i<withPace.length;i++){if(used[withPace[i].ath.id])continue;var grp=[withPace[i]];used[withPace[i].ath.id]=true;for(var j=i+1;j<withPace.length;j++){if(used[withPace[j].ath.id])continue;if(withPace[j].sec-grp[grp.length-1].sec<=paceTol){grp.push(withPace[j]);used[withPace[j].ath.id]=true;}}var avg=Math.round(grp.reduce(function(s,x){return s+x.sec;},0)/grp.length);groups.push({id:"pg_"+Date.now()+"_"+i,name:fmtPaceSec(avg)+"/mi",color:GROUP_COLORS[groups.length%GROUP_COLORS.length],runnerIds:grp.map(function(x){return String(x.ath.id);})});}setWoGroups(groups);};
 
-  var importPaceGroups=function(){
-    var withPace=allAthletes.map(function(a){var p=fbPaces[a.name];return{ath:a,sec:parsePace(p&&p[paceKey])};}).filter(function(x){return x.sec!==null;}).sort(function(a,b){return a.sec-b.sec;});
-    var used={};var groups=[];
-    for(var i=0;i<withPace.length;i++){
-      if(used[withPace[i].ath.id])continue;
-      var grp=[withPace[i]];used[withPace[i].ath.id]=true;
-      for(var j=i+1;j<withPace.length;j++){if(used[withPace[j].ath.id])continue;if(withPace[j].sec-grp[grp.length-1].sec<=paceTol){grp.push(withPace[j]);used[withPace[j].ath.id]=true;}}
-      var avg=Math.round(grp.reduce(function(s,x){return s+x.sec;},0)/grp.length);
-      groups.push({id:"pg_"+Date.now()+"_"+i,name:fmtPaceSec(avg)+"/mi",color:GROUP_COLORS[groups.length%GROUP_COLORS.length],runnerIds:grp.map(function(x){return String(x.ath.id);})});
-    }
-    setWoGroups(groups);
-  };
-
-  /* Import meet → race cards */
-  var importMeetEvents=function(meet){
-    if(!meet||!meet.lineup)return;
-    var athTeam={};allAthletes.forEach(function(a){athTeam[String(a.id)]=a.team;});
-    var newRaces=[];
-    var evtOrder={"4x800":0,"800":1,"1600":2,"3200":3};
-    Object.entries(meet.lineup).forEach(function(entry){
-      var evtKey=entry[0];var evtData=entry[1];var allIds=(evtData.runners||[]).map(function(r){return String(r);});if(!allIds.length)return;
-      var bIds=allIds.filter(function(r){return athTeam[r]==="boys";});
-      var gIds=allIds.filter(function(r){return athTeam[r]==="girls";});
-      if(bIds.length>0)newRaces.push({id:"r_"+evtKey+"_b_"+Date.now(),event:evtKey,team:"boys",label:evtKey+" Boys",approxTime:evtData.approxTime||"",runnerIds:bIds,splits:{},elapsed:0,status:"ready",meetName:meet.name||"Meet",meetId:meet.id||"",meetDate:meet.date||""});
-      if(gIds.length>0)newRaces.push({id:"r_"+evtKey+"_g_"+Date.now()+1,event:evtKey,team:"girls",label:evtKey+" Girls",approxTime:evtData.approxTime||"",runnerIds:gIds,splits:{},elapsed:0,status:"ready",meetName:meet.name||"Meet",meetId:meet.id||"",meetDate:meet.date||""});
+  var importMeetEvents=function(meet){if(!meet||!meet.lineup)return;var athTeam={};allAthletes.forEach(function(a){athTeam[String(a.id)]=a.team;});var newRaces=[];
+    Object.entries(meet.lineup).forEach(function(entry){var evtKey=entry[0];var evtData=entry[1];var allIds=(evtData.runners||[]).map(function(r){return String(r);});if(!allIds.length)return;var bIds=allIds.filter(function(r){return athTeam[r]==="boys";});var gIds=allIds.filter(function(r){return athTeam[r]==="girls";});
+      if(bIds.length>0)newRaces.push({id:"r_"+evtKey+"_b_"+Date.now(),event:evtKey,team:"boys",label:evtKey+" Boys",approxTime:evtData.approxTime||"",runnerIds:bIds,splits:{},elapsed:0,status:"ready",finished:{},meetName:meet.name||"Meet",meetId:meet.id||"",meetDate:meet.date||""});
+      if(gIds.length>0)newRaces.push({id:"r_"+evtKey+"_g_"+(Date.now()+1),event:evtKey,team:"girls",label:evtKey+" Girls",approxTime:evtData.approxTime||"",runnerIds:gIds,splits:{},elapsed:0,status:"ready",finished:{},meetName:meet.name||"Meet",meetId:meet.id||"",meetDate:meet.date||""});
     });
-    newRaces.sort(function(a,b){var ea=evtOrder[a.event]!==undefined?evtOrder[a.event]:9;var eb=evtOrder[b.event]!==undefined?evtOrder[b.event]:9;return ea!==eb?ea-eb:a.team==="boys"?-1:1;});
-    setRaces(newRaces);setImportedMeetId(meet.id||meet.name);
-  };
+    newRaces.sort(function(a,b){var ea=EVT_ORDER[a.event]!==undefined?EVT_ORDER[a.event]:9;var eb=EVT_ORDER[b.event]!==undefined?EVT_ORDER[b.event]:9;return ea!==eb?ea-eb:a.team==="boys"?-1:1;});
+    setRaces(newRaces);setImportedMeetId(meet.id||meet.name);};
 
-  /* Create workout race cards from woGroups */
-  var startWorkout=function(){
-    var name=woName.trim()||"Workout";
-    var newRaces=woGroups.map(function(g,gi){return{id:"wo_"+Date.now()+"_"+gi,event:name,team:"",label:g.name,color:g.color,runnerIds:g.runnerIds,splits:{},elapsed:0,status:"ready",meetName:name,meetDate:sessionDate,type:"workout"};});
-    setRaces(newRaces);
-  };
-
+  var startWorkout=function(){var name=woName.trim()||"Workout";var newRaces=woGroups.map(function(g,gi){return{id:"wo_"+Date.now()+"_"+gi,event:name,team:"",label:g.name,color:g.color,runnerIds:g.runnerIds,splits:{},elapsed:0,status:"ready",finished:{},meetName:name,meetDate:sessionDate,type:"workout"};});setRaces(newRaces);};
   var resetAll=function(){setRaces([]);setImportedMeetId(null);try{localStorage.removeItem(STORAGE_KEY);}catch(e){}};
 
-  var meetsWithLineups=(parentMeets.length>0?parentMeets:[]).filter(function(m){return m&&m.lineup&&Object.values(m.lineup).some(function(e){return(e.runners||[]).length>0;});});
+  /* Filter meets: only show today and future, with lineups */
+  var today=new Date().toISOString().slice(0,10);
+  var meetsWithLineups=(parentMeets.length>0?parentMeets:[]).filter(function(m){return m&&m.lineup&&m.date>=today&&Object.values(m.lineup).some(function(e){return(e.runners||[]).length>0;});});
+  /* Sort by date asc so next meet is first */
+  meetsWithLineups.sort(function(a,b){return(a.date||"").localeCompare(b.date||"");});
 
-  /* ── HISTORY ── */
-  var histBySession={};
-  raceResults.forEach(function(r){var key=(r.meetName||"Session")+" — "+(r.meetDate||"");if(!histBySession[key])histBySession[key]={name:r.meetName||"Session",date:r.meetDate||"",type:r.type||"meet",races:[]};histBySession[key].races.push(r);});
+  /* History */
+  var histBySession={};raceResults.forEach(function(r){var key=(r.meetName||"Session")+"\u2014"+(r.meetDate||"");if(!histBySession[key])histBySession[key]={name:r.meetName||"Session",date:r.meetDate||"",type:r.type||"meet",races:[]};histBySession[key].races.push(r);});
   var histKeys=Object.keys(histBySession).sort(function(a,b){return(histBySession[b].date||"").localeCompare(histBySession[a].date||"");});
 
-  /* ── SETUP SCREEN ── */
-  if(screen==="setup"){
-    return(<div style={{background:C.bg,minHeight:"100vh",fontFamily:"'Barlow Condensed',sans-serif",color:"white"}}>
-      <div style={{padding:"12px 14px",borderBottom:"1px solid "+C.border,display:"flex",alignItems:"center",gap:10}}>
-        <div style={{width:3,height:26,background:C.orange,borderRadius:2}}/>
-        <div><div style={{fontSize:9,letterSpacing:4,color:C.orange,textTransform:"uppercase"}}>Concordia Beacons</div><div style={{fontSize:20,fontWeight:800,lineHeight:1}}>Split Timer</div></div>
-        <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:5}}>
-          <div style={{width:6,height:6,borderRadius:"50%",background:fbStatus==="ok"?C.green:fbStatus==="connecting"?"#f0a500":C.muted}}/>
-          <span style={{fontSize:9,color:C.muted,letterSpacing:1}}>{fbStatus==="ok"?"LIVE":fbStatus==="connecting"?"...":"OFFLINE"}</span>
-        </div>
+  /* Check if all races done */
+  var allDone=races.length>0&&races.every(function(r){return r.status==="done";});
+  var anyHasSplits=races.some(function(r){return Object.keys(r.splits||{}).length>0;});
+
+  /* ── SETUP ── */
+  if(screen==="setup"){return(<div style={{background:T.bg,minHeight:"100vh",fontFamily:"'Barlow Condensed',sans-serif",color:T.text}}>
+    <div style={{padding:"12px 14px",borderBottom:"1px solid "+T.border,display:"flex",alignItems:"center",gap:10}}>
+      <div style={{width:3,height:26,background:T.accent,borderRadius:2}}/><div><div style={{fontSize:9,letterSpacing:4,color:T.accent,textTransform:"uppercase"}}>Concordia Beacons</div><div style={{fontSize:20,fontWeight:800,lineHeight:1}}>Split Timer</div></div>
+      <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:8}}>
+        <select value={theme} onChange={function(e){setTheme(e.target.value);}} style={{background:T.card,border:"1px solid "+T.border,color:T.text,padding:"3px 8px",borderRadius:3,fontFamily:"inherit",fontSize:10}}>
+          {Object.keys(THEMES).map(function(k){return <option key={k} value={k}>{THEMES[k].name}</option>;})}
+        </select>
+        <div style={{display:"flex",alignItems:"center",gap:4}}><div style={{width:6,height:6,borderRadius:"50%",background:fbStatus==="ok"?"#27ae60":fbStatus==="connecting"?"#f0a500":T.muted}}/><span style={{fontSize:9,color:T.muted,letterSpacing:1}}>{fbStatus==="ok"?"LIVE":"..."}</span></div>
       </div>
-      <div style={{padding:"16px 14px",maxWidth:600,margin:"0 auto"}}>
+    </div>
+    <div style={{padding:"16px 14px",maxWidth:600,margin:"0 auto"}}>
+      {/* Mode toggle */}
+      <div style={{display:"flex",borderBottom:"2px solid "+T.border,marginBottom:16}}>
+        {[{k:"meet",l:"Meet Races"},{k:"workout",l:"Workout"},{k:"open",l:"Open Timer"}].map(function(m){return(<button key={m.k} onClick={function(){setMode(m.k);}} style={{padding:"8px 16px",background:"none",border:"none",borderBottom:"2px solid "+(mode===m.k?T.accent:"transparent"),color:mode===m.k?T.accent:T.muted,cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:-2}}>{m.l}</button>);})}
+      </div>
+      {/* Split distance */}
+      <div style={{marginBottom:16}}><div style={{fontSize:9,letterSpacing:4,color:T.accent,textTransform:"uppercase",marginBottom:6}}>Split Distance</div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:6}}>{PRESET_DISTANCES.map(function(d){var on=splitLabel===d&&!customLabel.trim();return(<button key={d} onClick={function(){setSplitLabel(d);setCustomLabel("");}} style={{padding:"4px 10px",borderRadius:3,cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700,background:on?T.accent:"transparent",color:on?T.bg:T.muted,border:"1px solid "+(on?T.accent:T.dim)}}>{d}</button>);})}</div>
+        <input value={customLabel} onChange={function(e){setCustomLabel(e.target.value);}} placeholder="Custom label..." style={{width:"100%",boxSizing:"border-box",background:T.card,border:"1px solid "+(customLabel.trim()?T.accent:T.border),color:T.text,padding:"6px 12px",borderRadius:3,fontSize:13,fontFamily:"inherit",outline:"none"}}/>
+      </div>
 
-        {/* Mode toggle */}
-        <div style={{display:"flex",borderBottom:"2px solid "+C.border,marginBottom:16}}>
-          {[{k:"meet",l:"Meet Races"},{k:"workout",l:"Workout"},{k:"open",l:"Open Timer"}].map(function(m){return(<button key={m.k} onClick={function(){setMode(m.k);}} style={{padding:"8px 16px",background:"none",border:"none",borderBottom:"2px solid "+(mode===m.k?C.orange:"transparent"),color:mode===m.k?C.orange:C.muted,cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:-2}}>{m.l}</button>);})}
-        </div>
-
-        {/* Split distance */}
-        <div style={{marginBottom:16}}>
-          <div style={{fontSize:9,letterSpacing:4,color:C.orange,textTransform:"uppercase",marginBottom:6}}>Split Distance</div>
-          <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:6}}>
-            {PRESET_DISTANCES.map(function(d){var on=splitLabel===d&&!customLabel.trim();return(<button key={d} onClick={function(){setSplitLabel(d);setCustomLabel("");}} style={{padding:"4px 10px",borderRadius:3,cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700,background:on?C.orange:"transparent",color:on?C.bg:C.muted,border:"1px solid "+(on?C.orange:C.dim)}}>{d}</button>);})}
-          </div>
-          <input value={customLabel} onChange={function(e){setCustomLabel(e.target.value);}} placeholder="Custom label..." style={{width:"100%",boxSizing:"border-box",background:C.card,border:"1px solid "+(customLabel.trim()?C.orange:C.border),color:"white",padding:"6px 12px",borderRadius:3,fontSize:13,fontFamily:"inherit",outline:"none"}}/>
-        </div>
-
-        {/* ── MEET MODE ── */}
-        {mode==="meet"?(<div>
-          <div style={{fontSize:9,letterSpacing:4,color:C.orange,textTransform:"uppercase",marginBottom:8}}>Import from Meet Schedule</div>
-          {meetsWithLineups.length===0?<div style={{fontSize:12,color:C.muted,fontStyle:"italic",padding:"12px",background:C.card,borderRadius:4,border:"1px solid "+C.border}}>No meets with lineups. Assign runners on Meet Schedule first.</div>:
-          <div style={{display:"flex",flexDirection:"column",gap:6}}>
-            {meetsWithLineups.map(function(meet){var isA=importedMeetId===(meet.id||meet.name);var evts=Object.entries(meet.lineup||{}).filter(function(e){return(e[1].runners||[]).length>0;});return(<div key={meet.id||meet.name} style={{background:C.card,border:"1px solid "+(isA?"#2d7a35":C.border),borderRadius:4,padding:"10px 12px"}}>
+      {/* ── MEET MODE ── */}
+      {mode==="meet"?(<div>
+        <div style={{fontSize:9,letterSpacing:4,color:T.accent,textTransform:"uppercase",marginBottom:8}}>Upcoming Meets with Lineups</div>
+        {meetsWithLineups.length===0?<div style={{fontSize:12,color:T.muted,fontStyle:"italic",padding:"12px",background:T.card,borderRadius:4,border:"1px solid "+T.border}}>No upcoming meets with lineups. Assign runners on Meet Schedule first.</div>:
+        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+          {meetsWithLineups.map(function(meet){var isA=importedMeetId===(meet.id||meet.name);var evts=Object.entries(meet.lineup||{}).filter(function(e){return(e[1].runners||[]).length>0;});var isNext=meetsWithLineups[0]&&(meetsWithLineups[0].id||meetsWithLineups[0].name)===(meet.id||meet.name);
+            return(<div key={meet.id||meet.name} style={{background:T.card,border:"1px solid "+(isA?"#2d7a35":isNext?T.accent+"44":T.border),borderRadius:4,padding:"10px 12px"}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                <div><div style={{fontSize:14,fontWeight:800,color:"white"}}>{meet.name}</div><div style={{fontSize:10,color:C.muted}}>{meet.date||""} — {evts.map(function(e){return e[0];}).join(", ")}</div></div>
-                <button onClick={function(){importMeetEvents(meet);}} style={{padding:"6px 14px",background:isA?"#1a3a1a":C.orange,color:isA?C.greenLight:C.bg,border:"1px solid "+(isA?"#2d7a35":C.orange),borderRadius:3,cursor:"pointer",fontSize:12,fontWeight:900,fontFamily:"inherit",letterSpacing:1,textTransform:"uppercase"}}>{isA?"\u2713 Imported":"Import"}</button>
+                <div><div style={{display:"flex",alignItems:"center",gap:6}}><div style={{fontSize:14,fontWeight:800,color:T.text}}>{meet.name}</div>{isNext?<span style={{fontSize:9,padding:"1px 6px",borderRadius:3,background:T.accent+"22",color:T.accent,fontWeight:700}}>NEXT</span>:null}</div><div style={{fontSize:10,color:T.muted}}>{meet.date||""} — {evts.map(function(e){return e[0];}).join(", ")}</div></div>
+                <button onClick={function(){importMeetEvents(meet);}} style={{padding:"6px 14px",background:isA?"#1a3a1a":T.accent,color:isA?"#5ddb6a":T.bg,border:"1px solid "+(isA?"#2d7a35":T.accent),borderRadius:3,cursor:"pointer",fontSize:12,fontWeight:900,fontFamily:"inherit",letterSpacing:1,textTransform:"uppercase"}}>{isA?"\u2713 Imported":"Import"}</button>
               </div>
             </div>);})}
-          </div>}
-        </div>):null}
+        </div>}
+      </div>):null}
 
-        {/* ── WORKOUT MODE ── */}
-        {mode==="workout"?(<div>
-          <div style={{marginBottom:12}}>
-            <div style={{fontSize:9,letterSpacing:4,color:C.orange,textTransform:"uppercase",marginBottom:6}}>Workout Name</div>
-            <input value={woName} onChange={function(e){setWoName(e.target.value);}} placeholder="e.g. 4x400 @ Threshold" style={{width:"100%",boxSizing:"border-box",background:C.card,border:"1px solid "+(woName.trim()?C.orange:C.border),color:"white",padding:"8px 12px",borderRadius:3,fontSize:14,fontFamily:"inherit",outline:"none"}}/>
-          </div>
-
-          {/* Import pace groups */}
-          <div style={{background:C.card,border:"1px solid "+C.border,borderLeft:"3px solid #4a9eff",borderRadius:4,padding:"12px 14px",marginBottom:12}}>
-            <div style={{fontSize:13,fontWeight:800,color:"white",marginBottom:6}}>Import Pace Groups</div>
-            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
-              <select value={paceKey} onChange={function(e){setPaceKey(e.target.value);}} style={{background:"#0a0e18",border:"1px solid "+C.border,color:"white",padding:"5px 8px",borderRadius:3,fontFamily:"inherit",fontSize:12}}>
-                {PACE_KEYS.map(function(p){return <option key={p.k} value={p.k}>{p.l}</option>;})}
-              </select>
-              <select value={paceTol} onChange={function(e){setPaceTol(parseInt(e.target.value));}} style={{background:"#0a0e18",border:"1px solid "+C.border,color:"white",padding:"5px 8px",borderRadius:3,fontFamily:"inherit",fontSize:12}}>
-                {[2,4,6,8,10,12,14,16,18,20].map(function(t){return <option key={t} value={t}>{t}s tolerance</option>;})}
-              </select>
-              <button onClick={importPaceGroups} style={{padding:"5px 12px",background:"#4a9eff",color:C.bg,border:"none",borderRadius:3,cursor:"pointer",fontSize:12,fontWeight:900,fontFamily:"inherit"}}>Generate Groups</button>
-            </div>
-          </div>
-
-          {/* Manual groups */}
-          <div style={{background:C.card,border:"1px solid "+C.border,borderLeft:"3px solid "+C.orange,borderRadius:4,padding:"12px 14px",marginBottom:12}}>
-            <div style={{fontSize:13,fontWeight:800,color:"white",marginBottom:6}}>Manual Groups</div>
-            <div style={{display:"flex",gap:5,marginBottom:8}}>
-              <input value={newGrpName} onChange={function(e){setNewGrpName(e.target.value);}} onKeyDown={function(e){if(e.key==="Enter"&&newGrpName.trim()){setWoGroups(function(prev){return prev.concat([{id:"mg_"+Date.now(),name:newGrpName.trim(),color:GROUP_COLORS[prev.length%GROUP_COLORS.length],runnerIds:[]}]);});setNewGrpName("");}}} placeholder="Group name (Heat 1, Varsity...)" style={{flex:1,background:"#0a0e18",border:"1px solid "+C.border,color:"white",padding:"6px 10px",borderRadius:3,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
-              <button onClick={function(){if(newGrpName.trim()){setWoGroups(function(prev){return prev.concat([{id:"mg_"+Date.now(),name:newGrpName.trim(),color:GROUP_COLORS[prev.length%GROUP_COLORS.length],runnerIds:[]}]);});setNewGrpName("");}}} style={{padding:"6px 12px",background:C.orange,color:C.bg,border:"none",borderRadius:3,cursor:"pointer",fontSize:12,fontWeight:900,fontFamily:"inherit"}}>+ Group</button>
-            </div>
-          </div>
-
-          {/* Group list with assign */}
-          {woGroups.map(function(g){
-            var members=g.runnerIds.map(function(rid){return rosterMap[rid];}).filter(Boolean);
-            var available=allAthletes.filter(function(a){return!g.runnerIds.includes(String(a.id));});
-            return(<div key={g.id} style={{background:C.card,border:"1px solid "+C.border,borderLeft:"3px solid "+g.color,borderRadius:4,padding:"10px 12px",marginBottom:6}}>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
-                <div style={{display:"flex",alignItems:"center",gap:6}}><div style={{width:8,height:8,borderRadius:2,background:g.color}}/><span style={{fontSize:14,fontWeight:800,color:"white"}}>{g.name}</span><span style={{fontSize:10,color:C.muted}}>{members.length} runners</span></div>
-                <button onClick={function(){setWoGroups(function(prev){return prev.filter(function(x){return x.id!==g.id;});});}} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:11,fontFamily:"inherit"}}>{"\u00D7"}</button>
-              </div>
-              <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>
-                {members.map(function(a){return(<span key={a.id} style={{display:"inline-flex",alignItems:"center",gap:3,padding:"2px 7px",background:g.color+"18",border:"1px solid "+g.color+"44",borderRadius:3,fontSize:11,fontWeight:700,color:"white"}}>{a.name}<button onClick={function(){setWoGroups(function(prev){return prev.map(function(x){return x.id===g.id?Object.assign({},x,{runnerIds:x.runnerIds.filter(function(r){return r!==String(a.id);})}):x;});});}} style={{background:"none",border:"none",color:g.color,cursor:"pointer",fontSize:12,padding:0}}>{"\u00D7"}</button></span>);})}
-              </div>
-              <select value="" onChange={function(e){if(e.target.value){var rid=e.target.value;setWoGroups(function(prev){return prev.map(function(x){return x.id===g.id?Object.assign({},x,{runnerIds:x.runnerIds.concat([rid])}):x;});});}}} style={{width:"100%",background:"#0a0e18",border:"1px solid "+C.border,color:C.muted,padding:"4px 8px",borderRadius:3,fontFamily:"inherit",fontSize:11}}>
-                <option value="">+ Add runner...</option>
-                {available.map(function(a){return <option key={a.id} value={String(a.id)}>{a.name} ({a.team})</option>;})}
-              </select>
-            </div>);
-          })}
-        </div>):null}
-
-        {/* ── OPEN MODE ── */}
-        {mode==="open"?(<div>
-          <div style={{marginBottom:12}}>
-            <div style={{fontSize:9,letterSpacing:4,color:C.orange,textTransform:"uppercase",marginBottom:6}}>Session Label</div>
-            <input value={woName} onChange={function(e){setWoName(e.target.value);}} placeholder="e.g. Practice, Time Trial, Tempo Run..." style={{width:"100%",boxSizing:"border-box",background:C.card,border:"1px solid "+(woName.trim()?C.orange:C.border),color:"white",padding:"8px 12px",borderRadius:3,fontSize:14,fontFamily:"inherit",outline:"none"}}/>
-          </div>
-          <div style={{background:C.card,border:"1px solid "+C.border,borderLeft:"3px solid "+C.orange,borderRadius:4,padding:"12px 14px",marginBottom:12}}>
-            <div style={{fontSize:13,fontWeight:800,color:"white",marginBottom:8}}>Select Runners</div>
-            <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-              {[{label:"Boys",list:boys,clr:C.boys},{label:"Girls",list:girls,clr:C.girls}].map(function(grp){
-                var selected=(races[0]&&races[0].runnerIds)||[];
-                return(<div key={grp.label} style={{flex:1,minWidth:140}}>
-                  <div style={{fontSize:10,fontWeight:700,color:grp.clr,textTransform:"uppercase",letterSpacing:1,marginBottom:4}}>{grp.label}</div>
-                  {grp.list.map(function(a){
-                    var isIn=selected.includes(String(a.id));
-                    return(<button key={a.id} onClick={function(){
-                      setRaces(function(prev){
-                        var r=prev[0]||{id:"open_"+Date.now(),event:woName.trim()||"Open",team:"",label:woName.trim()||"Open Timer",runnerIds:[],splits:{},elapsed:0,status:"ready",meetName:woName.trim()||"Open Timer",meetDate:sessionDate,type:"open"};
-                        var ids=(r.runnerIds||[]).slice();
-                        if(isIn)ids=ids.filter(function(x){return x!==String(a.id);});
-                        else ids.push(String(a.id));
-                        return[Object.assign({},r,{runnerIds:ids,event:woName.trim()||"Open",label:woName.trim()||"Open Timer",meetName:woName.trim()||"Open Timer"})];
-                      });
-                    }} style={{display:"block",width:"100%",textAlign:"left",padding:"4px 8px",marginBottom:2,borderRadius:3,cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:isIn?700:500,background:isIn?grp.clr+"18":"transparent",border:"1px solid "+(isIn?grp.clr+"44":C.dim),color:isIn?"white":C.muted}}>{isIn?"\u2713 ":""}{a.name}</button>);
-                  })}
-                </div>);
-              })}
-            </div>
-            <button onClick={function(){
-              var allIds=allAthletes.map(function(a){return String(a.id);});
-              setRaces([{id:"open_"+Date.now(),event:woName.trim()||"Open",team:"",label:woName.trim()||"Open Timer",runnerIds:allIds,splits:{},elapsed:0,status:"ready",meetName:woName.trim()||"Open Timer",meetDate:sessionDate,type:"open"}]);
-            }} style={{marginTop:8,padding:"4px 10px",background:"transparent",color:C.muted,border:"1px solid "+C.dim,borderRadius:3,cursor:"pointer",fontSize:10,fontFamily:"inherit"}}>Select All</button>
-          </div>
-        </div>):null}
-
-        {/* Race preview */}
-        {races.length>0?<div style={{marginTop:16,marginBottom:12}}><div style={{fontSize:9,letterSpacing:4,color:C.orange,textTransform:"uppercase",marginBottom:6}}>Race Cards ({races.length})</div>
-          {races.map(function(r){var evClr=EVENT_COLORS[r.event]||r.color||"#4a9eff";return(<div key={r.id} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 10px",marginBottom:3,background:C.card,border:"1px solid "+C.border,borderLeft:"3px solid "+evClr,borderRadius:4}}>
-            <span style={{fontSize:13,fontWeight:800,color:evClr}}>{r.label||r.event}</span>
-            {r.team?<span style={{fontSize:10,fontWeight:700,color:TEAM_COLORS[r.team]||evClr}}>{r.team}</span>:null}
-            <span style={{fontSize:10,color:C.muted,flex:1}}>{(r.runnerIds||[]).length} runners</span>
-          </div>);})}
-          <button onClick={resetAll} style={{marginTop:4,padding:"3px 8px",background:"transparent",color:C.muted,border:"1px solid "+C.dim,borderRadius:3,cursor:"pointer",fontSize:10,fontFamily:"inherit"}}>Clear</button>
-        </div>:null}
-
-        {/* Begin buttons */}
-        <div style={{marginTop:12,display:"flex",gap:8}}>
-          {mode==="meet"?<button onClick={function(){if(races.length)setScreen("race");}} disabled={!races.length} style={{flex:1,padding:"13px",borderRadius:3,cursor:races.length?"pointer":"not-allowed",background:races.length?C.orange:C.card,color:races.length?C.bg:C.muted,border:"1px solid "+(races.length?C.orange:C.border),fontSize:15,fontWeight:900,fontFamily:"inherit",letterSpacing:3,textTransform:"uppercase"}}>{races.length?"Begin \u2192":"Import a meet"}</button>:null}
-          {mode==="workout"?<button onClick={function(){if(woGroups.length>0){startWorkout();setScreen("race");}}} disabled={!woGroups.length} style={{flex:1,padding:"13px",borderRadius:3,cursor:woGroups.length?"pointer":"not-allowed",background:woGroups.length?C.orange:C.card,color:woGroups.length?C.bg:C.muted,border:"1px solid "+(woGroups.length?C.orange:C.border),fontSize:15,fontWeight:900,fontFamily:"inherit",letterSpacing:3,textTransform:"uppercase"}}>{woGroups.length?"Start Workout \u2192":"Create groups first"}</button>:null}
-          {mode==="open"?(function(){var hasRunners=races.length>0&&(races[0].runnerIds||[]).length>0;return <button onClick={function(){if(hasRunners)setScreen("race");}} disabled={!hasRunners} style={{flex:1,padding:"13px",borderRadius:3,cursor:hasRunners?"pointer":"not-allowed",background:hasRunners?C.orange:C.card,color:hasRunners?C.bg:C.muted,border:"1px solid "+(hasRunners?C.orange:C.border),fontSize:15,fontWeight:900,fontFamily:"inherit",letterSpacing:3,textTransform:"uppercase"}}>{hasRunners?"Start Timer \u2192":"Select runners"}</button>;})():null}
+      {/* ── WORKOUT MODE ── */}
+      {mode==="workout"?(<div>
+        <div style={{marginBottom:12}}><div style={{fontSize:9,letterSpacing:4,color:T.accent,textTransform:"uppercase",marginBottom:6}}>Workout Name</div>
+          <input value={woName} onChange={function(e){setWoName(e.target.value);}} placeholder="e.g. 4x400 @ Threshold" style={{width:"100%",boxSizing:"border-box",background:T.card,border:"1px solid "+(woName.trim()?T.accent:T.border),color:T.text,padding:"8px 12px",borderRadius:3,fontSize:14,fontFamily:"inherit",outline:"none"}}/>
         </div>
+        <div style={{background:T.card,border:"1px solid "+T.border,borderLeft:"3px solid #4a9eff",borderRadius:4,padding:"12px 14px",marginBottom:12}}>
+          <div style={{fontSize:13,fontWeight:800,color:T.text,marginBottom:6}}>Import Pace Groups</div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
+            <select value={paceKey} onChange={function(e){setPaceKey(e.target.value);}} style={{background:T.timerBg,border:"1px solid "+T.border,color:T.text,padding:"5px 8px",borderRadius:3,fontFamily:"inherit",fontSize:12}}>{PACE_KEYS.map(function(p){return <option key={p.k} value={p.k}>{p.l}</option>;})}</select>
+            <select value={paceTol} onChange={function(e){setPaceTol(parseInt(e.target.value));}} style={{background:T.timerBg,border:"1px solid "+T.border,color:T.text,padding:"5px 8px",borderRadius:3,fontFamily:"inherit",fontSize:12}}>{[2,4,6,8,10,12,14,16,18,20].map(function(t){return <option key={t} value={t}>{t}s</option>;})}</select>
+            <button onClick={importPaceGroups} style={{padding:"5px 12px",background:"#4a9eff",color:T.bg,border:"none",borderRadius:3,cursor:"pointer",fontSize:12,fontWeight:900,fontFamily:"inherit"}}>Generate</button>
+          </div>
+        </div>
+        <div style={{background:T.card,border:"1px solid "+T.border,borderLeft:"3px solid "+T.accent,borderRadius:4,padding:"12px 14px",marginBottom:12}}>
+          <div style={{fontSize:13,fontWeight:800,color:T.text,marginBottom:6}}>Manual Groups</div>
+          <div style={{display:"flex",gap:5,marginBottom:8}}>
+            <input value={newGrpName} onChange={function(e){setNewGrpName(e.target.value);}} onKeyDown={function(e){if(e.key==="Enter"&&newGrpName.trim()){setWoGroups(function(prev){return prev.concat([{id:"mg_"+Date.now(),name:newGrpName.trim(),color:GROUP_COLORS[prev.length%GROUP_COLORS.length],runnerIds:[]}]);});setNewGrpName("");}}} placeholder="Group name..." style={{flex:1,background:T.timerBg,border:"1px solid "+T.border,color:T.text,padding:"6px 10px",borderRadius:3,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
+            <button onClick={function(){if(newGrpName.trim()){setWoGroups(function(prev){return prev.concat([{id:"mg_"+Date.now(),name:newGrpName.trim(),color:GROUP_COLORS[prev.length%GROUP_COLORS.length],runnerIds:[]}]);});setNewGrpName("");}}} style={{padding:"6px 12px",background:T.accent,color:T.bg,border:"none",borderRadius:3,cursor:"pointer",fontSize:12,fontWeight:900,fontFamily:"inherit"}}>+ Group</button>
+          </div>
+        </div>
+        {woGroups.map(function(g){var members=g.runnerIds.map(function(rid){return rosterMap[rid];}).filter(Boolean);var available=allAthletes.filter(function(a){return!g.runnerIds.includes(String(a.id));});
+          return(<div key={g.id} style={{background:T.card,border:"1px solid "+T.border,borderLeft:"3px solid "+g.color,borderRadius:4,padding:"10px 12px",marginBottom:6}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}><div style={{display:"flex",alignItems:"center",gap:6}}><div style={{width:8,height:8,borderRadius:2,background:g.color}}/><span style={{fontSize:14,fontWeight:800,color:T.text}}>{g.name}</span><span style={{fontSize:10,color:T.muted}}>{members.length}</span></div><button onClick={function(){if(confirm("Remove group "+g.name+"?"))setWoGroups(function(prev){return prev.filter(function(x){return x.id!==g.id;});});}} style={{background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:11,fontFamily:"inherit"}}>{"\u00D7"}</button></div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>{members.map(function(a){return(<span key={a.id} style={{display:"inline-flex",alignItems:"center",gap:3,padding:"2px 7px",background:g.color+"18",border:"1px solid "+g.color+"44",borderRadius:3,fontSize:11,fontWeight:700,color:T.text}}>{a.name}<button onClick={function(){setWoGroups(function(prev){return prev.map(function(x){return x.id===g.id?Object.assign({},x,{runnerIds:x.runnerIds.filter(function(r){return r!==String(a.id);})}):x;});});}} style={{background:"none",border:"none",color:g.color,cursor:"pointer",fontSize:12,padding:0}}>{"\u00D7"}</button></span>);})}</div>
+            <select value="" onChange={function(e){if(e.target.value){var rid=e.target.value;setWoGroups(function(prev){return prev.map(function(x){return x.id===g.id?Object.assign({},x,{runnerIds:x.runnerIds.concat([rid])}):x;});});}}} style={{width:"100%",background:T.timerBg,border:"1px solid "+T.border,color:T.muted,padding:"4px 8px",borderRadius:3,fontFamily:"inherit",fontSize:11}}>
+              <option value="">+ Add runner...</option>{available.map(function(a){return <option key={a.id} value={String(a.id)}>{a.name} ({a.team})</option>;})}
+            </select>
+          </div>);
+        })}
+      </div>):null}
 
-        {/* ── HISTORY ── */}
-        <div style={{marginTop:24}}>
-          <button onClick={function(){setHistOpen(!histOpen);}} style={{width:"100%",padding:"10px 14px",background:C.card,border:"1px solid "+C.border,borderRadius:4,cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",fontFamily:"inherit"}}>
-            <span style={{fontSize:13,fontWeight:800,color:C.orange,letterSpacing:1}}>Session History ({raceResults.length})</span>
-            <span style={{fontSize:10,color:C.muted}}>{histOpen?"[-]":"[+]"}</span>
-          </button>
-          {histOpen?<div style={{marginTop:8}}>
-            {histKeys.length===0?<div style={{fontSize:12,color:C.muted,fontStyle:"italic",padding:"12px"}}>No saved sessions yet. Finish a race to save results.</div>:null}
-            {histKeys.map(function(key){var sess=histBySession[key];return(<div key={key} style={{marginBottom:12,background:C.card,border:"1px solid "+C.border,borderRadius:4,overflow:"hidden"}}>
-              <div style={{padding:"8px 12px",borderBottom:"1px solid "+C.border,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <div><div style={{fontSize:13,fontWeight:700,color:"white"}}>{sess.name}</div>
-                <div style={{fontSize:10,color:C.muted}}>{sess.date} — {sess.type==="workout"?"Workout":"Meet"} — {sess.races.length} race{sess.races.length!==1?"s":""}</div></div>
-                <button onClick={function(){if(confirm("Delete all results for "+sess.name+"?")){if(onRaceFinish){var keep=raceResults.filter(function(r){return!((r.meetName||"Session")+" \u2014 "+(r.meetDate||"")===key);});onDeleteHistory(keep);}}}} style={{background:"rgba(239,68,68,0.1)",border:"none",color:"#ef4444",borderRadius:3,padding:"3px 8px",cursor:"pointer",fontSize:10,fontWeight:700,fontFamily:"inherit"}}>Delete</button>
+      {/* ── OPEN MODE ── */}
+      {mode==="open"?(<div>
+        <div style={{marginBottom:12}}><div style={{fontSize:9,letterSpacing:4,color:T.accent,textTransform:"uppercase",marginBottom:6}}>Session Label</div>
+          <input value={woName} onChange={function(e){setWoName(e.target.value);}} placeholder="e.g. Practice, Time Trial..." style={{width:"100%",boxSizing:"border-box",background:T.card,border:"1px solid "+(woName.trim()?T.accent:T.border),color:T.text,padding:"8px 12px",borderRadius:3,fontSize:14,fontFamily:"inherit",outline:"none"}}/>
+        </div>
+        <div style={{background:T.card,border:"1px solid "+T.border,borderLeft:"3px solid "+T.accent,borderRadius:4,padding:"12px 14px",marginBottom:12}}>
+          <div style={{fontSize:13,fontWeight:800,color:T.text,marginBottom:8}}>Select Runners</div>
+          <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+            {[{label:"Boys",list:boys,clr:"#4a9eff"},{label:"Girls",list:girls,clr:"#ff7eb3"}].map(function(grp){var selected=(races[0]&&races[0].runnerIds)||[];return(<div key={grp.label} style={{flex:1,minWidth:140}}>
+              <div style={{fontSize:10,fontWeight:700,color:grp.clr,textTransform:"uppercase",letterSpacing:1,marginBottom:4}}>{grp.label}</div>
+              {grp.list.map(function(a){var isIn=selected.includes(String(a.id));return(<button key={a.id} onClick={function(){setRaces(function(prev){var r=prev[0]||{id:"open_"+Date.now(),event:woName.trim()||"Open",team:"",label:woName.trim()||"Open Timer",runnerIds:[],splits:{},elapsed:0,status:"ready",finished:{},meetName:woName.trim()||"Open Timer",meetDate:sessionDate,type:"open"};var ids=(r.runnerIds||[]).slice();if(isIn)ids=ids.filter(function(x){return x!==String(a.id);});else ids.push(String(a.id));return[Object.assign({},r,{runnerIds:ids,event:woName.trim()||"Open",label:woName.trim()||"Open Timer",meetName:woName.trim()||"Open Timer"})];});}} style={{display:"block",width:"100%",textAlign:"left",padding:"4px 8px",marginBottom:2,borderRadius:3,cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:isIn?700:500,background:isIn?grp.clr+"18":"transparent",border:"1px solid "+(isIn?grp.clr+"44":T.dim),color:isIn?T.text:T.muted}}>{isIn?"\u2713 ":""}{a.name}</button>);})}
+            </div>);})}
+          </div>
+          <button onClick={function(){var allIds=allAthletes.map(function(a){return String(a.id);});setRaces([{id:"open_"+Date.now(),event:woName.trim()||"Open",team:"",label:woName.trim()||"Open Timer",runnerIds:allIds,splits:{},elapsed:0,status:"ready",finished:{},meetName:woName.trim()||"Open Timer",meetDate:sessionDate,type:"open"}]);}} style={{marginTop:8,padding:"4px 10px",background:"transparent",color:T.muted,border:"1px solid "+T.dim,borderRadius:3,cursor:"pointer",fontSize:10,fontFamily:"inherit"}}>Select All</button>
+        </div>
+      </div>):null}
+
+      {/* Race preview */}
+      {races.length>0?<div style={{marginTop:16,marginBottom:12}}><div style={{fontSize:9,letterSpacing:4,color:T.accent,textTransform:"uppercase",marginBottom:6}}>Race Cards ({races.length})</div>
+        {races.map(function(r){var evClr=EVENT_COLORS[r.event]||r.color||T.accent;return(<div key={r.id} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 10px",marginBottom:3,background:T.card,border:"1px solid "+T.border,borderLeft:"3px solid "+evClr,borderRadius:4}}>
+          <span style={{fontSize:13,fontWeight:800,color:evClr}}>{r.label||r.event}</span>
+          {r.team?<span style={{fontSize:10,fontWeight:700,color:TEAM_COLORS[r.team]||evClr}}>{r.team}</span>:null}
+          <span style={{fontSize:10,color:T.muted,flex:1}}>{(r.runnerIds||[]).length} runners</span>
+        </div>);})}
+        <button onClick={function(){if(confirm("Clear all race cards?"))resetAll();}} style={{marginTop:4,padding:"3px 8px",background:"transparent",color:T.muted,border:"1px solid "+T.dim,borderRadius:3,cursor:"pointer",fontSize:10,fontFamily:"inherit"}}>Clear</button>
+      </div>:null}
+
+      {/* Begin */}
+      <div style={{marginTop:12,display:"flex",gap:8}}>
+        {mode==="meet"?<button onClick={function(){if(races.length)setScreen("race");}} disabled={!races.length} style={{flex:1,padding:"13px",borderRadius:3,cursor:races.length?"pointer":"not-allowed",background:races.length?T.accent:T.card,color:races.length?T.bg:T.muted,border:"1px solid "+(races.length?T.accent:T.border),fontSize:15,fontWeight:900,fontFamily:"inherit",letterSpacing:3,textTransform:"uppercase"}}>{races.length?"Begin \u2192":"Import a meet"}</button>:null}
+        {mode==="workout"?<button onClick={function(){if(woGroups.length>0){startWorkout();setScreen("race");}}} disabled={!woGroups.length} style={{flex:1,padding:"13px",borderRadius:3,cursor:woGroups.length?"pointer":"not-allowed",background:woGroups.length?T.accent:T.card,color:woGroups.length?T.bg:T.muted,border:"1px solid "+(woGroups.length?T.accent:T.border),fontSize:15,fontWeight:900,fontFamily:"inherit",letterSpacing:3,textTransform:"uppercase"}}>{woGroups.length?"Start Workout \u2192":"Create groups"}</button>:null}
+        {mode==="open"?(function(){var ok=races.length>0&&(races[0].runnerIds||[]).length>0;return <button onClick={function(){if(ok)setScreen("race");}} disabled={!ok} style={{flex:1,padding:"13px",borderRadius:3,cursor:ok?"pointer":"not-allowed",background:ok?T.accent:T.card,color:ok?T.bg:T.muted,border:"1px solid "+(ok?T.accent:T.border),fontSize:15,fontWeight:900,fontFamily:"inherit",letterSpacing:3,textTransform:"uppercase"}}>{ok?"Start Timer \u2192":"Select runners"}</button>;})():null}
+      </div>
+
+      {/* ── HISTORY ── */}
+      <div style={{marginTop:24}}>
+        <button onClick={function(){setHistOpen(!histOpen);}} style={{width:"100%",padding:"10px 14px",background:T.card,border:"1px solid "+T.border,borderRadius:4,cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",fontFamily:"inherit"}}>
+          <span style={{fontSize:13,fontWeight:800,color:T.accent,letterSpacing:1}}>Session History ({raceResults.length})</span>
+          <span style={{fontSize:10,color:T.muted}}>{histOpen?"[-]":"[+]"}</span>
+        </button>
+        {histOpen?<div style={{marginTop:8}}>
+          {histKeys.length===0?<div style={{fontSize:12,color:T.muted,fontStyle:"italic",padding:"12px"}}>No saved sessions yet.</div>:null}
+          {histKeys.map(function(key){var sess=histBySession[key];return(<div key={key} style={{marginBottom:12,background:T.card,border:"1px solid "+T.border,borderRadius:4,overflow:"hidden"}}>
+            <div style={{padding:"8px 12px",borderBottom:"1px solid "+T.border,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div><div style={{fontSize:13,fontWeight:700,color:T.text}}>{sess.name}</div><div style={{fontSize:10,color:T.muted}}>{sess.date} — {sess.races.length} race{sess.races.length!==1?"s":""}</div></div>
+              <div style={{display:"flex",gap:4}}>
+              <button onClick={function(){
+                var rows=[["Race","Place","Athlete","Team","Split #","Split Time","Total Time"]];
+                sess.races.forEach(function(race){var evLabel=(race.event||"")+(race.team?" "+race.team:"");var runners=(race.runners||[]).slice().sort(function(a,b){return(a.finalTime||999999)-(b.finalTime||999999);});runners.forEach(function(r,ri){var sp=r.splits||[];if(!sp.length){rows.push([evLabel,ri+1,r.name,r.team||"","","",""]);}else{sp.forEach(function(s,si){rows.push([si===0?evLabel:"",si===0?ri+1:"",si===0?r.name:"",si===0?r.team||"":"",si+1,fmtSplit(s.split),fmtTime(s.total)]);});}});});
+                var csv=rows.map(function(r){return r.map(function(v){return'"'+v+'"';}).join(",");}).join("\n");
+                var el=document.createElement("a");el.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));el.download="results_"+sess.name.replace(/\s+/g,"_")+"_"+(sess.date||"").replace(/\s+/g,"")+".csv";el.click();
+              }} style={{background:T.accent+"18",border:"1px solid "+T.accent+"44",color:T.accent,borderRadius:3,padding:"3px 8px",cursor:"pointer",fontSize:10,fontWeight:700,fontFamily:"inherit"}}>CSV</button>
+              <button onClick={function(){if(confirm("Delete "+sess.name+"?")){if(onDeleteHistory){var keep=raceResults.filter(function(r){return!((r.meetName||"Session")+"\u2014"+(r.meetDate||"")===key);});onDeleteHistory(keep);}}}} style={{background:"rgba(239,68,68,0.1)",border:"none",color:"#ef4444",borderRadius:3,padding:"3px 8px",cursor:"pointer",fontSize:10,fontWeight:700,fontFamily:"inherit"}}>Delete</button>
               </div>
-              {sess.races.map(function(race){var evClr=EVENT_COLORS[race.event]||"#4a9eff";var runners=(race.runners||[]).slice().sort(function(a,b){return(a.finalTime||999999)-(b.finalTime||999999);});return(<div key={race.id||race.event+race.team} style={{padding:"8px 12px",borderBottom:"1px solid "+C.dim}}>
-                <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
-                  <span style={{fontSize:12,fontWeight:800,color:evClr}}>{race.event}</span>
-                  {race.team?<span style={{fontSize:10,fontWeight:700,color:TEAM_COLORS[race.team]||evClr}}>{race.team}</span>:null}
-                </div>
-                {runners.map(function(r,ri){return(<div key={r.id||ri} style={{display:"flex",alignItems:"center",gap:6,padding:"2px 0"}}>
-                  <span style={{width:18,fontSize:10,fontWeight:700,color:ri===0?evClr:C.muted,textAlign:"center"}}>{ri+1}</span>
-                  <span style={{flex:1,fontSize:11,fontWeight:ri===0?700:500,color:ri===0?evClr:"#aaa"}}>{r.name}</span>
-                  {(r.splits||[]).length>1?(r.splits||[]).slice(0,-1).map(function(s,si){return <span key={si} style={{fontSize:10,color:C.muted,fontFamily:"'Share Tech Mono',monospace",width:50,textAlign:"center"}}>{fmtSplit(s.split)}</span>;}):null}
-                  <span style={{fontSize:12,fontWeight:800,color:ri===0?C.greenLight:"#aaa",fontFamily:"'Share Tech Mono',monospace",minWidth:60,textAlign:"right"}}>{r.finalTime?fmtTime(r.finalTime):"--"}</span>
-                </div>);})}
+            </div>
+            {sess.races.map(function(race){var evClr=EVENT_COLORS[race.event]||T.accent;var runners=(race.runners||[]).slice().sort(function(a,b){return(a.finalTime||999999)-(b.finalTime||999999);});return(<div key={race.id||race.event+race.team} style={{padding:"8px 12px",borderBottom:"1px solid "+T.dim}}>
+              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}><span style={{fontSize:12,fontWeight:800,color:evClr}}>{race.event}</span>{race.team?<span style={{fontSize:10,fontWeight:700,color:TEAM_COLORS[race.team]||evClr}}>{race.team}</span>:null}</div>
+              {runners.map(function(r,ri){return(<div key={r.id||ri} style={{display:"flex",alignItems:"center",gap:6,padding:"2px 0"}}><span style={{width:18,fontSize:10,fontWeight:700,color:ri===0?evClr:T.muted,textAlign:"center"}}>{ri+1}</span><span style={{flex:1,fontSize:11,fontWeight:ri===0?700:500,color:ri===0?evClr:T.muted}}>{r.name}</span>
+                {(r.splits||[]).length>1?(r.splits||[]).slice(0,-1).map(function(s,si){return <span key={si} style={{fontSize:13,fontWeight:700,color:T.oldSplit||T.timeClr,fontFamily:"'Share Tech Mono',monospace",width:55,textAlign:"center"}}>{fmtSplit(s.split)}</span>;}):null}
+                <span style={{fontSize:14,fontWeight:800,color:ri===0?"#5ddb6a":T.timeClr,fontFamily:"'Share Tech Mono',monospace",minWidth:65,textAlign:"right"}}>{r.finalTime?fmtTime(r.finalTime):"--"}</span>
               </div>);})}
             </div>);})}
-          </div>:null}
-        </div>
-
+          </div>);})}
+        </div>:null}
       </div>
-    </div>);
-  }
+    </div>
+  </div>);}
 
   /* ── RACE SCREEN ── */
-  return(<div style={{background:C.bg,minHeight:"100vh",fontFamily:"'Barlow Condensed',sans-serif",color:"white"}}>
-    <div style={{padding:"10px 14px",borderBottom:"1px solid "+C.border,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,background:C.bg,zIndex:10}}>
+  return(<div style={{background:T.bg,minHeight:"100vh",fontFamily:"'Barlow Condensed',sans-serif",color:T.text}}>
+    <div style={{padding:"10px 14px",borderBottom:"1px solid "+T.border,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,background:T.bg,zIndex:10}}>
       <div style={{display:"flex",alignItems:"center",gap:8}}>
-        <button onClick={function(){setScreen("setup");}} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:10,fontFamily:"inherit",letterSpacing:2,textTransform:"uppercase",padding:0}}>{"\u2190"} Setup</button>
-        <span style={{fontSize:12,fontWeight:800,color:C.orange,letterSpacing:2,textTransform:"uppercase"}}>{label}</span>
+        <button onClick={function(){setScreen("setup");}} style={{background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:10,fontFamily:"inherit",letterSpacing:2,textTransform:"uppercase",padding:0}}>{"\u2190"} Setup</button>
+        <span style={{fontSize:12,fontWeight:800,color:T.accent,letterSpacing:2,textTransform:"uppercase"}}>{label}</span>
+      </div>
+      <div style={{display:"flex",gap:5}}>
+        {anyHasSplits?<button onClick={submitAllResults} style={{padding:"6px 14px",background:allDone?"#27ae60":T.accent,color:T.bg,border:"none",borderRadius:3,cursor:"pointer",fontSize:12,fontWeight:900,fontFamily:"inherit",letterSpacing:1,textTransform:"uppercase"}}>{allDone?"\u2713 Submit All Results":"Submit Results"}</button>:null}
       </div>
     </div>
     <div style={{padding:"8px 10px"}}>
-      {races.map(function(race){return <RaceCard key={race.id} race={race} rosterMap={rosterMap} paces={fbPaces} onUpdateRace={updateRace} onFinishRace={handleFinishRace} splitLabel={label} C={C}/>;})}</div>
+      {races.map(function(race){return <RaceCard key={race.id} race={race} rosterMap={rosterMap} paces={fbPaces} onUpdateRace={updateRace} splitLabel={label} T={T}/>;})}</div>
   </div>);
 }
