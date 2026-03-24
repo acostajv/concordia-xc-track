@@ -2675,7 +2675,7 @@ export default function App(){
       </div>):null}
 
       {/* ══════ SPLIT TIMER TAB ══════ */}
-      {view==="splits"?<SplitTimer onRaceFinish={onRaceFinish} meets={meets} />:null}
+      {view==="splits"?<SplitTimer onRaceFinish={onRaceFinish} meets={meets} roster={roster} raceResults={raceResults} />:null}
 
       {/* Daily Summary Modal */}
       {dsMod!==null?(<div style={{position:"fixed",inset:0,zIndex:1100,background:lt?"rgba(255,255,255,0.85)":"rgba(8,18,8,0.85)",backdropFilter:"blur(10px)",display:"flex",alignItems:"center",justifyContent:"center"}} onClick={function(){setDsMod(null);}}>
