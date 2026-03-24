@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { loadData, saveData, loadAthleteData, saveAthleteData, IS_COACH_BUILD } from "./firebase.js";
-import SplitTimer from "./SplitTimer";
 
 var C={green:"#1B5E20",greenLight:"#2E7D32",greenDark:"#0D3B12",gold:"#D4A017",goldLight:"#F0C040",goldBg:"rgba(212,160,23,0.08)",white:"#FFF",tp:"#F0F0EA",ts:"#A8B5A0",tm:"#6B7F65",bgD:"#081208",bgC:"rgba(255,255,255,0.03)",bgH:"rgba(255,255,255,0.07)",bd:"rgba(255,255,255,0.08)"};
 var LS={display:"block",fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:C.tm,marginBottom:5,marginTop:14,fontFamily:"monospace"};
@@ -825,7 +824,6 @@ export default function App(){
           <button onClick={function(){setView("meets");}} style={tabS("meets")}>Meet Schedule ({meets.length})</button>
           <button onClick={function(){setView("rewards");}} style={tabS("rewards")}>{"\u{1F3C6}"} Rewards</button>
           <button onClick={function(){setView("records");}} style={tabS("records")}>Records</button>
-          {cm?<button onClick={function(){setView("splits");}} style={tabS("splits")}>Split Timer</button>:null}
         </div>
       </div>
 
@@ -2081,29 +2079,31 @@ export default function App(){
                       <input value={evData.approxTime} readOnly={!cm} onChange={function(ev){if(cm)upLineup(m.id,evName,"approxTime",ev.target.value);}} placeholder={cm?"e.g. 4:30 PM":"--"} style={Object.assign({},IS,{width:100,padding:"4px 8px",fontSize:11})}/>
                     </div>
                   </div>
-                  {/* Current runners */}
-                  {evData.runners.length>0?(<div style={{marginBottom:6}}>
-                    {evData.runners.map(function(rId,ri){
-                      var ath=roster.find(function(a){return a.id===rId;});
-                      if(!ath)return null;
-                      var aClr=ath.team==="boys"?C.greenLight:C.gold;
-                      var hasPaces=ath.paces&&ath.paces.vo2Safe;
-                      var mRes=(m.results&&m.results[evName]&&m.results[evName][rId])||"";
-                      return(
-                        <div key={ri} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",marginBottom:3,borderRadius:4,background:aClr+"10",border:"1px solid "+aClr+"22"}}>
-                          <span style={{fontSize:11,fontWeight:600,color:aClr,minWidth:80}}>{ath.name}</span>
+                  {/* Boys & Girls lineup */}
+                  {[{label:"Boys",clr:C.greenLight,team:"boys"},{label:"Girls",clr:C.gold,team:"girls"}].map(function(grp){
+                    var teamRunners=evData.runners.filter(function(rId){var a=roster.find(function(x){return x.id===rId;});return a&&a.team===grp.team;});
+                    var available=roster.filter(function(a){return a.team===grp.team&&!evData.runners.some(function(r){return r===a.id;});});
+                    return(<div key={grp.team} style={{marginBottom:6}}>
+                      <div style={{fontSize:10,fontWeight:700,color:grp.clr,textTransform:"uppercase",letterSpacing:1,marginBottom:3}}>{grp.label}</div>
+                      {teamRunners.map(function(rId,ri){
+                        var ath=roster.find(function(a){return a.id===rId;});
+                        if(!ath)return null;
+                        var hasPaces=ath.paces&&ath.paces.vo2Safe;
+                        var mRes=(m.results&&m.results[evName]&&m.results[evName][rId])||"";
+                        return(<div key={ri} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",marginBottom:3,borderRadius:4,background:grp.clr+"10",border:"1px solid "+grp.clr+"22"}}>
+                          <span style={{fontSize:11,fontWeight:600,color:grp.clr,minWidth:80}}>{ath.name}</span>
                           {hasPaces&&(evName==="1600"||evName==="3200")?<span style={{fontSize:10,color:_tm,fontFamily:"monospace"}}>{evName==="3200"&&ath.paces.cv?"CV:"+ath.paces.cv:evName==="1600"&&ath.paces.vo2Safe?"VO2:"+ath.paces.vo2Safe:""}</span>:null}
                           <input value={mRes} readOnly={!cm} onChange={function(ev){if(cm)saveMeetResult(m.id,evName,rId,ev.target.value);}} placeholder={cm?"Result":"--"} style={Object.assign({},IS,{width:80,padding:"3px 6px",fontSize:11,textAlign:"center",background:mRes?"rgba(27,174,96,0.1)":"rgba(255,255,255,0.04)"})}/>
                           {cm?<button onClick={function(){upLineup(m.id,evName,"removeRunner",rId);}} style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:10,padding:"0 2px"}}>x</button>:null}
-                        </div>
-                      );
-                    })}
-                  </div>):null}
-                  {/* Add runner dropdown */}
-                  {cm?(<select onChange={function(ev){if(ev.target.value){upLineup(m.id,evName,"addRunner",ev.target.value);ev.target.value="";}} } style={Object.assign({},IS,{padding:"6px 8px",fontSize:11})} value="">
-                    <option value="">+ Add runner...</option>
-                    {roster.filter(function(a){return!evData.runners.some(function(r){return r===a.id;});}).map(function(a){return <option key={a.id} value={a.id}>{a.name} ({a.team})</option>;})}
-                  </select>):null}
+                        </div>);
+                      })}
+                      {cm?(<select onChange={function(ev){if(ev.target.value){upLineup(m.id,evName,"addRunner",ev.target.value);ev.target.value="";}} } style={Object.assign({},IS,{padding:"4px 8px",fontSize:11,marginTop:2})} value="">
+                        <option value="">+ Add {grp.label.toLowerCase()}...</option>
+                        {available.map(function(a){return <option key={a.id} value={a.id}>{a.name}</option>;})}
+                      </select>):null}
+                      {!cm&&teamRunners.length===0?<div style={{fontSize:10,color:_tm,fontStyle:"italic",padding:"2px 0"}}>None assigned</div>:null}
+                    </div>);
+                  })}
                 </div>
               );
             })}
@@ -2585,8 +2585,6 @@ export default function App(){
           </div>):null}
         </div>
       </div>):null}
-
-      {view==="splits"?<SplitTimer />:null}
 
       {/* Daily Summary Modal */}
       {dsMod!==null?(<div style={{position:"fixed",inset:0,zIndex:1100,background:lt?"rgba(255,255,255,0.85)":"rgba(8,18,8,0.85)",backdropFilter:"blur(10px)",display:"flex",alignItems:"center",justifyContent:"center"}} onClick={function(){setDsMod(null);}}>
