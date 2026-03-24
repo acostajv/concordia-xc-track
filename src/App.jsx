@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { loadData, saveData, loadAthleteData, saveAthleteData, IS_COACH_BUILD } from "./firebase.js";
+import SplitTimer from "./SplitTimer";
 
 var C={green:"#1B5E20",greenLight:"#2E7D32",greenDark:"#0D3B12",gold:"#D4A017",goldLight:"#F0C040",goldBg:"rgba(212,160,23,0.08)",white:"#FFF",tp:"#F0F0EA",ts:"#A8B5A0",tm:"#6B7F65",bgD:"#081208",bgC:"rgba(255,255,255,0.03)",bgH:"rgba(255,255,255,0.07)",bd:"rgba(255,255,255,0.08)"};
 var LS={display:"block",fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:C.tm,marginBottom:5,marginTop:14,fontFamily:"monospace"};
@@ -58,7 +59,7 @@ function ini(name){var p=name.trim().split(/\s+/);return p.length>=2?p[0].charAt
 function genPin(){return String(Math.floor(1000+Math.random()*9000));}
 function fmtMD(ds){var p=ds.split("-");var d=new Date(parseInt(p[0]),parseInt(p[1])-1,parseInt(p[2]));return["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d.getDay()]+", "+MO[d.getMonth()]+" "+d.getDate();}
 
-var SK="track-v14",RK="roster-v3",MK="meets-v2",AK="announce-v1",TK="templates-v1",THK="theme-v1",MYK="mypaces-v1",SRK="schoolrecs-v1",WLK="wlog-v1",CPK="custompresets-v1",RTK="routines-v1",GDK="guide-v1",QAK="qa-v1";
+var SK="track-v14",RK="roster-v3",MK="meets-v2",AK="announce-v1",TK="templates-v1",THK="theme-v1",MYK="mypaces-v1",SRK="schoolrecs-v1",WLK="wlog-v1",CPK="custompresets-v1",RTK="routines-v1",GDK="guide-v1",QAK="qa-v1",RRK="raceresults-v1";
 var ROUTINE_CATS=[
   {id:"core",label:"Core",icon:"\uD83E\uDDBB",color:"#E74C3C",desc:"Core strength and stability exercises"},
   {id:"hip",label:"Hip Strength",icon:"\uD83E\uDDBF",color:"#3498DB",desc:"Hip and glute strengthening for injury prevention"},
@@ -328,6 +329,7 @@ export default function App(){
   var _qa=useState([]);var qaData=_qa[0];var setQaData=_qa[1];
   var _qaInput=useState("");var qaInput=_qaInput[0];var setQaInput=_qaInput[1];
   var _rwPeriod=useState("week");var rwPeriod=_rwPeriod[0];var setRwPeriod=_rwPeriod[1];
+  var _rr=useState([]);var raceResults=_rr[0];var setRaceResults=_rr[1];
   var _dtl=useState(null);var detail=_dtl[0];var setDetail=_dtl[1]; /* athlete workout detail */
   var _myA=useState("");var myAth=_myA[0];var setMyAth=_myA[1]; /* My Paces athlete id */
   var _aph=useState({});var athPhotos=_aph[0];var setAthPhotos=_aph[1];
@@ -378,6 +380,8 @@ export default function App(){
       }});
     }));
   }
+  function fmtTime(ms){if(ms<0)ms=0;var m=Math.floor(ms/60000);var s=Math.floor((ms%60000)/1000);var cs=Math.floor((ms%1000)/10);return(m<10?"0":"")+m+":"+(s<10?"0":"")+s+"."+(cs<10?"0":"")+cs;}
+  function fmtSplit(ms){if(ms<0)ms=0;if(ms<60000){var s2=Math.floor(ms/1000);var cs2=Math.floor((ms%1000)/10);return s2+"."+(cs2<10?"0":"")+cs2;}return fmtTime(ms);}
   var EVTS=["4x800","800","1600","3200"];
   function upLineup(meetId,evtName,field,val){
     upM(meets.map(function(m){
@@ -470,6 +474,7 @@ export default function App(){
       });
       if(r[9])setRoutines(r[9]);
       if(r[10])setGuideSections(r[10]);
+      loadAthleteData("raceresults-v1").then(function(raw){if(raw){try{setRaceResults(JSON.parse(raw));}catch(e){}}});
       loadAthleteData("qa-v1").then(function(raw){if(raw){try{setQaData(JSON.parse(raw));}catch(e){}}});
       setLoaded(true);
     });
@@ -603,6 +608,18 @@ export default function App(){
     return all;
   }
   function upGuide(g){setGuideSections(g);sv1(GDK,g);}
+  function upRR(results){setRaceResults(results);saveAthleteData("raceresults-v1",JSON.stringify(results));}
+  function onRaceFinish(raceData){
+    /* raceData: {meetId, meetName, meetDate, event, team, runners:[{id,name,splits,finalTime}], elapsed} */
+    setRaceResults(function(prev){
+      var n=prev.slice();
+      /* Remove existing result for same meet+event+team */
+      n=n.filter(function(r){return!(r.meetId===raceData.meetId&&r.event===raceData.event&&r.team===raceData.team);});
+      n.push(Object.assign({},raceData,{id:"rr_"+Date.now(),savedAt:Date.now()}));
+      saveAthleteData("raceresults-v1",JSON.stringify(n));
+      return n;
+    });
+  }
   function upQA(q){setQaData(q);saveAthleteData("qa-v1",JSON.stringify(q));}
   function submitQuestion(){if(!qaInput.trim()||!myAth)return;var q=qaData.slice();q.push({id:"q"+Date.now(),athId:myAth,question:qaInput.trim(),ts:Date.now(),answer:"",answerTs:0});upQA(q);setQaInput("");}
   function answerQuestion(qid,answer){upQA(qaData.map(function(q){return q.id===qid?Object.assign({},q,{answer:answer,answerTs:Date.now()}):q;}));}
@@ -824,6 +841,8 @@ export default function App(){
           <button onClick={function(){setView("meets");}} style={tabS("meets")}>Meet Schedule ({meets.length})</button>
           <button onClick={function(){setView("rewards");}} style={tabS("rewards")}>{"\u{1F3C6}"} Rewards</button>
           <button onClick={function(){setView("records");}} style={tabS("records")}>Records</button>
+          <button onClick={function(){setView("results");}} style={tabS("results")}>Race Results</button>
+          {cm?<button onClick={function(){setView("splits");}} style={tabS("splits")}>{"\u23F1"} Split Timer</button>:null}
         </div>
       </div>
 
@@ -2585,6 +2604,78 @@ export default function App(){
           </div>):null}
         </div>
       </div>):null}
+
+      {/* ══════ RESULTS TAB ══════ */}
+      {view==="results"?(<div>
+        <div style={{fontSize:16,fontWeight:800,color:_tp,marginBottom:4}}>Race Results</div>
+        <div style={{fontSize:11,color:_tm,marginBottom:16}}>Times from meets, recorded by the split timer.</div>
+        {raceResults.length===0?<div style={{textAlign:"center",padding:"40px 20px"}}><div style={{fontSize:14,color:_tm,fontStyle:"italic"}}>No race results yet. Use the Split Timer during a meet to record times.</div></div>:null}
+        {(function(){
+          /* Group results by meet */
+          var byMeet={};
+          raceResults.forEach(function(r){
+            var mk=r.meetId||r.meetName||"Unknown";
+            if(!byMeet[mk])byMeet[mk]={name:r.meetName||"Meet",date:r.meetDate||"",races:[]};
+            byMeet[mk].races.push(r);
+          });
+          /* Sort meets by date desc */
+          var meetKeys=Object.keys(byMeet).sort(function(a,b){return(byMeet[b].date||"").localeCompare(byMeet[a].date||"");});
+          return meetKeys.map(function(mk){
+            var meetGroup=byMeet[mk];
+            /* Sort races within meet: event order then team */
+            var evtOrd={"4x800":0,"800":1,"1600":2,"3200":3};
+            meetGroup.races.sort(function(a,b){
+              var ea=evtOrd[a.event]!==undefined?evtOrd[a.event]:9;
+              var eb=evtOrd[b.event]!==undefined?evtOrd[b.event]:9;
+              if(ea!==eb)return ea-eb;
+              return a.team==="boys"?-1:1;
+            });
+            return(<div key={mk} style={{marginBottom:20}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,paddingBottom:6,borderBottom:"1px solid "+C.bd}}>
+                <div>
+                  <div style={{fontSize:14,fontWeight:700,color:_tp}}>{meetGroup.name}</div>
+                  {meetGroup.date?<div style={{fontSize:11,color:_tm}}>{(function(){var p=meetGroup.date.split("-");return parseInt(p[1])+"/"+parseInt(p[2])+"/"+p[0];})()}</div>:null}
+                </div>
+                {cm?<button onClick={function(){if(confirm("Delete all results for "+meetGroup.name+"?")){upRR(raceResults.filter(function(r){return(r.meetId||r.meetName)!==mk;}));}}} style={{background:"rgba(239,68,68,0.1)",border:"none",color:"#ef4444",borderRadius:4,padding:"3px 8px",cursor:"pointer",fontSize:10}}>Delete Meet</button>:null}
+              </div>
+              {meetGroup.races.map(function(race){
+                var evClr={"800":"#F39C12","1600":"#D4A017","3200":"#27ae60","4x800":"#a855f7"}[race.event]||"#4a9eff";
+                var tClr=race.team==="boys"?C.greenLight:C.gold;
+                var runners=(race.runners||[]).slice().sort(function(a,b){return(a.finalTime||999999)-(b.finalTime||999999);});
+                return(<div key={race.id||race.event+race.team} style={{marginBottom:10,borderRadius:10,border:"1px solid "+C.bd,borderLeft:"3px solid "+evClr,background:lt?"#fff":"rgba(255,255,255,0.02)",overflow:"hidden"}}>
+                  <div style={{padding:"10px 14px",display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{fontSize:14,fontWeight:800,color:evClr}}>{race.event}</span>
+                    <span style={{fontSize:11,fontWeight:700,color:tClr,padding:"1px 8px",borderRadius:3,background:tClr+"18",textTransform:"uppercase",letterSpacing:1}}>{race.team}</span>
+                    <span style={{fontSize:10,color:_tm}}>{runners.length} runners</span>
+                  </div>
+                  <div style={{padding:"0 14px 10px"}}>
+                    {/* Header row */}
+                    <div style={{display:"flex",gap:4,padding:"4px 8px",marginBottom:4}}>
+                      <span style={{width:24,fontSize:9,fontWeight:700,color:_tm}}>Pl</span>
+                      <span style={{flex:1,fontSize:9,fontWeight:700,color:_tm}}>Runner</span>
+                      {runners[0]&&(runners[0].splits||[]).length>1?(runners[0].splits||[]).slice(0,-1).map(function(s,si){return <span key={si} style={{width:65,fontSize:9,fontWeight:700,color:_tm,textAlign:"center"}}>Split {si+1}</span>;}):null}
+                      <span style={{width:75,fontSize:9,fontWeight:700,color:_tm,textAlign:"right"}}>Final</span>
+                    </div>
+                    {runners.map(function(r,ri){
+                      var fmtFinal=r.finalTime?fmtTime(r.finalTime):"--";
+                      var isFirst=ri===0;
+                      return(<div key={r.id} style={{display:"flex",gap:4,alignItems:"center",padding:"5px 8px",marginBottom:2,borderRadius:6,background:isFirst?evClr+"12":"transparent",border:isFirst?"1px solid "+evClr+"33":"1px solid "+C.bd}}>
+                        <span style={{width:24,fontSize:12,fontWeight:800,color:isFirst?evClr:_tm,textAlign:"center"}}>{ri+1}</span>
+                        <span style={{flex:1,fontSize:12,fontWeight:isFirst?700:500,color:isFirst?evClr:_tp,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.name}</span>
+                        {(r.splits||[]).length>1?(r.splits||[]).slice(0,-1).map(function(s,si){return <span key={si} style={{width:65,fontSize:11,fontFamily:"monospace",color:_tm,textAlign:"center"}}>{fmtSplit(s.split)}</span>;}):null}
+                        <span style={{width:75,fontSize:13,fontWeight:800,color:isFirst?evClr:_tp,fontFamily:"monospace",textAlign:"right"}}>{fmtFinal}</span>
+                      </div>);
+                    })}
+                  </div>
+                </div>);
+              })}
+            </div>);
+          });
+        })()}
+      </div>):null}
+
+      {/* ══════ SPLIT TIMER TAB ══════ */}
+      {view==="splits"?<SplitTimer onRaceFinish={onRaceFinish} meets={meets} />:null}
 
       {/* Daily Summary Modal */}
       {dsMod!==null?(<div style={{position:"fixed",inset:0,zIndex:1100,background:lt?"rgba(255,255,255,0.85)":"rgba(8,18,8,0.85)",backdropFilter:"blur(10px)",display:"flex",alignItems:"center",justifyContent:"center"}} onClick={function(){setDsMod(null);}}>
