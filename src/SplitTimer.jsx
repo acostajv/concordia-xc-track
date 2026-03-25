@@ -46,13 +46,34 @@ function RaceCard(props){
   var pauseTimer=function(){
     cancelAnimationFrame(rafRef.current);var now=elapsedRef.current;pausedRef.current=now;setIsRunning(false);
     var ns=Object.assign({},race.splits||{});var nf=Object.assign({},race.finished||{});var changed=false;
-    (race.runnerIds||[]).forEach(function(rid){if(nf[rid])return;var sp=ns[rid]||[];if(sp.length>0){var last=sp[sp.length-1].total;if(now>last+500){ns[rid]=sp.concat([{split:now-last,total:now}]);nf[rid]=true;changed=true;}}});
+    if(isRelay){
+      /* For relay STOP: record split for active leg runner */
+      if(activeLeg>=0&&activeLeg<(race.runnerIds||[]).length){
+        var rid=race.runnerIds[activeLeg];
+        if(!nf[rid]){
+          var legStart=0;
+          if(activeLeg>0){var prevRid=race.runnerIds[activeLeg-1];var prevSp=ns[prevRid]||[];if(prevSp.length>0)legStart=prevSp[prevSp.length-1].total;}
+          ns[rid]=[{split:now-legStart,total:now}];nf[rid]=true;changed=true;
+        }
+      }
+    } else {
+      (race.runnerIds||[]).forEach(function(rid){if(nf[rid])return;var sp=ns[rid]||[];if(sp.length>0){var last=sp[sp.length-1].total;if(now>last+500){ns[rid]=sp.concat([{split:now-last,total:now}]);nf[rid]=true;changed=true;}}});
+    }
     onUpdateRace(race.id,{elapsed:now,status:"paused",splits:changed?ns:race.splits,finished:nf});
   };
   var finishRace=function(){
     cancelAnimationFrame(rafRef.current);var now=elapsedRef.current;pausedRef.current=now;setIsRunning(false);
     var ns=Object.assign({},race.splits||{});var nf=Object.assign({},race.finished||{});
-    (race.runnerIds||[]).forEach(function(rid){if(nf[rid])return;var sp=ns[rid]||[];if(sp.length>0){var last=sp[sp.length-1].total;if(now>last+500){ns[rid]=sp.concat([{split:now-last,total:now}]);}}nf[rid]=true;});
+    if(isRelay){
+      if(activeLeg>=0&&activeLeg<(race.runnerIds||[]).length){
+        var rid=race.runnerIds[activeLeg];
+        if(!nf[rid]){var legStart=0;if(activeLeg>0){var prevRid=race.runnerIds[activeLeg-1];var prevSp=ns[prevRid]||[];if(prevSp.length>0)legStart=prevSp[prevSp.length-1].total;}ns[rid]=[{split:now-legStart,total:now}];}nf[rid]=true;
+      }
+      /* Mark all remaining as finished */
+      (race.runnerIds||[]).forEach(function(rid){nf[rid]=true;});
+    } else {
+      (race.runnerIds||[]).forEach(function(rid){if(nf[rid])return;var sp=ns[rid]||[];if(sp.length>0){var last=sp[sp.length-1].total;if(now>last+500){ns[rid]=sp.concat([{split:now-last,total:now}]);}}nf[rid]=true;});
+    }
     onUpdateRace(race.id,{status:"done",elapsed:now,splits:ns,finished:nf});
   };
   var resetRace=function(){cancelAnimationFrame(rafRef.current);setIsRunning(false);setElapsed(0);elapsedRef.current=0;pausedRef.current=0;onUpdateRace(race.id,{elapsed:0,splits:{},status:"ready",finished:{}});};
@@ -60,11 +81,32 @@ function RaceCard(props){
 
   var splitsToFinish=getSplitsToFinish(race.event,splitLabel);
   var finishedMap=race.finished||{};
+  var isRelay=race.event==="4x800";
+  /* For relay: figure out which leg is active */
+  var activeLeg=-1;
+  if(isRelay){
+    for(var li=0;li<(race.runnerIds||[]).length;li++){
+      if(!finishedMap[race.runnerIds[li]]){activeLeg=li;break;}
+    }
+  }
   var recordSplit=function(rid){var now=elapsedRef.current;if(now===0&&!isRunning)return;if(finishedMap[rid])return;
-    var prev=(race.splits||{})[rid]||[];var last=prev.length>0?prev[prev.length-1].total:0;
-    var ns=Object.assign({},race.splits||{});ns[rid]=prev.concat([{split:now-last,total:now}]);
-    var nf=Object.assign({},finishedMap);if(splitsToFinish>0&&ns[rid].length>=splitsToFinish)nf[rid]=true;
-    onUpdateRace(race.id,{splits:ns,status:"running",finished:nf});
+    if(isRelay){
+      /* Relay: tapping the active leg runner records their split and marks them done */
+      var legIdx=(race.runnerIds||[]).indexOf(rid);
+      if(legIdx!==activeLeg)return;/* Only active leg is tappable */
+      var prev=(race.splits||{})[rid]||[];
+      var legStart=0;/* Leg starts at previous leg's finish time */
+      if(legIdx>0){var prevRid=race.runnerIds[legIdx-1];var prevSp=(race.splits||{})[prevRid]||[];if(prevSp.length>0)legStart=prevSp[prevSp.length-1].total;}
+      var ns=Object.assign({},race.splits||{});
+      ns[rid]=[{split:now-legStart,total:now}];/* One split per leg = their 800 time + cumulative */
+      var nf=Object.assign({},finishedMap);nf[rid]=true;
+      onUpdateRace(race.id,{splits:ns,status:"running",finished:nf});
+    } else {
+      var prev=(race.splits||{})[rid]||[];var last=prev.length>0?prev[prev.length-1].total:0;
+      var ns=Object.assign({},race.splits||{});ns[rid]=prev.concat([{split:now-last,total:now}]);
+      var nf=Object.assign({},finishedMap);if(splitsToFinish>0&&ns[rid].length>=splitsToFinish)nf[rid]=true;
+      onUpdateRace(race.id,{splits:ns,status:"running",finished:nf});
+    }
     setFlashMap(function(p){var n=Object.assign({},p);n[rid]=true;return n;});setTimeout(function(){setFlashMap(function(p){var n=Object.assign({},p);n[rid]=false;return n;});},350);
   };
 
@@ -98,18 +140,22 @@ function RaceCard(props){
     </div>
     <div style={{padding:"6px"}}>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4}}>
-        {runners.map(function(ath){var sp=(race.splits||{})[ath.id]||[];var last=sp[sp.length-1];var flash=flashMap[ath.id];var hasSp=sp.length>0;var isFin=!!finishedMap[ath.id];var canClick=(isRunning||elapsed>0)&&!isDone&&!isFin;var p=paces[ath.name]||{};
-          return(<button key={ath.id} onClick={function(){if(canClick)recordSplit(ath.id);}} style={{width:"100%",padding:"8px 10px",background:flash?"#0c1f0e":T.card,border:"1px solid "+(flash?"#2d7a35":isFin?"#27ae6044":hasSp?"#1a2e1a":T.border),borderTop:"2px solid "+(isFin?"#27ae60":flash?"#5ddb6a":hasSp?"#1e4a1e":teamClr+"44"),borderRadius:4,cursor:canClick?"pointer":"default",textAlign:"left",userSelect:"none",fontFamily:"inherit",display:"flex",flexDirection:"column",gap:2,opacity:isFin&&!flash?0.7:1}}>
+        {runners.map(function(ath,athIdx){var sp=(race.splits||{})[ath.id]||[];var last=sp[sp.length-1];var flash=flashMap[ath.id];var hasSp=sp.length>0;var isFin=!!finishedMap[ath.id];
+          var isActiveLeg=isRelay&&athIdx===activeLeg;
+          var canClick=isRelay?isActiveLeg&&(isRunning||elapsed>0)&&!isDone:(isRunning||elapsed>0)&&!isDone&&!isFin;
+          var p=paces[ath.name]||{};
+          var legNum=isRelay?athIdx+1:0;
+          return(<button key={ath.id} onClick={function(){if(canClick)recordSplit(ath.id);}} style={{width:"100%",padding:"8px 10px",background:flash?"#0c1f0e":T.card,border:"1px solid "+(flash?"#2d7a35":isFin?"#27ae6044":hasSp?"#1a2e1a":T.border),borderTop:"2px solid "+(isFin?"#27ae60":flash?"#5ddb6a":hasSp?"#1e4a1e":teamClr+"44"),borderRadius:4,cursor:canClick?"pointer":"default",textAlign:"left",userSelect:"none",fontFamily:"inherit",display:"flex",flexDirection:"column",gap:2,opacity:isFin&&!flash?0.6:(isRelay&&!isActiveLeg&&!isFin)?0.4:1}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:4}}>
               <span style={{fontSize:16,fontWeight:800,color:flash?"#5ddb6a":isFin?"#27ae60":T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",flex:1,minWidth:0,lineHeight:1.1}}>{ath.name}</span>
               <span style={{fontSize:18,fontWeight:900,lineHeight:1,color:hasSp?(flash?"#5ddb6a":isFin?"#27ae60":T.accent):T.dim,flexShrink:0}}>{sp.length}</span>
             </div>
-            <div style={{minHeight:22}}>{last?<div style={{display:"flex",alignItems:"baseline",gap:5}}><span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:19,fontWeight:800,color:flash?"#5ddb6a":isFin?"#27ae60":T.splitClr}}>{fmtSplit(last.split)}</span><span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:13,fontWeight:700,color:T.timeClr}}>{fmtTime(last.total)}</span></div>:<span style={{fontSize:9,color:isFin?"#27ae60":T.dim}}>{isFin?"\u2713 FINISHED":canClick?"tap to split":""}</span>}</div>
+            <div style={{minHeight:22}}>{last?<div style={{display:"flex",alignItems:"baseline",gap:5}}><span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:19,fontWeight:800,color:flash?"#5ddb6a":isFin?"#27ae60":T.splitClr}}>{fmtSplit(last.split)}</span><span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:13,fontWeight:700,color:T.timeClr}}>{fmtTime(last.total)}</span></div>:<span style={{fontSize:9,color:isFin?"#27ae60":isActiveLeg?T.accent:T.dim}}>{isFin?"\u2713 FINISHED":isActiveLeg?"\u25B6 ACTIVE LEG":isRelay&&!isFin?"waiting":canClick?"tap to split":""}</span>}</div>
             {(p.thrSafe||p.cv||p.vo2Safe)?<div style={{display:"flex",flexWrap:"wrap",gap:3,marginTop:1}}>{p.thrSafe?<PacePill label="T" value={p.thrSafe} color="#f0a500"/>:null}{p.cv?<PacePill label="CV" value={p.cv} color="#4a9eff"/>:null}{p.vo2Safe?<PacePill label="V2" value={p.vo2Safe} color="#e84393"/>:null}</div>:null}
           </button>);
         })}
       </div>
-      {hasSplits?<div style={{marginTop:8}}><div style={{fontSize:9,letterSpacing:3,color:T.muted,textTransform:"uppercase",marginBottom:4}}>Split Log</div>
+      {hasSplits?<div style={{marginTop:8}}><div style={{fontSize:9,letterSpacing:3,color:T.muted,textTransform:"uppercase",marginBottom:4}}>{isRelay?"Relay Legs":"Split Log"}</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4}}>
           {runners.filter(function(a){return((race.splits||{})[a.id]||[]).length>0;}).map(function(ath){var sp=(race.splits||{})[ath.id];return(<div key={ath.id} style={{background:T.timerBg,border:"1px solid "+T.border,borderTop:"2px solid "+teamClr+"33",borderRadius:4,padding:"6px 8px"}}>
             <div style={{fontSize:11,fontWeight:700,color:evClr,marginBottom:3}}>{ath.name}</div>

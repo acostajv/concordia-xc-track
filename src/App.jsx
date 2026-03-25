@@ -391,6 +391,7 @@ export default function App(){
       if(field==="approxTime")ev.approxTime=val;
       else if(field==="addRunner"&&val)ev.runners=ev.runners.concat([val]);
       else if(field==="removeRunner")ev.runners=ev.runners.filter(function(r){return r!==val;});
+      else if(field==="reorder")ev.runners=val;
       lu[evtName]=ev;return Object.assign({},m,{lineup:lu});
     }));
   }
@@ -2110,15 +2111,25 @@ export default function App(){
                         if(!ath)return null;
                         var hasPaces=ath.paces&&ath.paces.vo2Safe;
                         var mRes=(m.results&&m.results[evName]&&m.results[evName][rId])||"";
+                        var isRelay=evName==="4x800";
+                        var legLabel=isRelay?"Leg "+(ri+1):"";
                         return(<div key={ri} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",marginBottom:3,borderRadius:4,background:grp.clr+"10",border:"1px solid "+grp.clr+"22"}}>
+                          {isRelay?<span style={{fontSize:10,fontWeight:800,color:evColor,fontFamily:"monospace",minWidth:38}}>{legLabel}</span>:null}
                           <span style={{fontSize:11,fontWeight:600,color:grp.clr,minWidth:80}}>{ath.name}</span>
                           {hasPaces&&(evName==="1600"||evName==="3200")?<span style={{fontSize:10,color:_tm,fontFamily:"monospace"}}>{evName==="3200"&&ath.paces.cv?"CV:"+ath.paces.cv:evName==="1600"&&ath.paces.vo2Safe?"VO2:"+ath.paces.vo2Safe:""}</span>:null}
                           <input value={mRes} readOnly={!cm} onChange={function(ev){if(cm)saveMeetResult(m.id,evName,rId,ev.target.value);}} placeholder={cm?"Result":"--"} style={Object.assign({},IS,{width:80,padding:"3px 6px",fontSize:11,textAlign:"center",background:mRes?"rgba(27,174,96,0.1)":"rgba(255,255,255,0.04)"})}/>
+                          {cm&&isRelay&&ri>0?<button onClick={function(){
+                            /* Move runner up one leg */
+                            var runners=evData.runners.slice();
+                            var teamIds=runners.filter(function(r){var a2=roster.find(function(x){return x.id===r;});return a2&&a2.team===grp.team;});
+                            var globalIdx=runners.indexOf(rId);var prevTeamId=teamIds[teamIds.indexOf(rId)-1];var prevGlobalIdx=runners.indexOf(prevTeamId);
+                            if(globalIdx>=0&&prevGlobalIdx>=0){runners[globalIdx]=prevTeamId;runners[prevGlobalIdx]=rId;upLineup(m.id,evName,"reorder",runners);}
+                          }} style={{background:"none",border:"none",color:_tm,cursor:"pointer",fontSize:10,padding:"0 2px"}}>{"↑"}</button>:null}
                           {cm?<button onClick={function(){upLineup(m.id,evName,"removeRunner",rId);}} style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:10,padding:"0 2px"}}>x</button>:null}
                         </div>);
                       })}
-                      {cm?(<select onChange={function(ev){if(ev.target.value){upLineup(m.id,evName,"addRunner",ev.target.value);ev.target.value="";}} } style={Object.assign({},IS,{padding:"4px 8px",fontSize:11,marginTop:2})} value="">
-                        <option value="">+ Add {grp.label.toLowerCase()}...</option>
+                      {cm&&(evName!=="4x800"||teamRunners.length<4)?(<select onChange={function(ev){if(ev.target.value){upLineup(m.id,evName,"addRunner",ev.target.value);ev.target.value="";}} } style={Object.assign({},IS,{padding:"4px 8px",fontSize:11,marginTop:2})} value="">
+                        <option value="">{evName==="4x800"?"+ Leg "+(teamRunners.length+1)+" runner...":"+ Add "+grp.label.toLowerCase()+"..."}</option>
                         {available.map(function(a){return <option key={a.id} value={a.id}>{a.name}</option>;})}
                       </select>):null}
                       {!cm&&teamRunners.length===0?<div style={{fontSize:10,color:_tm,fontStyle:"italic",padding:"2px 0"}}>None assigned</div>:null}
@@ -2178,12 +2189,15 @@ export default function App(){
         <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
           <div style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:10,height:10,borderRadius:2,background:"#E74C3C",display:"inline-block"}}/><span style={{fontSize:10,color:_tm}}>Workout Log</span></div>
           <div style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:10,height:10,borderRadius:2,background:"#3498DB",display:"inline-block"}}/><span style={{fontSize:10,color:_tm}}>Pre-Practice</span></div>
+          <div style={{display:"flex",alignItems:"center",gap:4,marginLeft:8}}><span style={{fontSize:10,color:_tm}}>Numbers by name =</span><span style={{fontSize:9,color:"#E74C3C",fontWeight:700}}>total logs</span><span style={{fontSize:9,color:"#3498DB",fontWeight:700}}>total check-ins</span><span style={{fontSize:10,color:_tm}}>(all-time)</span></div>
         </div>
         {(function(){
           var all=roster.filter(function(a){return a.name!=="Mr. Acosta"&&a.name!=="Coach Acosta";}).map(function(a){
             var c=getConsistency(a.id,rwPeriod);
+            var overall=rwPeriod==="overall"?c:getConsistency(a.id,"overall");
             return{id:a.id,name:a.name,team:a.team,photo:a.photo,
               logPct:c.logPct,checkinPct:c.checkinPct,
+              totalLogs:overall.logDays,totalCheckins:overall.checkinDays,
               sLog:getStreak(a.id,"log"),sCheckin:getStreak(a.id,"checkin"),
               badges:getWeekBadges(a.id)};
           }).sort(function(x,y){return y.logPct-x.logPct||y.checkinPct-x.checkinPct||y.sLog-x.sLog;});
@@ -2198,12 +2212,16 @@ export default function App(){
                     <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
                       <div style={{width:22,fontSize:13,fontWeight:800,color:i===0?grp.clr:_tm,textAlign:"center"}}>{i+1}</div>
                       {a.photo?<img src={a.photo} style={{width:28,height:28,borderRadius:6,objectFit:"cover"}}/>:null}
-                      <div style={{flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:12,fontWeight:i===0?700:500,color:i===0?grp.clr:_tp}}>{a.name}</div>
+                      <div style={{flex:1,minWidth:0,display:"flex",alignItems:"baseline",gap:6}}>
+                        <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:12,fontWeight:i===0?700:500,color:i===0?grp.clr:_tp}}>{a.name}</span>
+                        <span style={{fontSize:9,color:"#E74C3C",fontWeight:700,flexShrink:0}}>{a.totalLogs}</span>
+                        <span style={{fontSize:9,color:"#3498DB",fontWeight:700,flexShrink:0}}>{a.totalCheckins}</span>
+                      </div>
                       <div style={{display:"flex",gap:4,alignItems:"center",flexShrink:0}}>
-                        {a.badges>0?<span style={{fontSize:10,color:C.gold,fontWeight:700}}>⭐{a.badges}</span>:null}
+                        {a.badges>0?<span style={{fontSize:10,color:C.gold,fontWeight:700}}>{"\u2B50"}{a.badges}</span>:null}
                       </div>
                     </div>
-                    {/* 3 percentage bars */}
+                    {/* Percentage bars */}
                     <div style={{display:"flex",gap:6}}>
                       {[{label:"Log",pct:a.logPct,clr:"#E74C3C",streak:a.sLog},{label:"Check-in",pct:a.checkinPct,clr:"#3498DB",streak:a.sCheckin}].map(function(col){
                         var pClr=col.pct>=80?"#27AE60":col.pct>=50?"#D4A017":col.pct>=20?"#E67E22":"#E74C3C";
@@ -2215,9 +2233,21 @@ export default function App(){
                           <div style={{height:6,borderRadius:3,background:lt?"#eee":"rgba(255,255,255,0.06)",overflow:"hidden"}}>
                             <div style={{height:"100%",borderRadius:3,width:Math.max(col.pct,2)+"%",background:col.clr,transition:"width 0.3s"}}/>
                           </div>
-                          {col.streak>=2?<div style={{fontSize:9,color:col.clr,fontWeight:700,marginTop:2}}>🔥{col.streak}d</div>:null}
+                          {col.streak>=2?<div style={{fontSize:9,color:col.clr,fontWeight:700,marginTop:2}}>{"\uD83D\uDD25"}{col.streak}d</div>:null}
                         </div>);
                       })}
+                    </div>
+                    {/* Season totals */}
+                    <div style={{display:"flex",gap:8,marginTop:6,paddingTop:5,borderTop:"1px solid "+C.bd}}>
+                      <div style={{display:"flex",alignItems:"center",gap:3}}>
+                        <span style={{fontSize:9,color:C.gold}}>{"\uD83C\uDFAB"}</span>
+                        <span style={{fontSize:10,fontWeight:700,color:"#E74C3C",fontFamily:"monospace"}}>{a.totalLogs}</span>
+                        <span style={{fontSize:9,color:_tm}}>raffle tickets</span>
+                      </div>
+                      <div style={{display:"flex",alignItems:"center",gap:3}}>
+                        <span style={{fontSize:10,fontWeight:700,color:"#3498DB",fontFamily:"monospace"}}>{a.totalCheckins}</span>
+                        <span style={{fontSize:9,color:_tm}}>check-ins</span>
+                      </div>
                     </div>
                   </div>);
                 })}
@@ -2225,6 +2255,52 @@ export default function App(){
             })}
           </div>);
         })()}
+
+        {/* ── Raffle Ticket Log ── */}
+        <div style={{marginTop:20}}>
+          <div style={{fontSize:18,fontWeight:800,color:C.gold,marginBottom:8}}>{"\uD83C\uDFAB"} Raffle Ticket Log</div>
+          <div style={{fontSize:12,color:_tm,marginBottom:12}}>Each workout log = 1 raffle ticket. Check-ins used as tiebreaker for monthly baked goods reward.</div>
+          {(function(){
+            var all=roster.filter(function(a){return a.name!=="Mr. Acosta"&&a.name!=="Coach Acosta";}).map(function(a){
+              var ov=getConsistency(a.id,"overall");
+              return{id:a.id,name:a.name,team:a.team,logs:ov.logDays,checkins:ov.checkinDays};
+            }).sort(function(x,y){return y.logs-x.logs||y.checkins-x.checkins;});
+            var teamTotals={boys:{logs:0,checkins:0,count:0},girls:{logs:0,checkins:0,count:0}};
+            all.forEach(function(a){var t=teamTotals[a.team]||teamTotals.boys;t.logs+=a.logs;t.checkins+=a.checkins;t.count++;});
+            return(<div>
+              <div style={{display:"flex",gap:10,marginBottom:14,flexWrap:"wrap"}}>
+                {[{label:"Boys",t:teamTotals.boys,clr:C.greenLight},{label:"Girls",t:teamTotals.girls,clr:C.gold}].map(function(grp){return(<div key={grp.label} style={{flex:1,minWidth:180,padding:"12px 14px",borderRadius:10,background:grp.clr+"10",border:"1px solid "+grp.clr+"33"}}>
+                  <div style={{fontSize:12,fontWeight:700,color:grp.clr,marginBottom:6}}>{grp.label} Team Totals</div>
+                  <div style={{display:"flex",gap:12}}>
+                    <div><div style={{fontSize:22,fontWeight:900,color:"#E74C3C",fontFamily:"monospace"}}>{grp.t.logs}</div><div style={{fontSize:9,color:_tm}}>raffle tickets</div></div>
+                    <div><div style={{fontSize:22,fontWeight:900,color:"#3498DB",fontFamily:"monospace"}}>{grp.t.checkins}</div><div style={{fontSize:9,color:_tm}}>check-ins</div></div>
+                  </div>
+                </div>);})}
+              </div>
+              <div style={{borderRadius:10,border:"1px solid "+C.bd,overflow:"hidden"}}>
+                <div style={{display:"flex",padding:"8px 12px",background:lt?"#f5f6f2":"rgba(255,255,255,0.04)",borderBottom:"1px solid "+C.bd}}>
+                  <span style={{width:30,fontSize:9,fontWeight:700,color:_tm}}>#</span>
+                  <span style={{flex:1,fontSize:9,fontWeight:700,color:_tm}}>Runner</span>
+                  <span style={{width:80,fontSize:9,fontWeight:700,color:"#E74C3C",textAlign:"center"}}>Workout Logs</span>
+                  <span style={{width:80,fontSize:9,fontWeight:700,color:"#3498DB",textAlign:"center"}}>Check-ins</span>
+                </div>
+                {all.map(function(a,i){
+                  var isFirst=i===0;
+                  var tClr=a.team==="boys"?C.greenLight:C.gold;
+                  return(<div key={a.id} style={{display:"flex",alignItems:"center",padding:"6px 12px",borderBottom:"1px solid "+C.bd,background:isFirst?tClr+"08":"transparent"}}>
+                    <span style={{width:30,fontSize:11,fontWeight:700,color:isFirst?tClr:_tm}}>{i+1}</span>
+                    <div style={{flex:1,display:"flex",alignItems:"center",gap:6}}>
+                      <span style={{fontSize:12,fontWeight:isFirst?700:500,color:isFirst?tClr:_tp}}>{a.name}</span>
+                      <span style={{fontSize:9,color:tClr,fontWeight:600}}>{a.team==="boys"?"B":"G"}</span>
+                    </div>
+                    <span style={{width:80,textAlign:"center",fontSize:13,fontWeight:800,color:"#E74C3C",fontFamily:"monospace"}}>{a.logs}</span>
+                    <span style={{width:80,textAlign:"center",fontSize:13,fontWeight:800,color:"#3498DB",fontFamily:"monospace"}}>{a.checkins}</span>
+                  </div>);
+                })}
+              </div>
+            </div>);
+          })()}
+        </div>
       </div>):null}
 
 
@@ -2637,7 +2713,15 @@ export default function App(){
                   <div style={{fontSize:14,fontWeight:700,color:_tp}}>{meetGroup.name}</div>
                   {meetGroup.date?<div style={{fontSize:11,color:_tm}}>{(function(){var p=meetGroup.date.split("-");return parseInt(p[1])+"/"+parseInt(p[2])+"/"+p[0];})()}</div>:null}
                 </div>
+                <div style={{display:"flex",gap:4}}>
+                <button onClick={function(){
+                  var rows=[["Race","Place","Athlete","Team","Split #","Split Time","Final Time"]];
+                  meetGroup.races.forEach(function(race){var evLabel=(race.event||"")+(race.team?" "+race.team:"");var runners=(race.runners||[]).slice().sort(function(a,b){return(a.finalTime||999999)-(b.finalTime||999999);});runners.forEach(function(r,ri){var sp=r.splits||[];if(!sp.length){rows.push([evLabel,ri+1,r.name,r.team||"","","",r.finalTime?fmtTime(r.finalTime):""]);}else{sp.forEach(function(s,si){rows.push([si===0?evLabel:"",si===0?ri+1:"",si===0?r.name:"",si===0?r.team||"":"",si+1,fmtSplit(s.split),si===sp.length-1?fmtTime(s.total):""]);});}});});
+                  var csv=rows.map(function(r){return r.map(function(v){return'"'+v+'"';}).join(",");}).join("\n");
+                  var el=document.createElement("a");el.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));el.download="results_"+meetGroup.name.replace(/\s+/g,"_")+"_"+(meetGroup.date||"")+".csv";el.click();
+                }} style={{background:C.greenLight+"15",border:"1px solid "+C.greenLight+"33",color:C.greenLight,borderRadius:4,padding:"3px 8px",cursor:"pointer",fontSize:10,fontWeight:600}}>CSV</button>
                 {cm?<button onClick={function(){if(confirm("Delete all results for "+meetGroup.name+"?")){upRR(raceResults.filter(function(r){return(r.meetId||r.meetName)!==mk;}));}}} style={{background:"rgba(239,68,68,0.1)",border:"none",color:"#ef4444",borderRadius:4,padding:"3px 8px",cursor:"pointer",fontSize:10}}>Delete Meet</button>:null}
+                </div>
               </div>
               {meetGroup.races.map(function(race){
                 var evClr={"800":"#F39C12","1600":"#D4A017","3200":"#27ae60","4x800":"#a855f7"}[race.event]||"#4a9eff";
