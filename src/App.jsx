@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { loadData, saveData, loadAthleteData, saveAthleteData, IS_COACH_BUILD } from "./firebase.js";
+import { loadData, saveData, loadAthleteData, saveAthleteData, atomicUpdateAthleteData, IS_COACH_BUILD } from "./firebase.js";
 import SplitTimer from "./SplitTimer";
 
 var C={green:"#1B5E20",greenLight:"#2E7D32",greenDark:"#0D3B12",gold:"#D4A017",goldLight:"#F0C040",goldBg:"rgba(212,160,23,0.08)",white:"#FFF",tp:"#F0F0EA",ts:"#A8B5A0",tm:"#6B7F65",bgD:"#081208",bgC:"rgba(255,255,255,0.03)",bgH:"rgba(255,255,255,0.07)",bd:"rgba(255,255,255,0.08)"};
@@ -59,6 +59,18 @@ function ini(name){var p=name.trim().split(/\s+/);return p.length>=2?p[0].charAt
 function genPin(){return String(Math.floor(1000+Math.random()*9000));}
 function fmtMD(ds){var p=ds.split("-");var d=new Date(parseInt(p[0]),parseInt(p[1])-1,parseInt(p[2]));return["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d.getDay()]+", "+MO[d.getMonth()]+" "+d.getDate();}
 
+var APP_THEMES={
+  dark:{name:"Dark",light:false,bg:"#081208",bgEnd:"#0B1F0E",hdr:"#0D3B12",card:"rgba(255,255,255,0.03)",cardH:"rgba(255,255,255,0.07)",bd:"rgba(255,255,255,0.08)",ibg:"rgba(255,255,255,0.06)",modal:"#111f14",tp:"#F0F0EA",ts:"#A8B5A0",tm:"#6B7F65",scroll:"255,255,255,0.1",opt:"#111f14",ph:"#5a6e55"},
+  midnight:{name:"Midnight",light:false,bg:"#0a0e1a",bgEnd:"#0f1526",hdr:"#0c1030",card:"rgba(255,255,255,0.03)",cardH:"rgba(255,255,255,0.07)",bd:"rgba(120,136,184,0.15)",ibg:"rgba(255,255,255,0.06)",modal:"#0f1526",tp:"#e0e4f0",ts:"#8898c0",tm:"#5a6a90",scroll:"255,255,255,0.1",opt:"#0f1526",ph:"#5a6a90"},
+  forest:{name:"Forest",light:false,bg:"#0a100e",bgEnd:"#0e1a14",hdr:"#0c1810",card:"rgba(255,255,255,0.03)",cardH:"rgba(255,255,255,0.07)",bd:"rgba(90,154,104,0.15)",ibg:"rgba(255,255,255,0.06)",modal:"#0e1a14",tp:"#e0f0e8",ts:"#80b090",tm:"#5a8a68",scroll:"255,255,255,0.1",opt:"#0e1a14",ph:"#5a8a68"},
+  ember:{name:"Ember",light:false,bg:"#1a0a0a",bgEnd:"#221010",hdr:"#2a0e0e",card:"rgba(255,255,255,0.03)",cardH:"rgba(255,255,255,0.07)",bd:"rgba(154,96,96,0.15)",ibg:"rgba(255,255,255,0.06)",modal:"#221010",tp:"#ffe8e0",ts:"#c09080",tm:"#9a6060",scroll:"255,255,255,0.1",opt:"#221010",ph:"#9a6060"},
+  ocean:{name:"Ocean",light:false,bg:"#0a1520",bgEnd:"#0e1c2c",hdr:"#0c1828",card:"rgba(255,255,255,0.03)",cardH:"rgba(255,255,255,0.07)",bd:"rgba(85,136,170,0.15)",ibg:"rgba(255,255,255,0.06)",modal:"#0e1c2c",tp:"#e0f0ff",ts:"#80a8c8",tm:"#5588aa",scroll:"255,255,255,0.1",opt:"#0e1c2c",ph:"#5588aa"},
+  slate:{name:"Slate",light:false,bg:"#1e293b",bgEnd:"#273449",hdr:"#1a2435",card:"rgba(255,255,255,0.04)",cardH:"rgba(255,255,255,0.08)",bd:"rgba(138,158,184,0.2)",ibg:"rgba(255,255,255,0.06)",modal:"#273449",tp:"#f1f5f9",ts:"#94a3b8",tm:"#64748b",scroll:"255,255,255,0.1",opt:"#273449",ph:"#64748b"},
+  light:{name:"Light",light:true,bg:"#f4f5f0",bgEnd:"#f4f5f0",hdr:"#e8ede5",card:"#fff",cardH:"#f0f1ec",bd:"rgba(0,0,0,0.1)",ibg:"#f8f9f6",modal:"#fff",tp:"#111a11",ts:"#34432f",tm:"#556b50",scroll:"0,0,0,0.15",opt:"#fff",ph:"#999"},
+  cream:{name:"Cream",light:true,bg:"#fdf8f0",bgEnd:"#fdf8f0",hdr:"#f0e8d8",card:"#fff9f2",cardH:"#f4eee4",bd:"rgba(120,100,60,0.15)",ibg:"#f8f2e8",modal:"#fff9f2",tp:"#2a2018",ts:"#5a4a38",tm:"#8a7a60",scroll:"0,0,0,0.12",opt:"#fff9f2",ph:"#8a7a60"},
+  overcast:{name:"Overcast",light:true,bg:"#e8eaee",bgEnd:"#e8eaee",hdr:"#d4d8e0",card:"#f0f2f5",cardH:"#e4e6ea",bd:"rgba(80,90,110,0.15)",ibg:"#eaecf0",modal:"#f0f2f5",tp:"#1a1e28",ts:"#3a4050",tm:"#6a7488",scroll:"0,0,0,0.12",opt:"#f0f2f5",ph:"#6a7488"},
+  track:{name:"Track Red",light:false,bg:"#8b1a1a",bgEnd:"#a02020",hdr:"#6b1010",card:"rgba(255,255,255,0.08)",cardH:"rgba(255,255,255,0.12)",bd:"rgba(255,255,255,0.15)",ibg:"rgba(255,255,255,0.1)",modal:"#8b1a1a",tp:"#ffffff",ts:"#ffd0c0",tm:"#ffccbb",scroll:"255,255,255,0.15",opt:"#8b1a1a",ph:"#ff9988"},
+};
 var SK="track-v14",RK="roster-v3",MK="meets-v2",AK="announce-v1",TK="templates-v1",THK="theme-v1",MYK="mypaces-v1",SRK="schoolrecs-v1",WLK="wlog-v1",CPK="custompresets-v1",RTK="routines-v1",GDK="guide-v1",QAK="qa-v1",RRK="raceresults-v1";
 var ROUTINE_CATS=[
   {id:"core",label:"Core",icon:"\uD83E\uDDBB",color:"#E74C3C",desc:"Core strength and stability exercises"},
@@ -427,7 +439,7 @@ export default function App(){
       var wlogData=null;try{wlogData=r[6]?JSON.parse(r[6]):null;}catch(e){}
       /* Load per-day wlog docs and merge with legacy single-doc */
       var dayPromises=[];var dayKeys=[];
-      (function(){var d=new Date();for(var i=0;i<60;i++){var dk2=fd(d);dayKeys.push(dk2);dayPromises.push(loadAthleteData("wlog:"+dk2));d.setDate(d.getDate()-1);}})();
+      (function(){var d=new Date();for(var i=0;i<120;i++){var dk2=fd(d);dayKeys.push(dk2);dayPromises.push(loadAthleteData("wlog:"+dk2));d.setDate(d.getDate()-1);}})();
       Promise.all(dayPromises).then(function(dayResults){
         var merged=Object.assign({},wlogData||{});
         var perDayCount=0;
@@ -493,27 +505,62 @@ export default function App(){
   function upWL(nr){setWlog(nr);}
   function saveDayLog(dk,entries){
     setWlog(function(prev){var n=Object.assign({},prev);n[dk]=entries;return n;});
-    saveAthleteData("wlog:"+dk,JSON.stringify(entries));
-  }
-  function freshSaveDayLog(dk,updateFn){
-    loadAthleteData("wlog:"+dk).then(function(raw){
-      var fromFirebase=[];try{fromFirebase=raw?JSON.parse(raw):[];}catch(e){}
-      /* If per-day doc is empty, fall back to local state (legacy data) */
-      var current=fromFirebase.length>0?fromFirebase:(wlog[dk]||[]).slice();
-      var updated=updateFn(current);
-      setWlog(function(prev){var n=Object.assign({},prev);n[dk]=updated;return n;});
-      saveAthleteData("wlog:"+dk,JSON.stringify(updated));
+    atomicUpdateAthleteData("wlog:"+dk,function(){ return entries; }).then(function(ok){
+      if(!ok)console.error("[WLOG] Save failed for",dk);
     });
   }
-  function addLog(dk,entry){freshSaveDayLog(dk,function(cur){return cur.concat([entry]);});}
-  function rmLog(dk,idx){freshSaveDayLog(dk,function(cur){var c=cur.slice();c.splice(idx,1);return c;});}
+  function freshSaveDayLog(dk,updateFn){
+    /* Atomic read-modify-write */
+    atomicUpdateAthleteData("wlog:"+dk,function(current){
+      var arr=Array.isArray(current)?current:(wlog[dk]||[]).slice();
+      return updateFn(arr);
+    }).then(function(ok){
+      if(ok){/* Refresh local state from Firebase */
+        loadAthleteData("wlog:"+dk).then(function(raw){
+          var entries=[];try{entries=raw?JSON.parse(raw):[];}catch(e){}
+          setWlog(function(prev){var n=Object.assign({},prev);n[dk]=entries;return n;});
+        });
+      }else{console.error("[WLOG] freshSave failed for",dk);}
+    });
+  }
+  /* Atomic add: uses transaction so concurrent saves cannot overwrite each other */
+  function addLog(dk,entry){
+    var entryWithId=Object.assign({},entry,{id:entry.id||("log_"+entry.athId+"_"+Date.now()+"_"+Math.random().toString(36).slice(2,6))});
+    /* Optimistic local update */
+    setWlog(function(prev){var n=Object.assign({},prev);n[dk]=(n[dk]||[]).concat([entryWithId]);return n;});
+    /* Atomic transaction: read current, add entry if not duplicate, save */
+    atomicUpdateAthleteData("wlog:"+dk,function(current){
+      var arr=Array.isArray(current)?current:[];
+      var ids={};arr.forEach(function(e){if(e.id)ids[e.id]=true;});
+      if(!ids[entryWithId.id])arr=arr.concat([entryWithId]);
+      return arr;
+    }).then(function(ok){
+      if(ok){/* Sync local with Firebase truth */
+        loadAthleteData("wlog:"+dk).then(function(raw){
+          var entries=[];try{entries=raw?JSON.parse(raw):[];}catch(e){}
+          setWlog(function(prev){var n=Object.assign({},prev);n[dk]=entries;return n;});
+        });
+      }else{console.error("[WLOG] addLog FAILED for",dk,"- entry may be lost!");alert("Save failed! Check your connection and try again.");}
+    });
+  }
+  function rmLog(dk,entryId){
+    /* Optimistic local */
+    setWlog(function(prev){var n=Object.assign({},prev);n[dk]=(n[dk]||[]).filter(function(e){return e.id?e.id!==entryId:true;});return n;});
+    /* Atomic remove */
+    atomicUpdateAthleteData("wlog:"+dk,function(current){
+      var arr=Array.isArray(current)?current:[];
+      return arr.filter(function(e,i){return e.id?e.id!==entryId:i!==entryId;});
+    }).then(function(ok){
+      if(ok){loadAthleteData("wlog:"+dk).then(function(raw){var entries=[];try{entries=raw?JSON.parse(raw):[];}catch(e){}setWlog(function(prev){var n=Object.assign({},prev);n[dk]=entries;return n;});});}
+    });
+  }
   var _logDt=useState("");var logDate=_logDt[0];var setLogDate=_logDt[1];
   function openLogModal(dk,lb){setLogMod({dateKey:dk,dateLbl:lb});setLogDate(dk);setLogAth(myAth||"");setLogDiff(5);setLogMi("");setLogSpl("");setLogNt("");}
   function submitLog(){if(!logMod||!logAth||!logDate)return;addLog(logDate,{athId:logAth,difficulty:logDiff,mileage:parseFloat(logMi)||0,splits:logSpl,notes:logNt,ts:Date.now()});setLogMod(null);}
   function getAthLogs(athId){var logs={};Object.keys(wlog).forEach(function(dk){(wlog[dk]||[]).forEach(function(e){if(e.athId===athId){if(!logs[dk])logs[dk]=[];logs[dk].push(e);}});});return logs;}
   function getWeeklyMileage(athId,weeksBack){var result=[];var now=new Date();for(var w=0;w<weeksBack;w++){var mon=new Date(now);var dow=mon.getDay();mon.setDate(now.getDate()-(dow===0?6:dow-1)-w*7);mon.setHours(0,0,0,0);var total=0;for(var d=0;d<7;d++){var day=new Date(mon);day.setDate(mon.getDate()+d);var dk=fd(day);if(wlog[dk])(wlog[dk]).forEach(function(e){if(e.athId===athId)total+=e.mileage||0;});}var lbl=(mon.getMonth()+1)+"/"+mon.getDate();result.unshift({week:lbl,miles:Math.round(total*10)/10});}return result;}
   function upTpl(t){setTemplates(t);sv1(TK,t);}
-  function togTheme(){var n=theme==="dark"?"light":"dark";setTheme(n);svLocal(THK,n);}
+  function setAppTheme(n){setTheme(n);svLocal(THK,n);}
   function saveMyAth(id){setMyAth(id);svLocal(MYK,id);}
   function pinLogin(){var match=roster.find(function(a){return a.pin&&a.pin===pinEntry;});if(match){saveMyAth(match.id);setPinEntry("");setPinErr("");setMyShow(false);}else{setPinErr("Invalid PIN. Try again or ask your coach.");}}
   function saveTemplate(wo){var nm=prompt("Template name:");if(!nm)return;var t=templates.slice();t.push(Object.assign({},wo,{_tplName:nm,_tplId:"t"+Date.now()}));upTpl(t);}
@@ -566,20 +613,40 @@ export default function App(){
   /* Race Plans */
   function saveRacePlans(id,plans){upR(roster.map(function(a){return a.id===id?Object.assign({},a,{racePlans:plans}):a;}));}
   /* Readiness */
-  function addReadiness(dk,athId,status,note){freshSaveDayLog(dk,function(cur){return cur.filter(function(e){return!(e.type==="readiness"&&e.athId===athId);}).concat([{type:"readiness",athId:athId,status:status,notes:note,ts:Date.now()}]);});}
+  function addReadiness(dk,athId,status,note){
+    var newEntry={type:"readiness",athId:athId,status:status,notes:note,ts:Date.now(),id:"rd_"+athId+"_"+dk};
+    /* Optimistic local */
+    setWlog(function(prev){var n=Object.assign({},prev);n[dk]=(n[dk]||[]).filter(function(e){return!(e.type==="readiness"&&e.athId===athId);}).concat([newEntry]);return n;});
+    /* Atomic: read, replace any existing readiness for this athlete, add new */
+    atomicUpdateAthleteData("wlog:"+dk,function(current){
+      var arr=Array.isArray(current)?current:[];
+      arr=arr.filter(function(e){return!(e.type==="readiness"&&e.athId===athId);});
+      return arr.concat([newEntry]);
+    }).then(function(ok){
+      if(ok){loadAthleteData("wlog:"+dk).then(function(raw){var entries=[];try{entries=raw?JSON.parse(raw):[];}catch(e){}setWlog(function(prev){var n=Object.assign({},prev);n[dk]=entries;return n;});});}
+      else{console.error("[WLOG] addReadiness FAILED");alert("Check-in save failed! Check your connection.");}
+    });
+  }
   function commentOnLog(dk,ts,comment){
-    /* Update local state immediately (no network read) */
     var now=Date.now();
+    /* Optimistic local update */
     setWlog(function(prev){
       var n=Object.assign({},prev);
-      var entries=(n[dk]||[]).map(function(e){
+      n[dk]=(n[dk]||[]).map(function(e){
         if(e.ts===ts)return Object.assign({},e,{coachComment:comment,commentTs:now});
         return e;
       });
-      n[dk]=entries;
-      /* Also save to per-day Firebase doc */
-      saveAthleteData("wlog:"+dk,JSON.stringify(entries));
       return n;
+    });
+    /* Atomic: read, find entry by ts, add comment, save */
+    atomicUpdateAthleteData("wlog:"+dk,function(current){
+      var arr=Array.isArray(current)?current:[];
+      return arr.map(function(e){
+        if(e.ts===ts)return Object.assign({},e,{coachComment:comment,commentTs:now});
+        return e;
+      });
+    }).then(function(ok){
+      if(ok){loadAthleteData("wlog:"+dk).then(function(raw){var entries=[];try{entries=raw?JSON.parse(raw):[];}catch(e){}setWlog(function(prev){var n=Object.assign({},prev);n[dk]=entries;return n;});});}
     });
   }
   function getUnreadComments(athId){
@@ -668,7 +735,10 @@ export default function App(){
       return <div key={i} style={{fontSize:12,color:_ts,lineHeight:1.6}}>{parts}</div>;
     });
   }
-  function deleteReadiness(dk,athId){freshSaveDayLog(dk,function(cur){return cur.filter(function(e){return!(e.type==="readiness"&&e.athId===athId);});});}
+  function deleteReadiness(dk,athId){
+    setWlog(function(prev){var n=Object.assign({},prev);n[dk]=(n[dk]||[]).filter(function(e){return!(e.type==="readiness"&&e.athId===athId);});return n;});
+    freshSaveDayLog(dk,function(cur){return cur.filter(function(e){return!(e.type==="readiness"&&e.athId===athId);});});
+  }
   function getReadiness(dk){return(wlog[dk]||[]).filter(function(e){return e.type==="readiness";});}
   /* ── Streak / Badge / Consistency helpers ── */
   var APP_START="2026-03-19";/* First day app was introduced to team */
@@ -711,7 +781,6 @@ export default function App(){
     var now=new Date();var todayStr=fd(new Date());
     var start,end;
     if(period==="week"){
-      /* Current week Mon-today */
       var dow=now.getDay();var monOff=dow===0?-6:1-dow;
       start=new Date(now);start.setDate(now.getDate()+monOff);start.setHours(0,0,0,0);
       end=new Date(now);end.setHours(23,59,59,999);
@@ -728,25 +797,30 @@ export default function App(){
     var sp=APP_START.split("-");var appStart=new Date(parseInt(sp[0]),parseInt(sp[1])-1,parseInt(sp[2]));
     appStart.setHours(0,0,0,0);
     if(start<appStart)start=appStart;
-    var totalDays=0;var logDays=0;var checkinDays=0;
+    var totalDays=0;var logDays=0;var checkinDays=0;var logEntries=0;var checkinEntries=0;
     var d=new Date(start);
     while(d<=end){
       var dow=d.getDay();
       if(dow>=1&&dow<=6){/* Mon-Sat */
         var dk=fd(d);var entries=wlog[dk]||[];
-        var hasLog=entries.some(function(e){return e.athId===athId&&e.type!=="readiness";});
-        var hasCheckin=entries.some(function(e){return e.athId===athId&&e.type==="readiness";});
+        var dayLogs=entries.filter(function(e){return e.athId===athId&&e.type!=="readiness";});
+        var dayCheckins=entries.filter(function(e){return e.athId===athId&&e.type==="readiness";});
+        var hasLog=dayLogs.length>0;
+        var hasCheckin=dayCheckins.length>0;
         var isToday=(dk===todayStr);
         if(!isToday||(isToday&&(hasLog||hasCheckin))){totalDays++;}
         if(hasLog)logDays++;
         if(hasCheckin)checkinDays++;
+        logEntries+=dayLogs.length;
+        checkinEntries+=dayCheckins.length;
       }
       d.setDate(d.getDate()+1);
     }
     return{
       logPct:totalDays>0?Math.round(logDays/totalDays*100):0,
       checkinPct:totalDays>0?Math.round(checkinDays/totalDays*100):0,
-      totalDays:totalDays,logDays:logDays,checkinDays:checkinDays
+      totalDays:totalDays,logDays:logDays,checkinDays:checkinDays,
+      logEntries:logEntries,checkinEntries:checkinEntries
     };
   }
   var BODY_AREAS=["Left Shin","Right Shin","Left Knee","Right Knee","Left Achilles","Right Achilles","Left Calf","Right Calf","Left Hamstring","Right Hamstring","Left Hip","Right Hip","Lower Back","Left Foot","Right Foot","Other"];
@@ -784,7 +858,7 @@ export default function App(){
     var csv=rows.map(function(r){return r.join(",");}).join("\n");
     var b=new Blob([csv],{type:"text/csv"});var u=URL.createObjectURL(b);var a=document.createElement("a");a.href=u;a.download="race-results.csv";a.click();URL.revokeObjectURL(u);
   }
-  function doImport(ev){var f=ev.target.files[0];if(!f)return;var r=new FileReader();r.onload=function(e2){try{var d=JSON.parse(e2.target.result);if(d.schedule){setSch(d.schedule);sv1(SK,d.schedule);}if(d.roster){setRoster(d.roster);sv1(RK,d.roster);}if(d.meets){setMeets(d.meets);sv1(MK,d.meets);}if(d.announce!==undefined){setAnnounce(d.announce);sv1(AK,d.announce);}if(d.templates){setTemplates(d.templates);sv1(TK,d.templates);}if(d.schoolRecs){setSchoolRecs(d.schoolRecs);sv1(SRK,d.schoolRecs);}if(d.wlog){setWlog(d.wlog);saveAthleteData(WLK,JSON.stringify(d.wlog));}if(d.customPresets){setCustomPresets(d.customPresets);sv1(CPK,d.customPresets);}if(d.routines){setRoutines(d.routines);sv1(RTK,d.routines);}}catch(err){alert("Invalid");}};r.readAsText(f);}
+  function doImport(ev){var f=ev.target.files[0];if(!f)return;var r=new FileReader();r.onload=function(e2){try{var d=JSON.parse(e2.target.result);if(d.schedule){setSch(d.schedule);sv1(SK,d.schedule);}if(d.roster){setRoster(d.roster);sv1(RK,d.roster);}if(d.meets){setMeets(d.meets);sv1(MK,d.meets);}if(d.announce!==undefined){setAnnounce(d.announce);sv1(AK,d.announce);}if(d.templates){setTemplates(d.templates);sv1(TK,d.templates);}if(d.schoolRecs){setSchoolRecs(d.schoolRecs);sv1(SRK,d.schoolRecs);}if(d.wlog){setWlog(d.wlog);Object.keys(d.wlog).forEach(function(dk){if(d.wlog[dk]&&d.wlog[dk].length>0)saveAthleteData("wlog:"+dk,JSON.stringify(d.wlog[dk]));});}if(d.customPresets){setCustomPresets(d.customPresets);sv1(CPK,d.customPresets);}if(d.routines){setRoutines(d.routines);sv1(RTK,d.routines);}}catch(err){alert("Invalid");}};r.readAsText(f);}
   /* Roster helpers */
   function rAdd(){if(!rN.trim())return;var nr=roster.slice();if(rEid){nr=nr.map(function(a){return a.id===rEid?Object.assign({},a,{name:rN,team:rT,grade:rG,events:rE,group:rGrp,pin:rPin||a.pin||genPin()}):a;});}else{nr.push({id:Date.now().toString(),name:rN,team:rT,grade:rG,events:rE,group:rGrp,pin:rPin||genPin(),paces:{},pbs:{},sbs:{},photo:null});}upR(nr);setRN("");setRG("");setRE("");setRGrp("long");setRPin("");setREid(null);setRFormOpen(false);}
   function rCSV(ev){var f=ev.target.files[0];if(!f)return;var r=new FileReader();r.onload=function(e2){var lines=e2.target.result.split("\n");var nr=roster.slice();for(var i=0;i<lines.length;i++){var l=lines[i].trim();if(!l||l.toLowerCase().startsWith("name"))continue;var p=l.split(",");if(p.length<2)continue;var nm=p[0].trim(),tm=(p[1]||"").trim().toLowerCase();if(tm!=="boys"&&tm!=="girls")tm="boys";var gr=(p[4]||"").trim().toLowerCase();if(gr!=="mid"&&gr!=="long")gr="long";nr.push({id:Date.now().toString()+i,name:nm,team:tm,grade:(p[2]||"").trim(),events:(p[3]||"").trim(),group:gr,pin:genPin(),paces:{}});}upR(nr);};r.readAsText(f);}
@@ -801,32 +875,33 @@ export default function App(){
   var tL={conference:"Conference",dual:"Dual/Tri",invitational:"Invitational",away:"Away",true_team:"True Team",meet:"Meet",section:"Section",state:"State"};
   var tabS=function(t){return{padding:"8px 16px",cursor:"pointer",fontSize:11,fontWeight:700,border:"none",background:"transparent",color:view===t?C.tp:C.tm,borderBottom:view===t?"2px solid "+C.greenLight:"2px solid transparent"};};
 
-  var lt=theme==="light";
+  var TH=APP_THEMES[theme]||APP_THEMES.dark;
+  var lt=TH.light;
   /* Theme-aware overrides */
-  var _tp=lt?"#111a11":C.tp;var _ts=lt?"#34432f":C.ts;var _tm=lt?"#556b50":C.tm;
-  var _bg=lt?"#f4f5f0":"linear-gradient(180deg,"+C.bgD+" 0%,#0B1F0E 100%)";
-  var _bgC=lt?"#fff":C.bgC;var _bgH=lt?"#f0f1ec":C.bgH;
-  var _bd=lt?"rgba(0,0,0,0.1)":C.bd;
-  var _ibg=lt?"#f8f9f6":"rgba(255,255,255,0.06)";
-  var _cbg=lt?"#fff":"rgba(255,255,255,0.03)";
-  var _hdrBg=lt?"#e8ede5":"linear-gradient(135deg,"+C.greenDark+","+C.bgD+")";
-  var _modalBg=lt?"#fff":"#111f14";
+  var _tp=TH.tp;var _ts=TH.ts;var _tm=TH.tm;
+  var _bg=lt?TH.bg:"linear-gradient(180deg,"+TH.bg+" 0%,"+TH.bgEnd+" 100%)";
+  var _bgC=TH.card;var _bgH=TH.cardH;
+  var _bd=TH.bd;
+  var _ibg=TH.ibg;
+  var _cbg=TH.card;
+  var _hdrBg=lt?TH.hdr:"linear-gradient(135deg,"+TH.hdr+","+TH.bg+")";
+  var _modalBg=TH.modal;
   /* Shared styles with theme */
   var tIS=Object.assign({},IS,{background:_ibg,border:"1px solid "+_bd,color:_tp});
   var tHB=Object.assign({},hB,{background:lt?"rgba(0,0,0,0.04)":"rgba(255,255,255,0.04)",border:"1px solid "+_bd,color:_ts});
   IS=tIS;hB=tHB;TS=Object.assign({},IS,{minHeight:50,resize:"vertical"});LS=Object.assign({},LS,{color:_tm});
   return(
-    <div style={{minHeight:"100vh",background:lt?"#f4f5f0":"linear-gradient(180deg,"+C.bgD+" 0%,#0B1F0E 100%)",color:lt?"#1a2a1a":C.tp}}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&display=swap');*{box-sizing:border-box;font-family:'Space Grotesk',sans-serif;-webkit-font-smoothing:antialiased}body{line-height:1.5}::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:rgba(${lt?"0,0,0,0.15":"255,255,255,0.1"});border-radius:3px}select option{background:${lt?"#fff":"#111f14"};color:${lt?"#1a2a1a":"#F0F0EA"}}input::placeholder{color:${lt?"#999":"#5a6e55"}}@media print{.no-print{display:none!important}.print-only{display:block!important}body{background:#fff!important;color:#000!important}}@media(max-width:600px){.main-content{padding:10px 14px 24px!important}}`}</style>
+    <div style={{minHeight:"100vh",background:lt?TH.bg:"linear-gradient(180deg,"+TH.bg+" 0%,"+TH.bgEnd+" 100%)",color:TH.tp}}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&display=swap');*{box-sizing:border-box;font-family:'Space Grotesk',sans-serif;-webkit-font-smoothing:antialiased}body{line-height:1.5}::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:rgba(${TH.scroll});border-radius:3px}select option{background:${TH.opt};color:${TH.tp}}input::placeholder{color:${TH.ph}}@media print{.no-print{display:none!important}.print-only{display:block!important}body{background:#fff!important;color:#000!important}}@media(max-width:600px){.main-content{padding:10px 14px 24px!important}}`}</style>
       {/* ── HEADER ── */}
-      <div className="no-print" style={{padding:"12px 24px 0",background:lt?"#e8ede5":"linear-gradient(135deg,"+C.greenDark+","+C.bgD+")"}}>
+      <div className="no-print" style={{padding:"12px 24px 0",background:lt?TH.hdr:"linear-gradient(135deg,"+TH.hdr+","+TH.bg+")"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8,marginBottom:8}}>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
             <div style={{width:36,height:36,borderRadius:8,background:"linear-gradient(135deg,"+C.green+","+C.greenLight+")",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:C.white}}>CA</div>
             <div><div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:3,color:C.gold,}}>Concordia Academy Beacons</div><div style={{fontSize:18,fontWeight:800,color:C.white}}>Distance Training</div></div>
           </div>
           <div style={{display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
-            <button onClick={togTheme} style={Object.assign({},hB,{fontSize:14,padding:"6px 10px"})}>{theme==="dark"?"*":"D"}</button>
+            <select value={theme} onChange={function(ev){setAppTheme(ev.target.value);}} style={{background:lt?TH.cardH:TH.card,border:"1px solid "+_bd,color:_ts,padding:"4px 8px",borderRadius:6,fontFamily:"inherit",fontSize:10,cursor:"pointer"}}>{Object.keys(APP_THEMES).map(function(k){return <option key={k} value={k}>{APP_THEMES[k].name}</option>;})}</select>
             {myAth?(function(){var me=roster.find(function(x){return x.id===myAth;});if(!me)return <button onClick={function(){setMyShow(true);}} style={Object.assign({},hB,{color:C.goldLight})}>Log In</button>;var clr=me.team==="boys"?C.greenLight:C.gold;return(<button onClick={function(){setMyShow(true);}} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 10px 4px 4px",borderRadius:8,background:clr+"18",border:"1px solid "+clr+"33",cursor:"pointer",color:clr}}>
               {me.photo?<img src={me.photo} style={{width:24,height:30,borderRadius:5,objectFit:"cover"}}/>:<div style={{width:24,height:30,borderRadius:5,background:clr+"33",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800}}>{ini(me.name)}</div>}
               <span style={{fontSize:12,fontWeight:700}}>{me.name.split(" ")[0]}</span>
@@ -2197,7 +2272,7 @@ export default function App(){
             var overall=rwPeriod==="overall"?c:getConsistency(a.id,"overall");
             return{id:a.id,name:a.name,team:a.team,photo:a.photo,
               logPct:c.logPct,checkinPct:c.checkinPct,
-              totalLogs:overall.logDays,totalCheckins:overall.checkinDays,
+              totalLogs:overall.logEntries,totalCheckins:overall.checkinEntries,
               sLog:getStreak(a.id,"log"),sCheckin:getStreak(a.id,"checkin"),
               badges:getWeekBadges(a.id)};
           }).sort(function(x,y){return y.logPct-x.logPct||y.checkinPct-x.checkinPct||y.sLog-x.sLog;});
@@ -2263,7 +2338,7 @@ export default function App(){
           {(function(){
             var all=roster.filter(function(a){return a.name!=="Mr. Acosta"&&a.name!=="Coach Acosta";}).map(function(a){
               var ov=getConsistency(a.id,"overall");
-              return{id:a.id,name:a.name,team:a.team,logs:ov.logDays,checkins:ov.checkinDays};
+              return{id:a.id,name:a.name,team:a.team,logs:ov.logEntries,checkins:ov.checkinEntries};
             }).sort(function(x,y){return y.logs-x.logs||y.checkins-x.checkins;});
             var teamTotals={boys:{logs:0,checkins:0,count:0},girls:{logs:0,checkins:0,count:0}};
             all.forEach(function(a){var t=teamTotals[a.team]||teamTotals.boys;t.logs+=a.logs;t.checkins+=a.checkins;t.count++;});
