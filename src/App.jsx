@@ -2191,6 +2191,7 @@ export default function App(){
                         return(<div key={ri} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",marginBottom:3,borderRadius:4,background:grp.clr+"10",border:"1px solid "+grp.clr+"22"}}>
                           {isRelay?<span style={{fontSize:10,fontWeight:800,color:evColor,fontFamily:"monospace",minWidth:38}}>{legLabel}</span>:null}
                           <span style={{fontSize:11,fontWeight:600,color:grp.clr,minWidth:80}}>{ath.name}</span>
+                          {ath.guest?<span style={{fontSize:8,padding:"1px 4px",borderRadius:2,background:_tm+"22",color:_tm,fontWeight:700}}>GUEST</span>:null}
                           {hasPaces&&(evName==="1600"||evName==="3200")?<span style={{fontSize:10,color:_tm,fontFamily:"monospace"}}>{evName==="3200"&&ath.paces.cv?"CV:"+ath.paces.cv:evName==="1600"&&ath.paces.vo2Safe?"VO2:"+ath.paces.vo2Safe:""}</span>:null}
                           <input value={mRes} readOnly={!cm} onChange={function(ev){if(cm)saveMeetResult(m.id,evName,rId,ev.target.value);}} placeholder={cm?"Result":"--"} style={Object.assign({},IS,{width:80,padding:"3px 6px",fontSize:11,textAlign:"center",background:mRes?"rgba(27,174,96,0.1)":"rgba(255,255,255,0.04)"})}/>
                           {cm&&isRelay&&ri>0?<button onClick={function(){
@@ -2207,6 +2208,16 @@ export default function App(){
                         <option value="">{evName==="4x800"?"+ Leg "+(teamRunners.length+1)+" runner...":"+ Add "+grp.label.toLowerCase()+"..."}</option>
                         {available.map(function(a){return <option key={a.id} value={a.id}>{a.name}</option>;})}
                       </select>):null}
+                      {cm&&(evName!=="4x800"||teamRunners.length<4)?(<div style={{display:"flex",gap:4,marginTop:3}}>
+                        <input placeholder={"Add non-roster "+grp.label.toLowerCase().slice(0,-1)+"..."} onKeyDown={function(ev){
+                          if(ev.key==="Enter"&&ev.target.value.trim()){
+                            var nm=ev.target.value.trim();
+                            var guestId="guest_"+grp.team+"_"+Date.now();
+                            var nr=roster.slice();nr.push({id:guestId,name:nm,team:grp.team,grade:"",events:"",group:"",pin:"",paces:{},guest:true});
+                            upR(nr);upLineup(m.id,evName,"addRunner",guestId);ev.target.value="";
+                          }
+                        }} style={Object.assign({},IS,{flex:1,padding:"3px 8px",fontSize:10})}/>
+                      </div>):null}
                       {!cm&&teamRunners.length===0?<div style={{fontSize:10,color:_tm,fontStyle:"italic",padding:"2px 0"}}>None assigned</div>:null}
                     </div>);
                   })}
@@ -2267,7 +2278,7 @@ export default function App(){
           <div style={{display:"flex",alignItems:"center",gap:4,marginLeft:8}}><span style={{fontSize:10,color:_tm}}>Numbers by name =</span><span style={{fontSize:9,color:"#E74C3C",fontWeight:700}}>total logs</span><span style={{fontSize:9,color:"#3498DB",fontWeight:700}}>total check-ins</span><span style={{fontSize:10,color:_tm}}>(all-time)</span></div>
         </div>
         {(function(){
-          var all=roster.filter(function(a){return a.name!=="Mr. Acosta"&&a.name!=="Coach Acosta";}).map(function(a){
+          var all=roster.filter(function(a){return a.name!=="Mr. Acosta"&&a.name!=="Coach Acosta"&&!a.guest;}).map(function(a){
             var c=getConsistency(a.id,rwPeriod);
             var overall=rwPeriod==="overall"?c:getConsistency(a.id,"overall");
             return{id:a.id,name:a.name,team:a.team,photo:a.photo,
@@ -2336,7 +2347,7 @@ export default function App(){
           <div style={{fontSize:18,fontWeight:800,color:C.gold,marginBottom:8}}>{"\uD83C\uDFAB"} Raffle Ticket Log</div>
           <div style={{fontSize:12,color:_tm,marginBottom:12}}>Each workout log = 1 raffle ticket. Check-ins used as tiebreaker for monthly baked goods reward.</div>
           {(function(){
-            var all=roster.filter(function(a){return a.name!=="Mr. Acosta"&&a.name!=="Coach Acosta";}).map(function(a){
+            var all=roster.filter(function(a){return a.name!=="Mr. Acosta"&&a.name!=="Coach Acosta"&&!a.guest;}).map(function(a){
               var ov=getConsistency(a.id,"overall");
               return{id:a.id,name:a.name,team:a.team,logs:ov.logEntries,checkins:ov.checkinEntries};
             }).sort(function(x,y){return y.logs-x.logs||y.checkins-x.checkins;});
@@ -2860,7 +2871,7 @@ export default function App(){
             logs.sort(function(a,b){return getName(a.athId).localeCompare(getName(b.athId));});
             var checkedIn={};checkins.forEach(function(e){checkedIn[e.athId]=true;});
             var logged={};logs.forEach(function(e){logged[e.athId]=true;});
-            var activeRoster=roster.filter(function(a){return a.name!=="Coach Acosta"&&a.name!=="Mr. Acosta";});
+            var activeRoster=roster.filter(function(a){return a.name!=="Coach Acosta"&&a.name!=="Mr. Acosta"&&!a.guest;});
             var missingCheckin=activeRoster.filter(function(a){return!checkedIn[a.id];});
             var missingLog=activeRoster.filter(function(a){return!logged[a.id];});
             return(<div style={{padding:"16px 24px"}}>
