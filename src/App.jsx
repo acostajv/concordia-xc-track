@@ -303,7 +303,9 @@ export default function App(){
   var st4=useState(false);var loaded=st4[0];var setLoaded=st4[1];
   var st5=useState("schedule");var view=st5[0];var setView=st5[1];
   var COACH_PW=IS_COACH_BUILD?"BittenKitten0920!":"";
+  var ASST_PW=IS_COACH_BUILD?"BeaconAsst2026!":"";
   var _cm=useState(function(){try{return localStorage.getItem("cm_auth")==="true"&&IS_COACH_BUILD;}catch(e){return false;}});var cm=_cm[0];var setCm=_cm[1];
+  var _cmRole=useState(function(){try{return localStorage.getItem("cm_role")||"head";}catch(e){return "head";}});var cmRole=_cmRole[0];var setCmRole=_cmRole[1];
   var _cpw=useState("");var cpw=_cpw[0];var setCpw=_cpw[1];
   var _cshow=useState(false);var cShow=_cshow[0];var setCShow=_cshow[1];
   /* New feature states */
@@ -342,6 +344,10 @@ export default function App(){
   var _qaInput=useState("");var qaInput=_qaInput[0];var setQaInput=_qaInput[1];
   var _rwPeriod=useState("week");var rwPeriod=_rwPeriod[0];var setRwPeriod=_rwPeriod[1];
   var _rr=useState([]);var raceResults=_rr[0];var setRaceResults=_rr[1];
+  var _raffleUsed=useState({});var raffleUsed=_raffleUsed[0];var setRaffleUsed=_raffleUsed[1];
+  var _raffleWinner=useState(null);var raffleWinner=_raffleWinner[0];var setRaffleWinner=_raffleWinner[1];
+  var _raffleSpinning=useState(false);var raffleSpinning=_raffleSpinning[0];var setRaffleSpinning=_raffleSpinning[1];
+  var _raffleHistory=useState([]);var raffleHistory=_raffleHistory[0];var setRaffleHistory=_raffleHistory[1];
   var _dtl=useState(null);var detail=_dtl[0];var setDetail=_dtl[1]; /* athlete workout detail */
   var _myA=useState("");var myAth=_myA[0];var setMyAth=_myA[1]; /* My Paces athlete id */
   var _aph=useState({});var athPhotos=_aph[0];var setAthPhotos=_aph[1];
@@ -355,8 +361,8 @@ export default function App(){
   /* Heat calc */var _cHm=useState("");var cHm=_cHm[0];var sCHm=_cHm[1];var _cHs=useState("");var cHs=_cHs[0];var sCHs=_cHs[1];var _cHt=useState(80);var cHt=_cHt[0];var sCHt=_cHt[1];var _cHh=useState(50);var cHh=_cHh[0];var sCHh=_cHh[1];var _cHr=useState(null);var cHr=_cHr[0];var sCHr=_cHr[1];
   /* Wind calc */var _cWm=useState("");var cWm=_cWm[0];var sCWm=_cWm[1];var _cWs=useState("");var cWs=_cWs[0];var sCWs=_cWs[1];var _cWw=useState(10);var cWw=_cWw[0];var sCWw=_cWw[1];var _cWd=useState("head");var cWd=_cWd[0];var sCWd=_cWd[1];var _cWr=useState(null);var cWr=_cWr[0];var sCWr=_cWr[1];
   /* Pct calc */var _cPm=useState("");var cPm=_cPm[0];var sCPm=_cPm[1];var _cPs=useState("");var cPs=_cPs[0];var sCPs=_cPs[1];var _cPp=useState(90);var cPp=_cPp[0];var sCPp=_cPp[1];var _cPr=useState(null);var cPr=_cPr[0];var sCPr=_cPr[1];
-  function coachLogin(){if(cpw===COACH_PW){setCm(true);setCShow(false);setCpw("");try{localStorage.setItem("cm_auth","true");}catch(e){}}else{alert("Incorrect password");}}
-  function coachLogout(){setCm(false);try{localStorage.removeItem("cm_auth");}catch(e){}}
+  function coachLogin(){if(cpw===COACH_PW){setCm(true);setCmRole("head");setCShow(false);setCpw("");try{localStorage.setItem("cm_auth","true");localStorage.setItem("cm_role","head");}catch(e){}}else if(cpw===ASST_PW){setCm(true);setCmRole("asst");setCShow(false);setCpw("");try{localStorage.setItem("cm_auth","true");localStorage.setItem("cm_role","asst");}catch(e){}}else{alert("Incorrect password");}}
+  function coachLogout(){setCm(false);setCmRole("");try{localStorage.removeItem("cm_auth");localStorage.removeItem("cm_role");}catch(e){}}
   var st6=useState([]);var roster=st6[0];var setRoster=st6[1];
   var st7=useState([]);var meets=st7[0];var setMeets=st7[1];
   var st8=useState(null);var paceAth=st8[0];var setPaceAth=st8[1];
@@ -399,11 +405,13 @@ export default function App(){
     upM(meets.map(function(m){
       if(m.id!==meetId)return m;
       var lu=Object.assign({},m.lineup||{});
-      var ev=Object.assign({},lu[evtName]||{runners:[],approxTime:""});
+      var ev=Object.assign({},lu[evtName]||{runners:[],approxTime:"",heats:1,heatAssign:{}});
       if(field==="approxTime")ev.approxTime=val;
-      else if(field==="addRunner"&&val)ev.runners=ev.runners.concat([val]);
-      else if(field==="removeRunner")ev.runners=ev.runners.filter(function(r){return r!==val;});
+      else if(field==="addRunner"&&val){ev.runners=ev.runners.concat([val]);var ha=Object.assign({},ev.heatAssign||{});if(!ha[val])ha[val]=1;ev.heatAssign=ha;}
+      else if(field==="removeRunner"){ev.runners=ev.runners.filter(function(r){return r!==val;});var ha=Object.assign({},ev.heatAssign||{});delete ha[val];ev.heatAssign=ha;}
       else if(field==="reorder")ev.runners=val;
+      else if(field==="setHeats"){var nh=Math.max(1,parseInt(val)||1);ev.heats=nh;var ha=Object.assign({},ev.heatAssign||{});Object.keys(ha).forEach(function(rid){if(ha[rid]>nh)ha[rid]=nh;});ev.heatAssign=ha;}
+      else if(field==="assignHeat"){var ha=Object.assign({},ev.heatAssign||{});ha[val.rid]=val.heat;ev.heatAssign=ha;}
       lu[evtName]=ev;return Object.assign({},m,{lineup:lu});
     }));
   }
@@ -489,6 +497,7 @@ export default function App(){
       if(r[10])setGuideSections(r[10]);
       loadAthleteData("raceresults-v1").then(function(raw){if(raw){try{setRaceResults(JSON.parse(raw));}catch(e){}}});
       loadAthleteData("qa-v1").then(function(raw){if(raw){try{setQaData(JSON.parse(raw));}catch(e){}}});
+      loadAthleteData("raffle-v1").then(function(raw){if(raw){try{var rd=JSON.parse(raw);setRaffleUsed(rd.used||{});setRaffleHistory(rd.history||[]);}catch(e){}}});
       setLoaded(true);
     });
   },[]);
@@ -676,19 +685,22 @@ export default function App(){
     return all;
   }
   function upGuide(g){setGuideSections(g);sv1(GDK,g);}
-  function upRR(results){setRaceResults(results);saveAthleteData("raceresults-v1",JSON.stringify(results));}
+  function upRR(results){setRaceResults(results);atomicUpdateAthleteData("raceresults-v1",function(){return results;});}
   function onRaceFinish(raceData){
-    /* raceData: {meetId, meetName, meetDate, event, team, runners:[{id,name,splits,finalTime}], elapsed} */
-    setRaceResults(function(prev){
-      var n=prev.slice();
-      /* Remove existing result for same meet+event+team */
-      n=n.filter(function(r){return!(r.meetId===raceData.meetId&&r.event===raceData.event&&r.team===raceData.team);});
-      n.push(Object.assign({},raceData,{id:"rr_"+Date.now(),savedAt:Date.now()}));
-      saveAthleteData("raceresults-v1",JSON.stringify(n));
-      return n;
+    var newResult=Object.assign({},raceData,{id:"rr_"+Date.now()+"_"+Math.random().toString(36).slice(2,6),savedAt:Date.now(),savedBy:cmRole||"coach"});
+    setRaceResults(function(prev){return prev.concat([newResult]);});
+    atomicUpdateAthleteData("raceresults-v1",function(current){
+      var arr=Array.isArray(current)?current:[];
+      var ids={};arr.forEach(function(r){if(r.id)ids[r.id]=true;});
+      if(!ids[newResult.id])arr=arr.concat([newResult]);
+      return arr;
+    }).then(function(ok){
+      if(ok){loadAthleteData("raceresults-v1").then(function(raw){if(raw){try{setRaceResults(JSON.parse(raw));}catch(e){}}});}
+      else{alert("Race result save failed! Check connection.");}
     });
   }
-  function onDeleteHistory(remaining){setRaceResults(remaining);saveAthleteData("raceresults-v1",JSON.stringify(remaining));}
+  function onDeleteHistory(remaining){setRaceResults(remaining);atomicUpdateAthleteData("raceresults-v1",function(){return remaining;});}
+  function saveRaffle(used,history){setRaffleUsed(used);setRaffleHistory(history);atomicUpdateAthleteData("raffle-v1",function(){return{used:used,history:history};});}
   function upQA(q){setQaData(q);saveAthleteData("qa-v1",JSON.stringify(q));}
   function submitQuestion(){if(!qaInput.trim()||!myAth)return;var q=qaData.slice();q.push({id:"q"+Date.now(),athId:myAth,question:qaInput.trim(),ts:Date.now(),answer:"",answerTs:0});upQA(q);setQaInput("");}
   function answerQuestion(qid,answer){upQA(qaData.map(function(q){return q.id===qid?Object.assign({},q,{answer:answer,answerTs:Date.now()}):q;}));}
@@ -906,7 +918,7 @@ export default function App(){
               {me.photo?<img src={me.photo} style={{width:24,height:30,borderRadius:5,objectFit:"cover"}}/>:<div style={{width:24,height:30,borderRadius:5,background:clr+"33",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800}}>{ini(me.name)}</div>}
               <span style={{fontSize:12,fontWeight:700}}>{me.name.split(" ")[0]}</span>
             </button>);})():<button onClick={function(){setMyShow(true);}} style={{padding:"6px 14px",borderRadius:8,background:"linear-gradient(135deg,"+C.gold+"33,"+C.gold+"11)",border:"1px solid "+C.gold+"44",color:C.gold,fontSize:12,fontWeight:700,cursor:"pointer"}}>Log In</button>}
-            {cm?(<div style={{display:"flex",gap:5,alignItems:"center"}}><span style={{fontSize:10,padding:"4px 10px",borderRadius:4,background:C.greenLight+"22",color:C.greenLight,fontWeight:700,fontFamily:"monospace"}}>COACH</span><button onClick={doExport} style={hB}>Export</button><button onClick={function(){impRef.current.click();}} style={hB}>Import</button><input ref={impRef} type="file" accept=".json" onChange={doImport} style={{display:"none"}}/><button onClick={coachLogout} style={Object.assign({},hB,{color:"#ef4444",border:"1px solid rgba(239,68,68,0.3)"})}>Logout</button></div>):IS_COACH_BUILD?(<button onClick={function(){setCShow(true);}} style={Object.assign({},hB,{color:C.goldLight})}>Coach Login</button>):null}
+            {cm?(<div style={{display:"flex",gap:5,alignItems:"center"}}><span style={{fontSize:10,padding:"4px 10px",borderRadius:4,background:cmRole==="asst"?"#3498DB22":C.greenLight+"22",color:cmRole==="asst"?"#3498DB":C.greenLight,fontWeight:700,fontFamily:"monospace"}}>{cmRole==="asst"?"ASST COACH":"HEAD COACH"}</span><button onClick={doExport} style={hB}>Export</button><button onClick={function(){impRef.current.click();}} style={hB}>Import</button><input ref={impRef} type="file" accept=".json" onChange={doImport} style={{display:"none"}}/><button onClick={coachLogout} style={Object.assign({},hB,{color:"#ef4444",border:"1px solid rgba(239,68,68,0.3)"})}>Logout</button></div>):IS_COACH_BUILD?(<button onClick={function(){setCShow(true);}} style={Object.assign({},hB,{color:C.goldLight})}>Coach Login</button>):null}
           </div>
         </div>
         <div style={{display:"flex",gap:0,borderBottom:"1px solid "+C.bd,overflowX:"auto"}}>
@@ -2169,39 +2181,50 @@ export default function App(){
               return(
                 <div key={evName} style={{padding:"10px",marginBottom:6,borderRadius:8,background:evColor+"0a",border:"1px solid "+evColor+"33"}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                    <div style={{fontSize:12,fontWeight:700,color:evColor}}>{evName}</div>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <div style={{fontSize:12,fontWeight:700,color:evColor}}>{evName}</div>
+                      {evName!=="4x800"&&cm?<div style={{display:"flex",alignItems:"center",gap:4}}>
+                        <span style={{fontSize:9,color:_tm}}>Heats:</span>
+                        <select value={evData.heats||1} onChange={function(ev){upLineup(m.id,evName,"setHeats",ev.target.value);}} style={Object.assign({},IS,{width:44,padding:"2px 4px",fontSize:10})}>
+                          {[1,2,3,4].map(function(h){return <option key={h} value={h}>{h}</option>;})}
+                        </select>
+                      </div>:null}
+                    </div>
                     <div style={{display:"flex",alignItems:"center",gap:6}}>
                       <span style={{fontSize:10,color:_tm,fontFamily:"monospace"}}>Approx time:</span>
                       <input value={evData.approxTime} readOnly={!cm} onChange={function(ev){if(cm)upLineup(m.id,evName,"approxTime",ev.target.value);}} placeholder={cm?"e.g. 4:30 PM":"--"} style={Object.assign({},IS,{width:100,padding:"4px 8px",fontSize:11})}/>
                     </div>
                   </div>
-                  {/* Boys & Girls lineup */}
                   {[{label:"Boys",clr:C.greenLight,team:"boys"},{label:"Girls",clr:C.gold,team:"girls"}].map(function(grp){
                     var teamRunners=evData.runners.filter(function(rId){var a=roster.find(function(x){return x.id===rId;});return a&&a.team===grp.team;});
                     var available=roster.filter(function(a){return a.team===grp.team&&!evData.runners.some(function(r){return r===a.id;});});
+                    var numHeats=evName==="4x800"?1:Math.max(1,evData.heats||1);
+                    var heatAssign=evData.heatAssign||{};
                     return(<div key={grp.team} style={{marginBottom:6}}>
                       <div style={{fontSize:10,fontWeight:700,color:grp.clr,textTransform:"uppercase",letterSpacing:1,marginBottom:3}}>{grp.label}</div>
-                      {teamRunners.map(function(rId,ri){
-                        var ath=roster.find(function(a){return a.id===rId;});
-                        if(!ath)return null;
-                        var hasPaces=ath.paces&&ath.paces.vo2Safe;
-                        var mRes=(m.results&&m.results[evName]&&m.results[evName][rId])||"";
-                        var isRelay=evName==="4x800";
-                        var legLabel=isRelay?"Leg "+(ri+1):"";
-                        return(<div key={ri} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",marginBottom:3,borderRadius:4,background:grp.clr+"10",border:"1px solid "+grp.clr+"22"}}>
-                          {isRelay?<span style={{fontSize:10,fontWeight:800,color:evColor,fontFamily:"monospace",minWidth:38}}>{legLabel}</span>:null}
-                          <span style={{fontSize:11,fontWeight:600,color:grp.clr,minWidth:80}}>{ath.name}</span>
-                          {ath.guest?<span style={{fontSize:8,padding:"1px 4px",borderRadius:2,background:_tm+"22",color:_tm,fontWeight:700}}>GUEST</span>:null}
-                          {hasPaces&&(evName==="1600"||evName==="3200")?<span style={{fontSize:10,color:_tm,fontFamily:"monospace"}}>{evName==="3200"&&ath.paces.cv?"CV:"+ath.paces.cv:evName==="1600"&&ath.paces.vo2Safe?"VO2:"+ath.paces.vo2Safe:""}</span>:null}
-                          <input value={mRes} readOnly={!cm} onChange={function(ev){if(cm)saveMeetResult(m.id,evName,rId,ev.target.value);}} placeholder={cm?"Result":"--"} style={Object.assign({},IS,{width:80,padding:"3px 6px",fontSize:11,textAlign:"center",background:mRes?"rgba(27,174,96,0.1)":"rgba(255,255,255,0.04)"})}/>
-                          {cm&&isRelay&&ri>0?<button onClick={function(){
-                            /* Move runner up one leg */
-                            var runners=evData.runners.slice();
-                            var teamIds=runners.filter(function(r){var a2=roster.find(function(x){return x.id===r;});return a2&&a2.team===grp.team;});
-                            var globalIdx=runners.indexOf(rId);var prevTeamId=teamIds[teamIds.indexOf(rId)-1];var prevGlobalIdx=runners.indexOf(prevTeamId);
-                            if(globalIdx>=0&&prevGlobalIdx>=0){runners[globalIdx]=prevTeamId;runners[prevGlobalIdx]=rId;upLineup(m.id,evName,"reorder",runners);}
-                          }} style={{background:"none",border:"none",color:_tm,cursor:"pointer",fontSize:10,padding:"0 2px"}}>{"↑"}</button>:null}
-                          {cm?<button onClick={function(){upLineup(m.id,evName,"removeRunner",rId);}} style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:10,padding:"0 2px"}}>x</button>:null}
+                      {Array.from({length:numHeats}).map(function(_,hi){
+                        var heatNum=hi+1;
+                        var heatRunners=teamRunners.filter(function(rId){return(heatAssign[rId]||1)===heatNum;});
+                        return(<div key={heatNum} style={{marginBottom:numHeats>1?8:0}}>
+                          {numHeats>1?<div style={{fontSize:9,fontWeight:800,color:evColor,textTransform:"uppercase",letterSpacing:2,marginBottom:2,paddingBottom:2,borderBottom:"1px dashed "+evColor+"33"}}>Heat {heatNum}</div>:null}
+                          {heatRunners.map(function(rId,ri){
+                            var ath=roster.find(function(a){return a.id===rId;});if(!ath)return null;
+                            var hasPaces=ath.paces&&ath.paces.vo2Safe;
+                            var mRes=(m.results&&m.results[evName]&&m.results[evName][rId])||"";
+                            var isRelay=evName==="4x800";var legLabel=isRelay?"Leg "+(ri+1):"";
+                            return(<div key={rId} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",marginBottom:3,borderRadius:4,background:grp.clr+"10",border:"1px solid "+grp.clr+"22"}}>
+                              {isRelay?<span style={{fontSize:10,fontWeight:800,color:evColor,fontFamily:"monospace",minWidth:38}}>{legLabel}</span>:null}
+                              <span style={{fontSize:11,fontWeight:600,color:grp.clr,minWidth:80}}>{ath.name}</span>
+                              {ath.guest?<span style={{fontSize:8,padding:"1px 4px",borderRadius:2,background:_tm+"22",color:_tm,fontWeight:700}}>GUEST</span>:null}
+                              {hasPaces&&(evName==="1600"||evName==="3200")?<span style={{fontSize:10,color:_tm,fontFamily:"monospace"}}>{evName==="3200"&&ath.paces.cv?"CV:"+ath.paces.cv:evName==="1600"&&ath.paces.vo2Safe?"VO2:"+ath.paces.vo2Safe:""}</span>:null}
+                              {cm&&numHeats>1&&!isRelay?<select value={heatAssign[rId]||1} onChange={function(ev2){upLineup(m.id,evName,"assignHeat",{rid:rId,heat:parseInt(ev2.target.value)});}} style={{background:"transparent",border:"1px solid "+evColor+"44",color:evColor,padding:"1px 4px",borderRadius:3,fontSize:9,fontFamily:"inherit",cursor:"pointer"}}>
+                                {Array.from({length:numHeats}).map(function(_2,h2){return <option key={h2+1} value={h2+1}>H{h2+1}</option>;})}
+                              </select>:null}
+                              <input value={mRes} readOnly={!cm} onChange={function(ev){if(cm)saveMeetResult(m.id,evName,rId,ev.target.value);}} placeholder={cm?"Result":"--"} style={Object.assign({},IS,{width:80,padding:"3px 6px",fontSize:11,textAlign:"center",background:mRes?"rgba(27,174,96,0.1)":"rgba(255,255,255,0.04)"})}/>
+                              {cm&&isRelay&&ri>0?<button onClick={function(){var runners=evData.runners.slice();var teamIds=runners.filter(function(r){var a2=roster.find(function(x){return x.id===r;});return a2&&a2.team===grp.team;});var globalIdx=runners.indexOf(rId);var prevTeamId=teamIds[teamIds.indexOf(rId)-1];var prevGlobalIdx=runners.indexOf(prevTeamId);if(globalIdx>=0&&prevGlobalIdx>=0){runners[globalIdx]=prevTeamId;runners[prevGlobalIdx]=rId;upLineup(m.id,evName,"reorder",runners);}}} style={{background:"none",border:"none",color:_tm,cursor:"pointer",fontSize:10,padding:"0 2px"}}>{"^"}</button>:null}
+                              {cm?<button onClick={function(){upLineup(m.id,evName,"removeRunner",rId);}} style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:10,padding:"0 2px"}}>x</button>:null}
+                            </div>);
+                          })}
                         </div>);
                       })}
                       {cm&&(evName!=="4x800"||teamRunners.length<4)?(<select onChange={function(ev){if(ev.target.value){upLineup(m.id,evName,"addRunner",ev.target.value);ev.target.value="";}} } style={Object.assign({},IS,{padding:"4px 8px",fontSize:11,marginTop:2})} value="">
@@ -2211,8 +2234,7 @@ export default function App(){
                       {cm&&(evName!=="4x800"||teamRunners.length<4)?(<div style={{display:"flex",gap:4,marginTop:3}}>
                         <input placeholder={"Add non-roster "+grp.label.toLowerCase().slice(0,-1)+"..."} onKeyDown={function(ev){
                           if(ev.key==="Enter"&&ev.target.value.trim()){
-                            var nm=ev.target.value.trim();
-                            var guestId="guest_"+grp.team+"_"+Date.now();
+                            var nm=ev.target.value.trim();var guestId="guest_"+grp.team+"_"+Date.now();
                             var nr=roster.slice();nr.push({id:guestId,name:nm,team:grp.team,grade:"",events:"",group:"",pin:"",paces:{},guest:true});
                             upR(nr);upLineup(m.id,evName,"addRunner",guestId);ev.target.value="";
                           }
@@ -2387,6 +2409,63 @@ export default function App(){
             </div>);
           })()}
         </div>
+
+        {/* -- Prize Drawing -- */}
+        {cm?<div style={{marginTop:20}}>
+          <div style={{fontSize:18,fontWeight:800,color:"#E74C3C",marginBottom:8}}>Prize Drawing</div>
+          <div style={{fontSize:12,color:_tm,marginBottom:12}}>Weighted random draw. More workout logs = more chances. Each draw removes one entry.</div>
+          {(function(){
+            var pool=[];
+            roster.filter(function(a){return a.name!=="Mr. Acosta"&&a.name!=="Coach Acosta"&&!a.guest;}).forEach(function(a){
+              var ov=getConsistency(a.id,"overall");var totalEntries=ov.logEntries;var used=(raffleUsed[a.id]||0);var remaining=Math.max(0,totalEntries-used);
+              if(remaining>0){for(var i=0;i<remaining;i++)pool.push({id:a.id,name:a.name,team:a.team});}
+            });
+            var rosterEntries=roster.filter(function(a){return a.name!=="Mr. Acosta"&&a.name!=="Coach Acosta"&&!a.guest;}).map(function(a){
+              var ov=getConsistency(a.id,"overall");var used=(raffleUsed[a.id]||0);
+              return{id:a.id,name:a.name,team:a.team,total:ov.logEntries,used:used,remaining:Math.max(0,ov.logEntries-used)};
+            }).sort(function(a,b){return b.remaining-a.remaining;});
+            var doSpin=function(){if(pool.length===0)return;setRaffleSpinning(true);setRaffleWinner(null);var spins=0;var maxSpins=20;
+              var interval=setInterval(function(){var rand=pool[Math.floor(Math.random()*pool.length)];setRaffleWinner({name:rand.name,team:rand.team,id:rand.id,preview:true});spins++;
+                if(spins>=maxSpins){clearInterval(interval);var winner=pool[Math.floor(Math.random()*pool.length)];setRaffleWinner({name:winner.name,team:winner.team,id:winner.id,preview:false});setRaffleSpinning(false);}
+              },100);};
+            return(<div>
+              <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
+                <button onClick={doSpin} disabled={pool.length===0||raffleSpinning} style={{padding:"14px 28px",borderRadius:10,background:pool.length>0&&!raffleSpinning?"linear-gradient(135deg,#E74C3C,#C0392B)":"rgba(255,255,255,0.06)",border:"none",color:pool.length>0?"#fff":_tm,fontWeight:900,fontSize:16,cursor:pool.length>0&&!raffleSpinning?"pointer":"not-allowed",fontFamily:"inherit",letterSpacing:2,textTransform:"uppercase"}}>{raffleSpinning?"Drawing...":"Draw Winner"}</button>
+                <div><div style={{fontSize:24,fontWeight:900,color:"#E74C3C",fontFamily:"monospace"}}>{pool.length}</div><div style={{fontSize:9,color:_tm}}>entries in pool</div></div>
+              </div>
+              {raffleWinner?<div style={{padding:"20px",borderRadius:14,background:raffleWinner.preview?"rgba(255,255,255,0.04)":"linear-gradient(135deg,rgba(231,76,60,0.07),rgba(192,57,43,0.03))",border:"2px solid "+(raffleWinner.preview?C.bd:"#E74C3C44"),marginBottom:16,textAlign:"center"}}>
+                <div style={{fontSize:raffleWinner.preview?18:28,fontWeight:900,color:raffleWinner.preview?_tm:(raffleWinner.team==="boys"?C.greenLight:C.gold)}}>{raffleWinner.name}</div>
+                {!raffleWinner.preview?<div>
+                  <div style={{fontSize:12,color:_tm,marginTop:6,marginBottom:12}}>Winner!</div>
+                  <div style={{display:"flex",gap:8,justifyContent:"center"}}>
+                    <button onClick={function(){var nu=Object.assign({},raffleUsed);nu[raffleWinner.id]=(nu[raffleWinner.id]||0)+1;var nh=raffleHistory.slice();nh.unshift({name:raffleWinner.name,team:raffleWinner.team,id:raffleWinner.id,ts:Date.now()});saveRaffle(nu,nh);setRaffleWinner(null);}} style={{padding:"8px 20px",borderRadius:8,background:"linear-gradient(135deg,#27AE60,#2ECC71)",border:"none",color:"#fff",fontWeight:700,fontSize:13,cursor:"pointer"}}>Confirm Winner</button>
+                    <button onClick={function(){setRaffleWinner(null);}} style={{padding:"8px 16px",borderRadius:8,background:"rgba(255,255,255,0.06)",border:"1px solid "+C.bd,color:_ts,fontSize:12,cursor:"pointer"}}>Redraw</button>
+                  </div></div>:null}
+              </div>:null}
+              <div style={{borderRadius:10,border:"1px solid "+C.bd,overflow:"hidden",marginBottom:12}}>
+                <div style={{display:"flex",padding:"6px 12px",background:lt?"#f5f6f2":"rgba(255,255,255,0.04)",borderBottom:"1px solid "+C.bd}}>
+                  <span style={{flex:1,fontSize:9,fontWeight:700,color:_tm}}>Runner</span><span style={{width:55,fontSize:9,fontWeight:700,color:_tm,textAlign:"center"}}>Total</span><span style={{width:55,fontSize:9,fontWeight:700,color:_tm,textAlign:"center"}}>Drawn</span><span style={{width:65,fontSize:9,fontWeight:700,color:"#E74C3C",textAlign:"center"}}>Remaining</span>
+                </div>
+                {rosterEntries.map(function(a){var tClr=a.team==="boys"?C.greenLight:C.gold;return(<div key={a.id} style={{display:"flex",alignItems:"center",padding:"4px 12px",borderBottom:"1px solid "+C.bd}}>
+                  <div style={{flex:1,display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:11,fontWeight:a.remaining>0?600:400,color:a.remaining>0?_tp:_tm}}>{a.name}</span><span style={{fontSize:8,color:tClr}}>{a.team==="boys"?"B":"G"}</span></div>
+                  <span style={{width:55,textAlign:"center",fontSize:11,color:_tm,fontFamily:"monospace"}}>{a.total}</span>
+                  <span style={{width:55,textAlign:"center",fontSize:11,color:a.used>0?"#3498DB":_tm,fontFamily:"monospace"}}>{a.used}</span>
+                  <span style={{width:65,textAlign:"center",fontSize:12,fontWeight:700,color:a.remaining>0?"#E74C3C":_tm,fontFamily:"monospace"}}>{a.remaining}</span>
+                </div>);})}
+              </div>
+              {raffleHistory.length>0?<div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                  <div style={{fontSize:12,fontWeight:700,color:_tp}}>Drawing History ({raffleHistory.length})</div>
+                  <button onClick={function(){if(confirm("Reset all drawings? This restores all raffle entries.")){saveRaffle({},[]); }}} style={{background:"rgba(239,68,68,0.1)",border:"none",color:"#ef4444",borderRadius:4,padding:"3px 8px",cursor:"pointer",fontSize:10}}>Reset All</button>
+                </div>
+                {raffleHistory.map(function(h,hi){var tClr=h.team==="boys"?C.greenLight:C.gold;var d=new Date(h.ts);var dLbl=(d.getMonth()+1)+"/"+d.getDate();return(<div key={hi} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 8px",marginBottom:2,borderRadius:4,background:tClr+"08",border:"1px solid "+tClr+"22"}}>
+                  <span style={{fontSize:11,fontWeight:700,color:tClr}}>{h.name}</span><span style={{fontSize:9,color:_tm}}>{dLbl}</span>
+                  <button onClick={function(){if(confirm("Undo draw? Entry restored to "+h.name+".")){var nu=Object.assign({},raffleUsed);nu[h.id]=Math.max(0,(nu[h.id]||0)-1);if(nu[h.id]===0)delete nu[h.id];var nh=raffleHistory.slice();nh.splice(hi,1);saveRaffle(nu,nh);}}} style={{marginLeft:"auto",background:"none",border:"none",color:_tm,cursor:"pointer",fontSize:9}}>undo</button>
+                </div>);})}
+              </div>:null}
+            </div>);
+          })()}
+        </div>:null}
       </div>):null}
 
 
@@ -2818,6 +2897,8 @@ export default function App(){
                     <span style={{fontSize:14,fontWeight:800,color:evClr}}>{race.event}</span>
                     <span style={{fontSize:11,fontWeight:700,color:tClr,padding:"1px 8px",borderRadius:3,background:tClr+"18",textTransform:"uppercase",letterSpacing:1}}>{race.team}</span>
                     <span style={{fontSize:10,color:_tm}}>{runners.length} runners</span>
+                    {race.savedBy?<span style={{fontSize:8,padding:"1px 4px",borderRadius:2,background:race.savedBy==="asst"?"#3498DB18":"#27ae6018",color:race.savedBy==="asst"?"#3498DB":"#27ae60"}}>{race.savedBy==="asst"?"Asst":"Head"}</span>:null}
+                    {cm?<button onClick={function(){if(confirm("Delete this race result?")){upRR(raceResults.filter(function(r2){return r2.id!==race.id;}));}}} style={{marginLeft:"auto",background:"rgba(239,68,68,0.1)",border:"none",color:"#ef4444",borderRadius:3,padding:"2px 6px",cursor:"pointer",fontSize:9}}>x</button>:null}
                   </div>
                   <div style={{padding:"0 14px 10px"}}>
                     {/* Header row */}
@@ -2941,7 +3022,7 @@ export default function App(){
         <div onClick={function(ev){ev.stopPropagation();}} style={{background:_modalBg,borderRadius:16,padding:"32px",width:"min(360px,90vw)",border:"1px solid "+C.bd,boxShadow:"0 24px 80px rgba(0,0,0,0.6)",textAlign:"center"}}>
           <div style={{width:48,height:48,borderRadius:10,background:"linear-gradient(135deg,"+C.green+","+C.greenLight+")",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:800,color:C.white,margin:"0 auto 16px"}}>CA</div>
           <div style={{fontSize:16,fontWeight:700,color:_tp,marginBottom:4}}>Coach Login</div>
-          <div style={{fontSize:11,color:_tm,marginBottom:16}}>Enter the coach password to enable editing</div>
+          <div style={{fontSize:11,color:_tm,marginBottom:16}}>Enter the head coach or assistant coach password</div>
           <input value={cpw} onChange={function(ev){setCpw(ev.target.value);}} onKeyDown={function(ev){if(ev.key==="Enter")coachLogin();}} type="password" placeholder="Password" style={Object.assign({},IS,{textAlign:"center",fontSize:16,marginBottom:12})}/>
           <button onClick={coachLogin} style={{width:"100%",padding:"12px",borderRadius:10,background:"linear-gradient(135deg,"+C.green+","+C.greenLight+")",border:"none",color:C.white,fontWeight:700,fontSize:14,cursor:"pointer"}}>Login</button>
           <button onClick={function(){setCShow(false);}} style={{marginTop:8,background:"none",border:"none",color:_tm,fontSize:12,cursor:"pointer"}}>Cancel</button>

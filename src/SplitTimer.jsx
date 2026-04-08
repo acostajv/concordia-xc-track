@@ -35,7 +35,7 @@ function PacePill(p){if(!p.value)return null;return(<span style={{display:"inlin
 
 /* ── RACE CARD ─────────────────────────────────────────────────────────── */
 function RaceCard(props){
-  var race=props.race,rosterMap=props.rosterMap,paces=props.paces,onUpdateRace=props.onUpdateRace,splitLabel=props.splitLabel||"400m",T=props.T;
+  var race=props.race,rosterMap=props.rosterMap,paces=props.paces,onUpdateRace=props.onUpdateRace,onSaveRace=props.onSaveRace,splitLabel=props.splitLabel||"400m",T=props.T;
   var _r=useState(false);var isRunning=_r[0];var setIsRunning=_r[1];
   var _e=useState(race.elapsed||0);var elapsed=_e[0];var setElapsed=_e[1];
   var _f=useState({});var flashMap=_f[0];var setFlashMap=_f[1];
@@ -127,7 +127,8 @@ function RaceCard(props){
       </div>
       <div style={{display:"flex",gap:4,alignItems:"center"}}>
         {finCount>0&&!isDone?<span style={{fontSize:10,padding:"2px 8px",borderRadius:3,background:"#27ae6022",color:"#5ddb6a",fontWeight:700}}>{finCount}/{runners.length}</span>:null}
-        {isDone?<span style={{fontSize:10,padding:"2px 8px",borderRadius:3,background:"#27ae6022",color:"#5ddb6a",fontWeight:700}}>Done</span>:null}
+        {isDone&&!race.saved?<button onClick={function(){if(onSaveRace)onSaveRace(race);}} style={{padding:"3px 8px",background:"#3498DB22",color:"#3498DB",border:"1px solid #3498DB44",borderRadius:3,cursor:"pointer",fontSize:10,fontWeight:700,fontFamily:"inherit"}}>Save</button>:null}
+        {race.saved?<span style={{fontSize:10,padding:"2px 8px",borderRadius:3,background:"#27ae6022",color:"#5ddb6a",fontWeight:700}}>Saved</span>:isDone?<span style={{fontSize:10,padding:"2px 8px",borderRadius:3,background:"#27ae6022",color:"#5ddb6a",fontWeight:700}}>Done</span>:null}
         {hasSplits&&!isDone?<button onClick={finishRace} style={{padding:"3px 8px",background:"#27ae6022",color:"#5ddb6a",border:"1px solid #27ae6044",borderRadius:3,cursor:"pointer",fontSize:10,fontWeight:700,fontFamily:"inherit"}}>Finish</button>:null}
       </div>
     </div>
@@ -203,28 +204,40 @@ export default function SplitTimer(props){
   var girls=allAthletes.filter(function(a){return a.team==="girls";});
   var updateRace=function(raceId,updates){setRaces(function(prev){return prev.map(function(r){return r.id===raceId?Object.assign({},r,updates):r;});});};
 
-  /* ── Submit all results (batch save) ── */
-  var submitAllResults=function(){
-    var sessionRaces=races.filter(function(r){return Object.keys(r.splits||{}).length>0;});
-    sessionRaces.sort(function(a,b){var ea=EVT_ORDER[a.event]!==undefined?EVT_ORDER[a.event]:9;var eb=EVT_ORDER[b.event]!==undefined?EVT_ORDER[b.event]:9;return ea!==eb?ea-eb:a.team==="boys"?-1:1;});
-    sessionRaces.forEach(function(race){
-      var runners=(race.runnerIds||[]).map(function(rid){var ath=rosterMap[String(rid)];var sp=(race.splits||{})[rid]||[];var ft=sp.length>0?sp[sp.length-1].total:race.elapsed||0;return{id:rid,name:ath?ath.name:"Unknown",team:ath?ath.team:"",splits:sp,finalTime:ft};});
-      if(onRaceFinish)onRaceFinish({meetId:race.meetId||"",meetName:race.meetName||"Session",meetDate:race.meetDate||sessionDate,event:race.event||race.label||label,team:race.team||"",runners:runners,elapsed:race.elapsed||0,type:mode});
-    });
-    setRaces([]);setImportedMeetId(null);try{localStorage.removeItem(STORAGE_KEY);}catch(e){}
-    setScreen("setup");
+  /* Build result object from a race */
+  var buildRaceResult=function(race){
+    var runners=(race.runnerIds||[]).map(function(rid){var ath=rosterMap[String(rid)];var sp=(race.splits||{})[rid]||[];var ft=sp.length>0?sp[sp.length-1].total:race.elapsed||0;return{id:rid,name:ath?ath.name:"Unknown",team:ath?ath.team:"",splits:sp,finalTime:ft};});
+    return{meetId:race.meetId||"",meetName:race.meetName||"Session",meetDate:race.meetDate||sessionDate,event:race.event||race.label||label,team:race.team||"",heat:race.heat||0,runners:runners,elapsed:race.elapsed||0,type:mode,sortKey:(EVT_ORDER[race.event]!==undefined?EVT_ORDER[race.event]:9)*1000+(race.team==="boys"?0:100)+(race.heat||1)};
   };
+  var saveOneRace=function(race){
+    if(race.saved)return;var result=buildRaceResult(race);
+    if(onRaceFinish)onRaceFinish(result);
+    updateRace(race.id,{saved:true});
+  };
+  var saveAllUnsaved=function(){
+    var unsaved=races.filter(function(r){return r.status==="done"&&!r.saved&&Object.keys(r.splits||{}).length>0;});
+    unsaved.sort(function(a,b){return(buildRaceResult(a).sortKey||0)-(buildRaceResult(b).sortKey||0);});
+    unsaved.forEach(function(race){var result=buildRaceResult(race);if(onRaceFinish)onRaceFinish(result);});
+    setRaces(function(prev){return prev.map(function(r){return r.status==="done"&&!r.saved&&Object.keys(r.splits||{}).length>0?Object.assign({},r,{saved:true}):r;});});
+  };
+  var clearSession=function(){setRaces([]);setImportedMeetId(null);try{localStorage.removeItem(STORAGE_KEY);}catch(e){}setScreen("setup");};
 
   var parsePace=function(s){if(!s)return null;var clean=s.replace(/\/mi$/,"").trim();var pts=clean.split(":");if(pts.length!==2)return null;var m=parseInt(pts[0]);var sc=parseInt(pts[1]);if(isNaN(m)||isNaN(sc))return null;return m*60+sc;};
   var fmtPaceSec=function(s){var m=Math.floor(s/60);var sc=Math.round(s%60);return m+":"+(sc<10?"0":"")+sc;};
   var importPaceGroups=function(){var withPace=allAthletes.map(function(a){var p=fbPaces[a.name];return{ath:a,sec:parsePace(p&&p[paceKey])};}).filter(function(x){return x.sec!==null;}).sort(function(a,b){return a.sec-b.sec;});var used={};var groups=[];for(var i=0;i<withPace.length;i++){if(used[withPace[i].ath.id])continue;var grp=[withPace[i]];used[withPace[i].ath.id]=true;for(var j=i+1;j<withPace.length;j++){if(used[withPace[j].ath.id])continue;if(withPace[j].sec-grp[grp.length-1].sec<=paceTol){grp.push(withPace[j]);used[withPace[j].ath.id]=true;}}var avg=Math.round(grp.reduce(function(s,x){return s+x.sec;},0)/grp.length);groups.push({id:"pg_"+Date.now()+"_"+i,name:fmtPaceSec(avg)+"/mi",color:GROUP_COLORS[groups.length%GROUP_COLORS.length],runnerIds:grp.map(function(x){return String(x.ath.id);})});}setWoGroups(groups);};
 
-  var importMeetEvents=function(meet){if(!meet||!meet.lineup)return;var athTeam={};allAthletes.forEach(function(a){athTeam[String(a.id)]=a.team;});var newRaces=[];
-    Object.entries(meet.lineup).forEach(function(entry){var evtKey=entry[0];var evtData=entry[1];var allIds=(evtData.runners||[]).map(function(r){return String(r);});if(!allIds.length)return;var bIds=allIds.filter(function(r){return athTeam[r]==="boys";});var gIds=allIds.filter(function(r){return athTeam[r]==="girls";});
-      if(bIds.length>0)newRaces.push({id:"r_"+evtKey+"_b_"+Date.now(),event:evtKey,team:"boys",label:evtKey+" Boys",approxTime:evtData.approxTime||"",runnerIds:bIds,splits:{},elapsed:0,status:"ready",finished:{},meetName:meet.name||"Meet",meetId:meet.id||"",meetDate:meet.date||""});
-      if(gIds.length>0)newRaces.push({id:"r_"+evtKey+"_g_"+(Date.now()+1),event:evtKey,team:"girls",label:evtKey+" Girls",approxTime:evtData.approxTime||"",runnerIds:gIds,splits:{},elapsed:0,status:"ready",finished:{},meetName:meet.name||"Meet",meetId:meet.id||"",meetDate:meet.date||""});
+  var importMeetEvents=function(meet){if(!meet||!meet.lineup)return;var athTeam={};allAthletes.forEach(function(a){athTeam[String(a.id)]=a.team;});var newRaces=[];var ts=Date.now();
+    Object.entries(meet.lineup).forEach(function(entry){var evtKey=entry[0];var evtData=entry[1];var allIds=(evtData.runners||[]).map(function(r){return String(r);});if(!allIds.length)return;
+      var numHeats=evtKey==="4x800"?1:Math.max(1,evtData.heats||1);var heatAssign=evtData.heatAssign||{};
+      for(var hi=0;hi<numHeats;hi++){var heatNum=hi+1;
+        var heatIds=numHeats===1?allIds:allIds.filter(function(rid){return(heatAssign[rid]||1)===heatNum;});
+        var bIds=heatIds.filter(function(r){return athTeam[r]==="boys";});var gIds=heatIds.filter(function(r){return athTeam[r]==="girls";});
+        var heatLabel=numHeats>1?" H"+heatNum:"";
+        if(bIds.length>0)newRaces.push({id:"r_"+evtKey+"_b_h"+heatNum+"_"+(ts++),event:evtKey,team:"boys",label:evtKey+" Boys"+heatLabel,approxTime:evtData.approxTime||"",runnerIds:bIds,splits:{},elapsed:0,status:"ready",finished:{},meetName:meet.name||"Meet",meetId:meet.id||"",meetDate:meet.date||"",heat:heatNum});
+        if(gIds.length>0)newRaces.push({id:"r_"+evtKey+"_g_h"+heatNum+"_"+(ts++),event:evtKey,team:"girls",label:evtKey+" Girls"+heatLabel,approxTime:evtData.approxTime||"",runnerIds:gIds,splits:{},elapsed:0,status:"ready",finished:{},meetName:meet.name||"Meet",meetId:meet.id||"",meetDate:meet.date||"",heat:heatNum});
+      }
     });
-    newRaces.sort(function(a,b){var ea=EVT_ORDER[a.event]!==undefined?EVT_ORDER[a.event]:9;var eb=EVT_ORDER[b.event]!==undefined?EVT_ORDER[b.event]:9;return ea!==eb?ea-eb:a.team==="boys"?-1:1;});
+    newRaces.sort(function(a,b){var ea=EVT_ORDER[a.event]!==undefined?EVT_ORDER[a.event]:9;var eb=EVT_ORDER[b.event]!==undefined?EVT_ORDER[b.event]:9;if(ea!==eb)return ea-eb;if(a.team!==b.team)return a.team==="boys"?-1:1;return(a.heat||1)-(b.heat||1);});
     setRaces(newRaces);setImportedMeetId(meet.id||meet.name);};
 
   var startWorkout=function(){var name=woName.trim()||"Workout";var newRaces=woGroups.map(function(g,gi){return{id:"wo_"+Date.now()+"_"+gi,event:name,team:"",label:g.name,color:g.color,runnerIds:g.runnerIds,splits:{},elapsed:0,status:"ready",finished:{},meetName:name,meetDate:sessionDate,type:"workout"};});setRaces(newRaces);};
@@ -242,6 +255,7 @@ export default function SplitTimer(props){
 
   /* Check if all races done */
   var allDone=races.length>0&&races.every(function(r){return r.status==="done";});
+  var allSaved=races.length>0&&races.every(function(r){return r.saved||(!r.splits||Object.keys(r.splits).length===0);});
   var anyHasSplits=races.some(function(r){return Object.keys(r.splits||{}).length>0;});
 
   /* ── SETUP ── */
@@ -359,6 +373,9 @@ export default function SplitTimer(props){
               <div><div style={{fontSize:13,fontWeight:700,color:T.text}}>{sess.name}</div><div style={{fontSize:10,color:T.muted}}>{sess.date} — {sess.races.length} race{sess.races.length!==1?"s":""}</div></div>
               <div style={{display:"flex",gap:4}}>
               <button onClick={function(){
+                sess.races.slice().sort(function(a,b){return(a.sortKey||0)-(b.sortKey||0);}).forEach(function(race){if(onRaceFinish)onRaceFinish(race);});
+              }} style={{background:"#27ae6018",border:"1px solid #27ae6044",color:"#27ae60",borderRadius:3,padding:"3px 8px",cursor:"pointer",fontSize:10,fontWeight:700,fontFamily:"inherit"}}>To Results</button>
+              <button onClick={function(){
                 var rows=[["Race","Place","Athlete","Team","Split #","Split Time","Total Time"]];
                 sess.races.forEach(function(race){var evLabel=(race.event||"")+(race.team?" "+race.team:"");var runners=(race.runners||[]).slice().sort(function(a,b){return(a.finalTime||999999)-(b.finalTime||999999);});runners.forEach(function(r,ri){var sp=r.splits||[];if(!sp.length){rows.push([evLabel,ri+1,r.name,r.team||"","","",""]);}else{sp.forEach(function(s,si){rows.push([si===0?evLabel:"",si===0?ri+1:"",si===0?r.name:"",si===0?r.team||"":"",si+1,fmtSplit(s.split),fmtTime(s.total)]);});}});});
                 var csv=rows.map(function(r){return r.map(function(v){return'"'+v+'"';}).join(",");}).join("\n");
@@ -367,8 +384,8 @@ export default function SplitTimer(props){
               <button onClick={function(){if(confirm("Delete "+sess.name+"?")){if(onDeleteHistory){var keep=raceResults.filter(function(r){return!((r.meetName||"Session")+"\u2014"+(r.meetDate||"")===key);});onDeleteHistory(keep);}}}} style={{background:"rgba(239,68,68,0.1)",border:"none",color:"#ef4444",borderRadius:3,padding:"3px 8px",cursor:"pointer",fontSize:10,fontWeight:700,fontFamily:"inherit"}}>Delete</button>
               </div>
             </div>
-            {sess.races.map(function(race){var evClr=EVENT_COLORS[race.event]||T.accent;var runners=(race.runners||[]).slice().sort(function(a,b){return(a.finalTime||999999)-(b.finalTime||999999);});return(<div key={race.id||race.event+race.team} style={{padding:"8px 12px",borderBottom:"1px solid "+T.dim}}>
-              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}><span style={{fontSize:12,fontWeight:800,color:evClr}}>{race.event}</span>{race.team?<span style={{fontSize:10,fontWeight:700,color:TEAM_COLORS[race.team]||evClr}}>{race.team}</span>:null}</div>
+            {sess.races.slice().sort(function(a,b){return(a.sortKey||0)-(b.sortKey||0);}).map(function(race){var evClr=EVENT_COLORS[race.event]||T.accent;var runners=(race.runners||[]).slice().sort(function(a,b){return(a.finalTime||999999)-(b.finalTime||999999);});return(<div key={race.id||race.event+race.team} style={{padding:"8px 12px",borderBottom:"1px solid "+T.dim}}>
+              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}><span style={{fontSize:12,fontWeight:800,color:evClr}}>{race.event}</span>{race.team?<span style={{fontSize:10,fontWeight:700,color:TEAM_COLORS[race.team]||evClr}}>{race.team}</span>:null}{race.heat>1?<span style={{fontSize:9,color:T.muted}}>H{race.heat}</span>:null}{race.savedBy?<span style={{fontSize:8,padding:"1px 4px",borderRadius:2,background:race.savedBy==="asst"?"#3498DB18":"#27ae6018",color:race.savedBy==="asst"?"#3498DB":"#27ae60"}}>{race.savedBy==="asst"?"Asst":"Head"}</span>:null}<button onClick={function(){if(confirm("Delete this race?")){if(onDeleteHistory){var keep=raceResults.filter(function(r2){return r2.id!==race.id;});onDeleteHistory(keep);}}}} style={{marginLeft:"auto",background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:10,padding:0}}>x</button></div>
               {runners.map(function(r,ri){return(<div key={r.id||ri} style={{display:"flex",alignItems:"center",gap:6,padding:"2px 0"}}><span style={{width:18,fontSize:10,fontWeight:700,color:ri===0?evClr:T.muted,textAlign:"center"}}>{ri+1}</span><span style={{flex:1,fontSize:11,fontWeight:ri===0?700:500,color:ri===0?evClr:T.muted}}>{r.name}</span>
                 {(r.splits||[]).length>1?(r.splits||[]).slice(0,-1).map(function(s,si){return <span key={si} style={{fontSize:13,fontWeight:700,color:T.oldSplit||T.timeClr,fontFamily:"'Share Tech Mono',monospace",width:55,textAlign:"center"}}>{fmtSplit(s.split)}</span>;}):null}
                 <span style={{fontSize:14,fontWeight:800,color:ri===0?"#5ddb6a":T.timeClr,fontFamily:"'Share Tech Mono',monospace",minWidth:65,textAlign:"right"}}>{r.finalTime?fmtTime(r.finalTime):"--"}</span>
@@ -388,10 +405,11 @@ export default function SplitTimer(props){
         <span style={{fontSize:12,fontWeight:800,color:T.accent,letterSpacing:2,textTransform:"uppercase"}}>{label}</span>
       </div>
       <div style={{display:"flex",gap:5}}>
-        {anyHasSplits?<button onClick={submitAllResults} style={{padding:"6px 14px",background:allDone?"#27ae60":T.accent,color:T.bg,border:"none",borderRadius:3,cursor:"pointer",fontSize:12,fontWeight:900,fontFamily:"inherit",letterSpacing:1,textTransform:"uppercase"}}>{allDone?"\u2713 Submit All Results":"Submit Results"}</button>:null}
+        {anyHasSplits&&!allSaved?<button onClick={saveAllUnsaved} style={{padding:"6px 14px",background:"#3498DB",color:T.bg,border:"none",borderRadius:3,cursor:"pointer",fontSize:12,fontWeight:900,fontFamily:"inherit",letterSpacing:1,textTransform:"uppercase"}}>Save All</button>:null}
+        {allSaved&&anyHasSplits?<button onClick={clearSession} style={{padding:"6px 14px",background:"#27ae60",color:T.bg,border:"none",borderRadius:3,cursor:"pointer",fontSize:12,fontWeight:900,fontFamily:"inherit",letterSpacing:1,textTransform:"uppercase"}}>Done - Clear</button>:null}
       </div>
     </div>
     <div style={{padding:"8px 10px"}}>
-      {races.map(function(race){return <RaceCard key={race.id} race={race} rosterMap={rosterMap} paces={fbPaces} onUpdateRace={updateRace} splitLabel={label} T={T}/>;})}</div>
+      {races.map(function(race){return <RaceCard key={race.id} race={race} rosterMap={rosterMap} paces={fbPaces} onUpdateRace={updateRace} onSaveRace={saveOneRace} splitLabel={label} T={T}/>;})}</div>
   </div>);
 }
