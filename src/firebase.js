@@ -91,30 +91,4 @@ export async function atomicUpdateAthleteData(key, updateFn, maxRetries = 3) {
   return false;
 }
 
-// Atomic read-modify-write for athlete data (prevents race conditions)
-export async function atomicUpdateAthleteData(key, updateFn, maxRetries = 3) {
-  const docRef = doc(db, 'athleteData', key);
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    try {
-      await runTransaction(db, async (transaction) => {
-        const snap = await transaction.get(docRef);
-        const current = snap.exists() ? snap.data().value : null;
-        let parsed = null;
-        try { parsed = current ? JSON.parse(current) : null; } catch (e) { parsed = null; }
-        const updated = updateFn(parsed);
-        transaction.set(docRef, { value: JSON.stringify(updated) });
-      });
-      return true;
-    } catch (e) {
-      console.warn(`Transaction attempt ${attempt + 1} failed for ${key}:`, e.message);
-      if (attempt === maxRetries - 1) {
-        console.error('All transaction retries failed for', key, e);
-        return false;
-      }
-      await new Promise(r => setTimeout(r, 100 * (attempt + 1)));
-    }
-  }
-  return false;
-}
-
 export const IS_COACH_BUILD = !!COACH_TOKEN;
