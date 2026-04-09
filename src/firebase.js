@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, getDoc, setDoc, runTransaction } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentSingleTabManager, doc, getDoc, setDoc, runTransaction } from 'firebase/firestore';
 
 // ╔══════════════════════════════════════════════════════════╗
 // ║  PASTE YOUR FIREBASE CONFIG FROM THE FIREBASE CONSOLE   ║
@@ -15,7 +15,11 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+
+// Enable offline persistence — writes queue locally and sync when back online
+const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({ tabManager: persistentSingleTabManager() })
+});
 
 const COACH_TOKEN = import.meta.env.VITE_COACH_TOKEN || null;
 

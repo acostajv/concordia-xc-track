@@ -436,6 +436,9 @@ export default function App(){
   var _mid=useState(null);var mEid=_mid[0];var setMEid=_mid[1];
   var _raf=useState(false);var rFormOpen=_raf[0];var setRFormOpen=_raf[1];
   var _maf=useState(false);var mFormOpen=_maf[0];var setMFormOpen=_maf[1];
+  var _saveFails=useState([]);var saveFails=_saveFails[0];var setSaveFails=_saveFails[1];
+  function addSaveFail(msg){setSaveFails(function(prev){return prev.concat([{id:Date.now(),msg:msg,ts:Date.now()}]);});}
+  function dismissFail(id){setSaveFails(function(prev){return prev.filter(function(f){return f.id!==id;});});}
 
   useEffect(function(){
     /* Load local data immediately */
@@ -549,7 +552,7 @@ export default function App(){
           var entries=[];try{entries=raw?JSON.parse(raw):[];}catch(e){}
           setWlog(function(prev){var n=Object.assign({},prev);n[dk]=entries;return n;});
         });
-      }else{console.error("[WLOG] addLog FAILED for",dk,"- entry may be lost!");alert("Save failed! Check your connection and try again.");}
+      }else{console.error("[WLOG] addLog FAILED for",dk,"- entry may be lost!");setWlog(function(prev){var n=Object.assign({},prev);n[dk]=(n[dk]||[]).filter(function(e){return e.id!==entryWithId.id;});return n;});addSaveFail("Workout log save failed. Check your connection and try again.");}
     });
   }
   function rmLog(dk,entryId){
@@ -608,10 +611,14 @@ export default function App(){
   }
   function saveAthSelf(id,field,val){
     setRoster(roster.map(function(a){return a.id===id?Object.assign({},a,Object.fromEntries([[field,val]])):a;}));
-    loadAthleteData("athprofile").then(function(raw){
-      var prof={};try{prof=raw?JSON.parse(raw):{};}catch(e){}
-      if(!prof[id])prof[id]={};prof[id][field]=val;
-      saveAthleteData("athprofile",JSON.stringify(prof));
+    atomicUpdateAthleteData("athprofile",function(current){
+      var prof=current&&typeof current==="object"?Object.assign({},current):{};
+      if(!prof[id])prof[id]={};
+      prof[id]=Object.assign({},prof[id]);
+      prof[id][field]=val;
+      return prof;
+    }).then(function(ok){
+      if(!ok){addSaveFail("Profile update failed ("+field+"). Check your connection and try again.");}
     });
   }
   /* Injuries */
@@ -633,7 +640,7 @@ export default function App(){
       return arr.concat([newEntry]);
     }).then(function(ok){
       if(ok){loadAthleteData("wlog:"+dk).then(function(raw){var entries=[];try{entries=raw?JSON.parse(raw):[];}catch(e){}setWlog(function(prev){var n=Object.assign({},prev);n[dk]=entries;return n;});});}
-      else{console.error("[WLOG] addReadiness FAILED");alert("Check-in save failed! Check your connection.");}
+      else{console.error("[WLOG] addReadiness FAILED");setWlog(function(prev){var n=Object.assign({},prev);n[dk]=(n[dk]||[]).filter(function(e){return e.id!==newEntry.id;});return n;});addSaveFail("Check-in save failed. Check your connection and try again.");}
     });
   }
   function commentOnLog(dk,ts,comment){
@@ -696,7 +703,7 @@ export default function App(){
       return arr;
     }).then(function(ok){
       if(ok){loadAthleteData("raceresults-v1").then(function(raw){if(raw){try{setRaceResults(JSON.parse(raw));}catch(e){}}});}
-      else{alert("Race result save failed! Check connection.");}
+      else{setRaceResults(function(prev){return prev.filter(function(r){return r.id!==newResult.id;});});addSaveFail("Race result save failed. Check your connection and try again.");}
     });
   }
   function onDeleteHistory(remaining){setRaceResults(remaining);atomicUpdateAthleteData("raceresults-v1",function(){return remaining;});}
@@ -936,6 +943,13 @@ export default function App(){
       </div>
 
       <div className="main-content" style={{padding:"16px 24px 32px",maxWidth:1100,margin:"0 auto"}}>
+
+      {/* Save failure banner */}
+      {saveFails.length>0?saveFails.map(function(f){return(<div key={f.id} style={{padding:"10px 14px",marginBottom:8,borderRadius:8,background:lt?"#fee2e2":"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.4)",display:"flex",alignItems:"center",gap:10}}>
+        <span style={{fontSize:14}}>!</span>
+        <div style={{flex:1,fontSize:12,fontWeight:600,color:lt?"#991b1b":"#fca5a5",lineHeight:1.4}}>{f.msg}</div>
+        <button onClick={function(){dismissFail(f.id);}} style={{background:"none",border:"none",color:lt?"#991b1b":"#fca5a5",fontSize:16,cursor:"pointer",padding:"0 4px",fontWeight:700}}>x</button>
+      </div>);}):null}
 
       {/* ══════ SCHEDULE TAB ══════ */}
       {view==="schedule"?(<div>
