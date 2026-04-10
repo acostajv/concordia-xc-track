@@ -35,11 +35,13 @@ function PacePill(p){if(!p.value)return null;return(<span style={{display:"inlin
 
 /* ── RACE CARD ─────────────────────────────────────────────────────────── */
 function RaceCard(props){
-  var race=props.race,rosterMap=props.rosterMap,paces=props.paces,onUpdateRace=props.onUpdateRace,onSaveRace=props.onSaveRace,splitLabel=props.splitLabel||"400m",T=props.T;
+  var race=props.race,rosterMap=props.rosterMap,paces=props.paces,onUpdateRace=props.onUpdateRace,onSaveRace=props.onSaveRace,splitLabel=props.splitLabel||"400m",T=props.T,allAthletes=props.allAthletes||[];
   var _r=useState(false);var isRunning=_r[0];var setIsRunning=_r[1];
   var _e=useState(race.elapsed||0);var elapsed=_e[0];var setElapsed=_e[1];
   var _f=useState({});var flashMap=_f[0];var setFlashMap=_f[1];
   var startRef=useRef(null);var pausedRef=useRef(race.elapsed||0);var rafRef=useRef(null);var elapsedRef=useRef(race.elapsed||0);
+  var _drag=useState(null);var dragIdx=_drag[0];var setDragIdx=_drag[1];
+  var _showAdd=useState(false);var showAdd=_showAdd[0];var setShowAdd=_showAdd[1];
 
   var tick=useCallback(function(){var now=Date.now()-startRef.current+pausedRef.current;elapsedRef.current=now;setElapsed(now);rafRef.current=requestAnimationFrame(tick);},[]);
   var startTimer=function(){startRef.current=Date.now();setIsRunning(true);rafRef.current=requestAnimationFrame(tick);};
@@ -79,6 +81,23 @@ function RaceCard(props){
   var resetRace=function(){cancelAnimationFrame(rafRef.current);setIsRunning(false);setElapsed(0);elapsedRef.current=0;pausedRef.current=0;onUpdateRace(race.id,{elapsed:0,splits:{},status:"ready",finished:{}});};
   useEffect(function(){return function(){cancelAnimationFrame(rafRef.current);};},[]);
 
+  var isReady=race.status==="ready"&&!isRunning&&elapsed===0;
+  var moveRunner=function(fromIdx,toIdx){
+    if(fromIdx===toIdx)return;
+    var ids=(race.runnerIds||[]).slice();var item=ids.splice(fromIdx,1)[0];ids.splice(toIdx,0,item);
+    onUpdateRace(race.id,{runnerIds:ids});
+  };
+  var removeRunner=function(rid){
+    var ids=(race.runnerIds||[]).filter(function(r){return r!==rid;});
+    var ns=Object.assign({},race.splits||{});delete ns[rid];
+    var nf=Object.assign({},race.finished||{});delete nf[rid];
+    onUpdateRace(race.id,{runnerIds:ids,splits:ns,finished:nf});
+  };
+  var addRunner=function(rid){
+    if((race.runnerIds||[]).includes(rid))return;
+    onUpdateRace(race.id,{runnerIds:(race.runnerIds||[]).concat([rid])});
+  };
+
   var splitsToFinish=getSplitsToFinish(race.event,splitLabel);
   var finishedMap=race.finished||{};
   var isRelay=race.event==="4x800";
@@ -100,12 +119,16 @@ function RaceCard(props){
       var ns=Object.assign({},race.splits||{});
       ns[rid]=[{split:now-legStart,total:now}];/* One split per leg = their 800 time + cumulative */
       var nf=Object.assign({},finishedMap);nf[rid]=true;
-      onUpdateRace(race.id,{splits:ns,status:"running",finished:nf});
+      var done1=(race.runnerIds||[]).every(function(r){return nf[r];});
+      if(done1){cancelAnimationFrame(rafRef.current);pausedRef.current=now;setIsRunning(false);onUpdateRace(race.id,{splits:ns,status:"done",elapsed:now,finished:nf});}
+      else{onUpdateRace(race.id,{splits:ns,status:"running",finished:nf});}
     } else {
       var prev=(race.splits||{})[rid]||[];var last=prev.length>0?prev[prev.length-1].total:0;
       var ns=Object.assign({},race.splits||{});ns[rid]=prev.concat([{split:now-last,total:now}]);
       var nf=Object.assign({},finishedMap);if(splitsToFinish>0&&ns[rid].length>=splitsToFinish)nf[rid]=true;
-      onUpdateRace(race.id,{splits:ns,status:"running",finished:nf});
+      var done2=(race.runnerIds||[]).every(function(r){return nf[r];});
+      if(done2){cancelAnimationFrame(rafRef.current);pausedRef.current=now;setIsRunning(false);onUpdateRace(race.id,{splits:ns,status:"done",elapsed:now,finished:nf});}
+      else{onUpdateRace(race.id,{splits:ns,status:"running",finished:nf});}
     }
     setFlashMap(function(p){var n=Object.assign({},p);n[rid]=true;return n;});setTimeout(function(){setFlashMap(function(p){var n=Object.assign({},p);n[rid]=false;return n;});},350);
   };
@@ -145,17 +168,30 @@ function RaceCard(props){
           var isActiveLeg=isRelay&&athIdx===activeLeg;
           var canClick=isRelay?isActiveLeg&&(isRunning||elapsed>0)&&!isDone:(isRunning||elapsed>0)&&!isDone&&!isFin;
           var p=paces[ath.name]||{};
-          var legNum=isRelay?athIdx+1:0;
-          return(<button key={ath.id} onClick={function(){if(canClick)recordSplit(ath.id);}} style={{width:"100%",padding:"8px 10px",background:flash?"#0c1f0e":T.card,border:"1px solid "+(flash?"#2d7a35":isFin?"#27ae6044":hasSp?"#1a2e1a":T.border),borderTop:"2px solid "+(isFin?"#27ae60":flash?"#5ddb6a":hasSp?"#1e4a1e":teamClr+"44"),borderRadius:4,cursor:canClick?"pointer":"default",textAlign:"left",userSelect:"none",fontFamily:"inherit",display:"flex",flexDirection:"column",gap:2,opacity:isFin&&!flash?0.6:(isRelay&&!isActiveLeg&&!isFin)?0.4:1}}>
+          return(<div key={ath.id} style={{position:"relative",width:"100%"}}
+            draggable={isReady} onDragStart={function(e){if(!isReady)return;setDragIdx(athIdx);e.dataTransfer.effectAllowed="move";}}
+            onDragOver={function(e){if(!isReady||dragIdx===null)return;e.preventDefault();e.dataTransfer.dropEffect="move";}}
+            onDrop={function(e){if(!isReady||dragIdx===null)return;e.preventDefault();moveRunner(dragIdx,athIdx);setDragIdx(null);}}
+            onDragEnd={function(){setDragIdx(null);}}>
+            {isReady?<span onClick={function(e){e.stopPropagation();removeRunner(ath.id);}} style={{position:"absolute",top:2,right:2,zIndex:2,width:16,height:16,borderRadius:"50%",background:"#ef444433",color:"#ef4444",border:"none",cursor:"pointer",fontSize:10,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>{"\u00D7"}</span>:null}
+            <button onClick={function(){if(canClick)recordSplit(ath.id);}} style={{width:"100%",padding:"8px 10px",background:flash?"#0c1f0e":dragIdx===athIdx?"rgba(255,255,255,0.05)":T.card,border:"1px solid "+(flash?"#2d7a35":isFin?"#27ae6044":hasSp?"#1a2e1a":T.border),borderTop:"2px solid "+(isFin?"#27ae60":flash?"#5ddb6a":hasSp?"#1e4a1e":teamClr+"44"),borderRadius:4,cursor:isReady?"grab":canClick?"pointer":"default",textAlign:"left",userSelect:"none",fontFamily:"inherit",display:"flex",flexDirection:"column",gap:2,opacity:dragIdx===athIdx?0.4:isFin&&!flash?0.6:(isRelay&&!isActiveLeg&&!isFin)?0.4:1}}>
+            {isReady?<div style={{display:"flex",alignItems:"center",gap:4,marginBottom:1}}><span style={{fontSize:10,color:T.muted,letterSpacing:1,cursor:"grab"}}>{"\u2630"}</span>{isRelay?<span style={{fontSize:9,fontWeight:700,color:evClr,padding:"0 4px",borderRadius:2,background:evClr+"18"}}>Leg {athIdx+1}</span>:null}</div>:null}
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:4}}>
               <span style={{fontSize:16,fontWeight:800,color:flash?"#5ddb6a":isFin?"#27ae60":T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",flex:1,minWidth:0,lineHeight:1.1}}>{ath.name}</span>
               <span style={{fontSize:18,fontWeight:900,lineHeight:1,color:hasSp?(flash?"#5ddb6a":isFin?"#27ae60":T.accent):T.dim,flexShrink:0}}>{sp.length}</span>
             </div>
             <div style={{minHeight:22}}>{last?<div style={{display:"flex",alignItems:"baseline",gap:5}}><span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:19,fontWeight:800,color:flash?"#5ddb6a":isFin?"#27ae60":T.splitClr}}>{fmtSplit(last.split)}</span><span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:13,fontWeight:700,color:T.timeClr}}>{fmtTime(last.total)}</span></div>:<span style={{fontSize:9,color:isFin?"#27ae60":isActiveLeg?T.accent:T.dim}}>{isFin?"\u2713 FINISHED":isActiveLeg?"\u25B6 ACTIVE LEG":isRelay&&!isFin?"waiting":canClick?"tap to split":""}</span>}</div>
             {(p.thrSafe||p.cv||p.vo2Safe)?<div style={{display:"flex",flexWrap:"wrap",gap:3,marginTop:1}}>{p.thrSafe?<PacePill label="T" value={p.thrSafe} color="#f0a500"/>:null}{p.cv?<PacePill label="CV" value={p.cv} color="#4a9eff"/>:null}{p.vo2Safe?<PacePill label="V2" value={p.vo2Safe} color="#e84393"/>:null}</div>:null}
-          </button>);
+          </button></div>);
         })}
       </div>
+      {isReady?<div style={{marginTop:4,display:"flex",gap:4,alignItems:"center"}}>
+        {!showAdd?<button onClick={function(){setShowAdd(true);}} style={{padding:"4px 10px",background:"transparent",color:T.accent,border:"1px dashed "+T.accent+"66",borderRadius:3,cursor:"pointer",fontSize:11,fontWeight:700,fontFamily:"inherit"}}>+ Add Runner</button>:
+        <div style={{flex:1,display:"flex",gap:4}}><select value="" onChange={function(e){if(e.target.value){addRunner(e.target.value);setShowAdd(false);}}} style={{flex:1,background:T.card,border:"1px solid "+T.accent+"66",color:T.text,padding:"5px 8px",borderRadius:3,fontFamily:"inherit",fontSize:11}}>
+          <option value="">Select runner...</option>
+          {allAthletes.filter(function(a){return!(race.runnerIds||[]).includes(String(a.id));}).map(function(a){return <option key={a.id} value={String(a.id)}>{a.name} ({a.team})</option>;})}
+        </select><button onClick={function(){setShowAdd(false);}} style={{padding:"4px 8px",background:"transparent",color:T.muted,border:"1px solid "+T.border,borderRadius:3,cursor:"pointer",fontSize:10,fontFamily:"inherit"}}>{"\u00D7"}</button></div>}
+      </div>:null}
       {hasSplits?<div style={{marginTop:8}}><div style={{fontSize:9,letterSpacing:3,color:T.muted,textTransform:"uppercase",marginBottom:4}}>{isRelay?"Relay Legs":"Split Log"}</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4}}>
           {runners.filter(function(a){return((race.splits||{})[a.id]||[]).length>0;}).map(function(ath){var sp=(race.splits||{})[ath.id];return(<div key={ath.id} style={{background:T.timerBg,border:"1px solid "+T.border,borderTop:"2px solid "+teamClr+"33",borderRadius:4,padding:"6px 8px"}}>
@@ -184,6 +220,7 @@ export default function SplitTimer(props){
   var _fbStatus=useState("connecting");var fbStatus=_fbStatus[0];var setFbStatus=_fbStatus[1];
   var _impMeet=useState(null);var importedMeetId=_impMeet[0];var setImportedMeetId=_impMeet[1];
   var _histOpen=useState(false);var histOpen=_histOpen[0];var setHistOpen=_histOpen[1];
+  var _expRace=useState(null);var expandedRace=_expRace[0];var setExpandedRace=_expRace[1];
   var _woGroups=useState([]);var woGroups=_woGroups[0];var setWoGroups=_woGroups[1];
   var _newGrpName=useState("");var newGrpName=_newGrpName[0];var setNewGrpName=_newGrpName[1];
   var _paceKey=useState("thrSafe");var paceKey=_paceKey[0];var setPaceKey=_paceKey[1];
@@ -254,7 +291,6 @@ export default function SplitTimer(props){
   var histKeys=Object.keys(histBySession).sort(function(a,b){return(histBySession[b].date||"").localeCompare(histBySession[a].date||"");});
 
   /* Check if all races done */
-  var allDone=races.length>0&&races.every(function(r){return r.status==="done";});
   var allSaved=races.length>0&&races.every(function(r){return r.saved||(!r.splits||Object.keys(r.splits).length===0);});
   var anyHasSplits=races.some(function(r){return Object.keys(r.splits||{}).length>0;});
 
@@ -344,11 +380,31 @@ export default function SplitTimer(props){
       </div>):null}
 
       {/* Race preview */}
-      {races.length>0?<div style={{marginTop:16,marginBottom:12}}><div style={{fontSize:9,letterSpacing:4,color:T.accent,textTransform:"uppercase",marginBottom:6}}>Race Cards ({races.length})</div>
-        {races.map(function(r){var evClr=EVENT_COLORS[r.event]||r.color||T.accent;return(<div key={r.id} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 10px",marginBottom:3,background:T.card,border:"1px solid "+T.border,borderLeft:"3px solid "+evClr,borderRadius:4}}>
-          <span style={{fontSize:13,fontWeight:800,color:evClr}}>{r.label||r.event}</span>
-          {r.team?<span style={{fontSize:10,fontWeight:700,color:TEAM_COLORS[r.team]||evClr}}>{r.team}</span>:null}
-          <span style={{fontSize:10,color:T.muted,flex:1}}>{(r.runnerIds||[]).length} runners</span>
+      {races.length>0?<div style={{marginTop:16,marginBottom:12}}><div style={{fontSize:9,letterSpacing:4,color:T.accent,textTransform:"uppercase",marginBottom:6}}>Race Cards ({races.length}) <span style={{fontSize:8,color:T.muted,fontStyle:"italic",letterSpacing:0,textTransform:"none"}}>tap to expand, drag to reorder runners</span></div>
+        {races.map(function(r){var evClr=EVENT_COLORS[r.event]||r.color||T.accent;var isExp=expandedRace===r.id;var rRunners=(r.runnerIds||[]).map(function(rid){return rosterMap[rid]||rosterMap[String(rid)];}).filter(Boolean);
+          var previewMoveRunner=function(fromI,toI){if(fromI===toI)return;var ids=(r.runnerIds||[]).slice();var item=ids.splice(fromI,1)[0];ids.splice(toI,0,item);updateRace(r.id,{runnerIds:ids});};
+          var previewRemoveRunner=function(rid){var ids=(r.runnerIds||[]).filter(function(x){return x!==rid;});updateRace(r.id,{runnerIds:ids});};
+          var previewAddRunner=function(rid){if((r.runnerIds||[]).includes(rid))return;updateRace(r.id,{runnerIds:(r.runnerIds||[]).concat([rid])});};
+          return(<div key={r.id} style={{marginBottom:4,background:T.card,border:"1px solid "+(isExp?evClr+"44":T.border),borderLeft:"3px solid "+evClr,borderRadius:4,overflow:"hidden"}}>
+          <div onClick={function(){setExpandedRace(isExp?null:r.id);}} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 10px",cursor:"pointer"}}>
+            <span style={{fontSize:13,fontWeight:800,color:evClr}}>{r.label||r.event}</span>
+            {r.team?<span style={{fontSize:10,fontWeight:700,color:TEAM_COLORS[r.team]||evClr}}>{r.team}</span>:null}
+            <span style={{fontSize:10,color:T.muted,flex:1}}>{rRunners.length} runners</span>
+            <span style={{fontSize:10,color:T.muted}}>{isExp?"\u25B2":"\u25BC"}</span>
+          </div>
+          {isExp?<div style={{padding:"4px 10px 8px",borderTop:"1px solid "+T.border}}>
+            {rRunners.map(function(ath,ai){return(<div key={ath.id} draggable onDragStart={function(e){e.dataTransfer.setData("text/plain",String(ai));e.dataTransfer.effectAllowed="move";}} onDragOver={function(e){e.preventDefault();e.dataTransfer.dropEffect="move";}} onDrop={function(e){e.preventDefault();var from=parseInt(e.dataTransfer.getData("text/plain"));if(!isNaN(from))previewMoveRunner(from,ai);}} style={{display:"flex",alignItems:"center",gap:6,padding:"3px 4px",marginBottom:2,borderRadius:3,background:T.timerBg,border:"1px solid "+T.border,cursor:"grab"}}>
+              <span style={{fontSize:10,color:T.muted}}>{"\u2630"}</span>
+              {r.event==="4x800"?<span style={{fontSize:9,fontWeight:700,color:evClr,padding:"0 4px",borderRadius:2,background:evClr+"18"}}>Leg {ai+1}</span>:null}
+              <span style={{fontSize:12,fontWeight:700,color:T.text,flex:1}}>{ath.name}</span>
+              <span style={{fontSize:9,color:TEAM_COLORS[ath.team]||T.muted}}>{ath.team}</span>
+              <button onClick={function(e){e.stopPropagation();previewRemoveRunner(ath.id);}} style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:12,padding:"0 2px",fontFamily:"inherit"}}>{"\u00D7"}</button>
+            </div>);})}
+            <select value="" onChange={function(e){if(e.target.value)previewAddRunner(e.target.value);}} style={{width:"100%",marginTop:4,background:T.timerBg,border:"1px dashed "+T.accent+"44",color:T.muted,padding:"4px 8px",borderRadius:3,fontFamily:"inherit",fontSize:11}}>
+              <option value="">+ Add runner...</option>
+              {allAthletes.filter(function(a){return!(r.runnerIds||[]).includes(String(a.id));}).map(function(a){return <option key={a.id} value={String(a.id)}>{a.name} ({a.team})</option>;})}
+            </select>
+          </div>:null}
         </div>);})}
         <button onClick={function(){if(confirm("Clear all race cards?"))resetAll();}} style={{marginTop:4,padding:"3px 8px",background:"transparent",color:T.muted,border:"1px solid "+T.dim,borderRadius:3,cursor:"pointer",fontSize:10,fontFamily:"inherit"}}>Clear</button>
       </div>:null}
@@ -410,6 +466,6 @@ export default function SplitTimer(props){
       </div>
     </div>
     <div style={{padding:"8px 10px"}}>
-      {races.map(function(race){return <RaceCard key={race.id} race={race} rosterMap={rosterMap} paces={fbPaces} onUpdateRace={updateRace} onSaveRace={saveOneRace} splitLabel={label} T={T}/>;})}</div>
+      {races.map(function(race){return <RaceCard key={race.id} race={race} rosterMap={rosterMap} paces={fbPaces} onUpdateRace={updateRace} onSaveRace={saveOneRace} splitLabel={label} T={T} allAthletes={allAthletes}/>;})}</div>
   </div>);
 }

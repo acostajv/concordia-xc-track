@@ -344,6 +344,8 @@ export default function App(){
   var _qaInput=useState("");var qaInput=_qaInput[0];var setQaInput=_qaInput[1];
   var _rwPeriod=useState("week");var rwPeriod=_rwPeriod[0];var setRwPeriod=_rwPeriod[1];
   var _rr=useState([]);var raceResults=_rr[0];var setRaceResults=_rr[1];
+  var _rrEdit=useState(null);var rrEdit=_rrEdit[0];var setRrEdit=_rrEdit[1];
+  var _rrEditVal=useState("");var rrEditVal=_rrEditVal[0];var setRrEditVal=_rrEditVal[1];
   var _raffleUsed=useState({});var raffleUsed=_raffleUsed[0];var setRaffleUsed=_raffleUsed[1];
   var _raffleWinner=useState(null);var raffleWinner=_raffleWinner[0];var setRaffleWinner=_raffleWinner[1];
   var _raffleSpinning=useState(false);var raffleSpinning=_raffleSpinning[0];var setRaffleSpinning=_raffleSpinning[1];
@@ -693,6 +695,41 @@ export default function App(){
   }
   function upGuide(g){setGuideSections(g);sv1(GDK,g);}
   function upRR(results){setRaceResults(results);atomicUpdateAthleteData("raceresults-v1",function(){return results;});}
+  function parseTimeToMs(str){
+    /* Accepts: "5:23.45", "5:23.4", "5:23", "23.45", "323.45" (seconds.cs) */
+    str=(str||"").trim();if(!str)return null;
+    var parts=str.split(":");
+    if(parts.length===2){var mm=parseInt(parts[0]);var rest=parts[1].split(".");var ss=parseInt(rest[0])||0;var cs=rest[1]?parseInt(rest[1].padEnd(2,"0").slice(0,2)):0;if(isNaN(mm))return null;return mm*60000+ss*1000+cs*10;}
+    else if(parts.length===1){var rest=str.split(".");var sec=parseInt(rest[0])||0;var cs=rest[1]?parseInt(rest[1].padEnd(2,"0").slice(0,2)):0;return sec*1000+cs*10;}
+    return null;
+  }
+  function updateRaceResult(raceId,runnerId,splitIdx,newMs){
+    /* splitIdx=-1 means editing final time directly */
+    var updated=raceResults.map(function(race){
+      if(race.id!==raceId)return race;
+      var newRunners=(race.runners||[]).map(function(r){
+        if(r.id!==runnerId)return r;
+        var sp=(r.splits||[]).slice();
+        if(splitIdx===-1){
+          /* Editing final time: update the last split total and recalc its split delta */
+          if(sp.length>0){sp[sp.length-1]=Object.assign({},sp[sp.length-1],{total:newMs,split:sp.length>1?newMs-sp[sp.length-2].total:newMs});}
+          return Object.assign({},r,{splits:sp,finalTime:newMs});
+        } else if(splitIdx>=0&&splitIdx<sp.length){
+          /* Editing a specific split: update its total, recalc deltas for this and next */
+          var prevTotal=splitIdx>0?sp[splitIdx-1].total:0;
+          sp[splitIdx]=Object.assign({},sp[splitIdx],{total:newMs,split:newMs-prevTotal});
+          /* Recalc the next split's delta if it exists */
+          if(splitIdx+1<sp.length){sp[splitIdx+1]=Object.assign({},sp[splitIdx+1],{split:sp[splitIdx+1].total-newMs});}
+          /* If this is the last split, update finalTime too */
+          var ft=sp[sp.length-1].total;
+          return Object.assign({},r,{splits:sp,finalTime:ft});
+        }
+        return r;
+      });
+      return Object.assign({},race,{runners:newRunners});
+    });
+    upRR(updated);
+  }
   function onRaceFinish(raceData){
     var newResult=Object.assign({},raceData,{id:"rr_"+Date.now()+"_"+Math.random().toString(36).slice(2,6),savedAt:Date.now(),savedBy:cmRole||"coach"});
     setRaceResults(function(prev){return prev.concat([newResult]);});
@@ -2925,11 +2962,21 @@ export default function App(){
                     {runners.map(function(r,ri){
                       var fmtFinal=r.finalTime?fmtTime(r.finalTime):"--";
                       var isFirst=ri===0;
+                      var editKey=function(si){return race.id+"|"+r.id+"|"+si;};
+                      var mkEditable=function(displayStr,totalMs,splitIndex){
+                        var ek=editKey(splitIndex);
+                        if(rrEdit===ek){return(<input value={rrEditVal} onChange={function(e){setRrEditVal(e.target.value);}}
+                          onBlur={function(){var ms=parseTimeToMs(rrEditVal);if(ms!==null&&ms!==totalMs){updateRaceResult(race.id,r.id,splitIndex,ms);}setRrEdit(null);}}
+                          onKeyDown={function(e){if(e.key==="Enter"){e.target.blur();}if(e.key==="Escape"){setRrEdit(null);}}}
+                          autoFocus style={{width:splitIndex===-1?70:60,fontSize:splitIndex===-1?13:11,fontFamily:"monospace",fontWeight:700,textAlign:splitIndex===-1?"right":"center",background:lt?"#fff8e0":"#1a1a0a",color:lt?"#333":"#ffd700",border:"1px solid #f0a50066",borderRadius:3,padding:"1px 3px",outline:"none"}}/>);}
+                        if(!cm)return null;
+                        return(<span onClick={function(){setRrEdit(ek);setRrEditVal(fmtTime(totalMs));}} style={{cursor:"pointer",borderBottom:"1px dashed "+(lt?"#ccc":"#333")}} title="Click to edit">{displayStr}</span>);
+                      };
                       return(<div key={r.id} style={{display:"flex",gap:4,alignItems:"center",padding:"5px 8px",marginBottom:2,borderRadius:6,background:isFirst?evClr+"12":"transparent",border:isFirst?"1px solid "+evClr+"33":"1px solid "+C.bd}}>
                         <span style={{width:24,fontSize:12,fontWeight:800,color:isFirst?evClr:_tm,textAlign:"center"}}>{ri+1}</span>
                         <span style={{flex:1,fontSize:12,fontWeight:isFirst?700:500,color:isFirst?evClr:_tp,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.name}</span>
-                        {(r.splits||[]).length>1?(r.splits||[]).slice(0,-1).map(function(s,si){return <span key={si} style={{width:65,fontSize:11,fontFamily:"monospace",color:_tm,textAlign:"center"}}>{fmtSplit(s.split)}</span>;}):null}
-                        <span style={{width:75,fontSize:13,fontWeight:800,color:isFirst?evClr:_tp,fontFamily:"monospace",textAlign:"right"}}>{fmtFinal}</span>
+                        {(r.splits||[]).length>1?(r.splits||[]).slice(0,-1).map(function(s,si){return <span key={si} style={{width:65,fontSize:11,fontFamily:"monospace",color:_tm,textAlign:"center"}}>{cm?mkEditable(fmtSplit(s.split),s.total,si)||fmtSplit(s.split):fmtSplit(s.split)}</span>;}):null}
+                        <span style={{width:75,fontSize:13,fontWeight:800,color:isFirst?evClr:_tp,fontFamily:"monospace",textAlign:"right"}}>{cm&&r.finalTime?mkEditable(fmtFinal,r.finalTime,-1)||fmtFinal:fmtFinal}</span>
                       </div>);
                     })}
                   </div>
