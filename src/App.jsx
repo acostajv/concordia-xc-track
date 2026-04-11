@@ -2958,43 +2958,83 @@ export default function App(){
               {meetGroup.races.map(function(race){
                 var evClr={"800":"#F39C12","1600":"#D4A017","3200":"#27ae60","4x800":"#a855f7"}[race.event]||"#4a9eff";
                 var tClr=race.team==="boys"?C.greenLight:C.gold;
-                var runners=(race.runners||[]).slice().sort(function(a,b){return(a.finalTime||999999)-(b.finalTime||999999);});
+                var isRelay=race.event==="4x800";
+                /* Relay: preserve leg order. Standard: sort by finalTime. */
+                var runners=isRelay?(race.runners||[]).slice():(race.runners||[]).slice().sort(function(a,b){return(a.finalTime||999999)-(b.finalTime||999999);});
+                /* Max splits across all runners (for standard race header) */
+                var maxSplits=runners.reduce(function(m,r){return Math.max(m,(r.splits||[]).length);},0);
+                /* Team total for relay (max finalTime = leg 4 cumulative) */
+                var teamTotal=isRelay?runners.reduce(function(m,r){return r.finalTime>m?r.finalTime:m;},0):0;
+                var mkEditableFor=function(r){
+                  var editKey=function(si){return race.id+"|"+r.id+"|"+si;};
+                  return function(displayStr,totalMs,splitIndex){
+                    var ek=editKey(splitIndex);
+                    if(rrEdit===ek){return(<input value={rrEditVal} onChange={function(e){setRrEditVal(e.target.value);}}
+                      onBlur={function(){var ms=parseTimeToMs(rrEditVal);if(ms!==null&&ms!==totalMs){updateRaceResult(race.id,r.id,splitIndex,ms);}setRrEdit(null);}}
+                      onKeyDown={function(e){if(e.key==="Enter"){e.target.blur();}if(e.key==="Escape"){setRrEdit(null);}}}
+                      autoFocus style={{width:splitIndex===-1?70:60,fontSize:splitIndex===-1?13:11,fontFamily:"monospace",fontWeight:700,textAlign:splitIndex===-1?"right":"center",background:lt?"#fff8e0":"#1a1a0a",color:lt?"#333":"#ffd700",border:"1px solid #f0a50066",borderRadius:3,padding:"1px 3px",outline:"none"}}/>);}
+                    if(!cm)return null;
+                    return(<span onClick={function(){setRrEdit(ek);setRrEditVal(fmtTime(totalMs));}} style={{cursor:"pointer",borderBottom:"1px dashed "+(lt?"#ccc":"#333")}} title="Click to edit">{displayStr}</span>);
+                  };
+                };
                 return(<div key={race.id||race.event+race.team} style={{marginBottom:10,borderRadius:10,border:"1px solid "+C.bd,borderLeft:"3px solid "+evClr,background:lt?"#fff":"rgba(255,255,255,0.02)",overflow:"hidden"}}>
                   <div style={{padding:"10px 14px",display:"flex",alignItems:"center",gap:8}}>
                     <span style={{fontSize:14,fontWeight:800,color:evClr}}>{race.event}</span>
                     <span style={{fontSize:11,fontWeight:700,color:tClr,padding:"1px 8px",borderRadius:3,background:tClr+"18",textTransform:"uppercase",letterSpacing:1}}>{race.team}</span>
                     <span style={{fontSize:10,color:_tm}}>{runners.length} runners</span>
+                    {race.heat&&race.heat>1?<span style={{fontSize:10,fontWeight:700,color:_tm,padding:"1px 6px",borderRadius:3,background:"rgba(255,255,255,0.06)",border:"1px solid "+C.bd}}>H{race.heat}</span>:null}
                     {race.savedBy?<span style={{fontSize:8,padding:"1px 4px",borderRadius:2,background:race.savedBy==="asst"?"#3498DB18":"#27ae6018",color:race.savedBy==="asst"?"#3498DB":"#27ae60"}}>{race.savedBy==="asst"?"Asst":"Head"}</span>:null}
                     {cm?<button onClick={function(){if(confirm("Delete this race result?")){upRR(raceResults.filter(function(r2){return r2.id!==race.id;}));}}} style={{marginLeft:"auto",background:"rgba(239,68,68,0.1)",border:"none",color:"#ef4444",borderRadius:3,padding:"2px 6px",cursor:"pointer",fontSize:9}}>x</button>:null}
                   </div>
                   <div style={{padding:"0 14px 10px"}}>
-                    {/* Header row */}
-                    <div style={{display:"flex",gap:4,padding:"4px 8px",marginBottom:4}}>
-                      <span style={{width:24,fontSize:9,fontWeight:700,color:_tm}}>Pl</span>
-                      <span style={{flex:1,fontSize:9,fontWeight:700,color:_tm}}>Runner</span>
-                      {runners[0]&&(runners[0].splits||[]).length>1?(runners[0].splits||[]).slice(0,-1).map(function(s,si){return <span key={si} style={{width:65,fontSize:9,fontWeight:700,color:_tm,textAlign:"center"}}>Split {si+1}</span>;}):null}
-                      <span style={{width:75,fontSize:9,fontWeight:700,color:_tm,textAlign:"right"}}>Final</span>
-                    </div>
-                    {runners.map(function(r,ri){
-                      var fmtFinal=r.finalTime?fmtTime(r.finalTime):"--";
-                      var isFirst=ri===0;
-                      var editKey=function(si){return race.id+"|"+r.id+"|"+si;};
-                      var mkEditable=function(displayStr,totalMs,splitIndex){
-                        var ek=editKey(splitIndex);
-                        if(rrEdit===ek){return(<input value={rrEditVal} onChange={function(e){setRrEditVal(e.target.value);}}
-                          onBlur={function(){var ms=parseTimeToMs(rrEditVal);if(ms!==null&&ms!==totalMs){updateRaceResult(race.id,r.id,splitIndex,ms);}setRrEdit(null);}}
-                          onKeyDown={function(e){if(e.key==="Enter"){e.target.blur();}if(e.key==="Escape"){setRrEdit(null);}}}
-                          autoFocus style={{width:splitIndex===-1?70:60,fontSize:splitIndex===-1?13:11,fontFamily:"monospace",fontWeight:700,textAlign:splitIndex===-1?"right":"center",background:lt?"#fff8e0":"#1a1a0a",color:lt?"#333":"#ffd700",border:"1px solid #f0a50066",borderRadius:3,padding:"1px 3px",outline:"none"}}/>);}
-                        if(!cm)return null;
-                        return(<span onClick={function(){setRrEdit(ek);setRrEditVal(fmtTime(totalMs));}} style={{cursor:"pointer",borderBottom:"1px dashed "+(lt?"#ccc":"#333")}} title="Click to edit">{displayStr}</span>);
-                      };
-                      return(<div key={r.id} style={{display:"flex",gap:4,alignItems:"center",padding:"5px 8px",marginBottom:2,borderRadius:6,background:isFirst?evClr+"12":"transparent",border:isFirst?"1px solid "+evClr+"33":"1px solid "+C.bd}}>
-                        <span style={{width:24,fontSize:12,fontWeight:800,color:isFirst?evClr:_tm,textAlign:"center"}}>{ri+1}</span>
-                        <span style={{flex:1,fontSize:12,fontWeight:isFirst?700:500,color:isFirst?evClr:_tp,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.name}</span>
-                        {(r.splits||[]).length>1?(r.splits||[]).slice(0,-1).map(function(s,si){return <span key={si} style={{width:65,fontSize:11,fontFamily:"monospace",color:_tm,textAlign:"center"}}>{cm?mkEditable(fmtSplit(s.split),s.total,si)||fmtSplit(s.split):fmtSplit(s.split)}</span>;}):null}
-                        <span style={{width:75,fontSize:13,fontWeight:800,color:isFirst?evClr:_tp,fontFamily:"monospace",textAlign:"right"}}>{cm&&r.finalTime?mkEditable(fmtFinal,r.finalTime,-1)||fmtFinal:fmtFinal}</span>
-                      </div>);
-                    })}
+                    {isRelay?(<div>
+                      {/* Relay header */}
+                      <div style={{display:"flex",gap:4,padding:"4px 8px",marginBottom:4}}>
+                        <span style={{width:36,fontSize:9,fontWeight:700,color:_tm}}>Leg</span>
+                        <span style={{flex:1,fontSize:9,fontWeight:700,color:_tm}}>Runner</span>
+                        <span style={{width:75,fontSize:9,fontWeight:700,color:_tm,textAlign:"center"}}>Leg Time</span>
+                        <span style={{width:75,fontSize:9,fontWeight:700,color:_tm,textAlign:"right"}}>Cumulative</span>
+                      </div>
+                      {runners.map(function(r,ri){
+                        var sp=(r.splits||[])[0];
+                        var legTime=sp?fmtSplit(sp.split):"--";
+                        var cumTime=sp?fmtTime(sp.total):"--";
+                        var mkE=mkEditableFor(r);
+                        return(<div key={r.id} style={{display:"flex",gap:4,alignItems:"center",padding:"5px 8px",marginBottom:2,borderRadius:6,background:"transparent",border:"1px solid "+C.bd}}>
+                          <span style={{width:36,fontSize:11,fontWeight:800,color:evClr,textAlign:"center"}}>Leg {ri+1}</span>
+                          <span style={{flex:1,fontSize:12,fontWeight:600,color:_tp,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.name}</span>
+                          <span style={{width:75,fontSize:12,fontWeight:700,color:_tp,fontFamily:"monospace",textAlign:"center"}}>{cm&&sp?mkE(legTime,sp.total,0)||legTime:legTime}</span>
+                          <span style={{width:75,fontSize:12,fontWeight:700,color:_tm,fontFamily:"monospace",textAlign:"right"}}>{cm&&sp?mkE(cumTime,sp.total,-1)||cumTime:cumTime}</span>
+                        </div>);
+                      })}
+                      {/* Team TOTAL row */}
+                      <div style={{display:"flex",gap:4,alignItems:"center",padding:"6px 8px",marginTop:4,borderRadius:6,background:evClr+"15",border:"2px solid "+evClr+"55"}}>
+                        <span style={{width:36,fontSize:11,fontWeight:900,color:evClr,textAlign:"center",letterSpacing:1}}>TOTAL</span>
+                        <span style={{flex:1,fontSize:11,color:_tm}}>{race.team?race.team.toUpperCase()+" 4x800 Team":"Team"}</span>
+                        <span style={{width:75,fontSize:11,color:_tm,textAlign:"center"}}>{"\u2014"}</span>
+                        <span style={{width:75,fontSize:14,fontWeight:900,color:evClr,fontFamily:"monospace",textAlign:"right"}}>{teamTotal?fmtTime(teamTotal):"--"}</span>
+                      </div>
+                    </div>):(<div>
+                      {/* Standard race header */}
+                      <div style={{display:"flex",gap:4,padding:"4px 8px",marginBottom:4}}>
+                        <span style={{width:24,fontSize:9,fontWeight:700,color:_tm}}>Pl</span>
+                        <span style={{flex:1,fontSize:9,fontWeight:700,color:_tm}}>Runner</span>
+                        {maxSplits>0?Array.from({length:maxSplits},function(_,si){return <span key={si} style={{width:65,fontSize:9,fontWeight:700,color:_tm,textAlign:"center"}}>Split {si+1}</span>;}):null}
+                        <span style={{width:75,fontSize:9,fontWeight:700,color:_tm,textAlign:"right"}}>Final</span>
+                      </div>
+                      {runners.map(function(r,ri){
+                        var fmtFinal=r.finalTime?fmtTime(r.finalTime):"--";
+                        var isFirst=ri===0;
+                        var mkE=mkEditableFor(r);
+                        var sps=r.splits||[];
+                        return(<div key={r.id} style={{display:"flex",gap:4,alignItems:"center",padding:"5px 8px",marginBottom:2,borderRadius:6,background:isFirst?evClr+"12":"transparent",border:isFirst?"1px solid "+evClr+"33":"1px solid "+C.bd}}>
+                          <span style={{width:24,fontSize:12,fontWeight:800,color:isFirst?evClr:_tm,textAlign:"center"}}>{ri+1}</span>
+                          <span style={{flex:1,fontSize:12,fontWeight:isFirst?700:500,color:isFirst?evClr:_tp,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.name}</span>
+                          {maxSplits>0?Array.from({length:maxSplits},function(_,si){var s=sps[si];return <span key={si} style={{width:65,fontSize:11,fontFamily:"monospace",color:_tm,textAlign:"center"}}>{s?(cm?mkE(fmtSplit(s.split),s.total,si)||fmtSplit(s.split):fmtSplit(s.split)):""}</span>;}):null}
+                          <span style={{width:75,fontSize:13,fontWeight:800,color:isFirst?evClr:_tp,fontFamily:"monospace",textAlign:"right"}}>{cm&&r.finalTime?mkE(fmtFinal,r.finalTime,-1)||fmtFinal:fmtFinal}</span>
+                        </div>);
+                      })}
+                    </div>)}
                   </div>
                 </div>);
               })}
