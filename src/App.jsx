@@ -447,6 +447,14 @@ export default function App(){
     scored.forEach(function(s,i){assign[s.rid]=i<half?"head":"asst";});
     return assign;
   }
+  /* Resolve the coach assignment array for a specific team within an event,
+     handling backward compat for legacy assignedCoaches field. */
+  function getEventCoaches(ev,team){
+    if(ev.coaches&&ev.coaches[team])return ev.coaches[team];
+    /* Legacy fallback: old assignedCoaches applied to both teams */
+    if(ev.assignedCoaches&&ev.assignedCoaches.length>0)return ev.assignedCoaches;
+    return ["head","asst"];
+  }
   function upLineup(meetId,evtName,field,val){
     upM(meets.map(function(m){
       if(m.id!==meetId)return m;
@@ -454,18 +462,49 @@ export default function App(){
       var ev=Object.assign({},lu[evtName]||{runners:[],approxTime:"",heats:1,heatAssign:{}});
       if(field==="approxTime")ev.approxTime=val;
       else if(field==="addRunner"&&val){ev.runners=ev.runners.concat([val]);var ha=Object.assign({},ev.heatAssign||{});if(!ha[val])ha[val]=1;ev.heatAssign=ha;
-        /* If both coaches assigned, auto-add new runner to whichever side has fewer */
-        if((ev.assignedCoaches||[]).length===2){var ra=Object.assign({},ev.runnerAssign||{});var hCount=0,aCount=0;Object.keys(ra).forEach(function(k){if(ra[k]==="head")hCount++;else if(ra[k]==="asst")aCount++;});ra[val]=hCount<=aCount?"head":"asst";ev.runnerAssign=ra;}}
+        /* If the new runner's team has both coaches assigned, balance them */
+        var newAth=roster.find(function(a){return a.id===val;});
+        var team=newAth&&newAth.team;
+        if(team){var teamCoaches=getEventCoaches(ev,team);
+          if(teamCoaches.length===2){
+            var ra=Object.assign({},ev.runnerAssign||{});
+            /* Count assignments only for runners on the same team */
+            var hCount=0,aCount=0;(ev.runners||[]).forEach(function(rid){
+              var rAth=roster.find(function(a){return a.id===rid;});
+              if(rAth&&rAth.team===team){if(ra[rid]==="head")hCount++;else if(ra[rid]==="asst")aCount++;}
+            });
+            ra[val]=hCount<=aCount?"head":"asst";
+            ev.runnerAssign=ra;
+          }
+        }}
       else if(field==="removeRunner"){ev.runners=ev.runners.filter(function(r){return r!==val;});var ha=Object.assign({},ev.heatAssign||{});delete ha[val];ev.heatAssign=ha;
         if(ev.runnerAssign){var ra=Object.assign({},ev.runnerAssign);delete ra[val];ev.runnerAssign=ra;}}
       else if(field==="reorder")ev.runners=val;
       else if(field==="setHeats"){var nh=Math.max(1,parseInt(val)||1);ev.heats=nh;var ha=Object.assign({},ev.heatAssign||{});Object.keys(ha).forEach(function(rid){if(ha[rid]>nh)ha[rid]=nh;});ev.heatAssign=ha;}
       else if(field==="assignHeat"){var ha=Object.assign({},ev.heatAssign||{});ha[val.rid]=val.heat;ev.heatAssign=ha;}
-      else if(field==="setCoaches"){
-        /* val is an array like ["head"], ["asst"], or ["head","asst"] */
-        ev.assignedCoaches=val.slice();
-        if(val.length===2){ev.runnerAssign=autoSplitByAbility(ev.runners||[],evtName);}
-        else{ev.runnerAssign={};}
+      else if(field==="setCoachesForTeam"){
+        /* val = {team: "boys"|"girls", coaches: ["head"|"asst", ...]} */
+        var coachesObj=Object.assign({},ev.coaches||{});
+        /* Migrate legacy assignedCoaches → both teams when first touching new field */
+        if(!ev.coaches&&ev.assignedCoaches){
+          coachesObj.boys=ev.assignedCoaches.slice();
+          coachesObj.girls=ev.assignedCoaches.slice();
+        }
+        coachesObj[val.team]=val.coaches.slice();
+        ev.coaches=coachesObj;
+        /* Clear the legacy field so it doesn't shadow the new one */
+        delete ev.assignedCoaches;
+        /* Auto-split runners on this team if both coaches now assigned */
+        var ra2=Object.assign({},ev.runnerAssign||{});
+        var teamRunners=(ev.runners||[]).filter(function(rid){var a=roster.find(function(x){return x.id===rid;});return a&&a.team===val.team;});
+        if(val.coaches.length===2){
+          var fresh=autoSplitByAbility(teamRunners,evtName);
+          Object.keys(fresh).forEach(function(rid){ra2[rid]=fresh[rid];});
+        } else {
+          /* Single coach: clear runnerAssign for this team's runners */
+          teamRunners.forEach(function(rid){delete ra2[rid];});
+        }
+        ev.runnerAssign=ra2;
       }
       else if(field==="setRunnerCoach"){
         /* val = {rid, coach: "head"|"asst"} */
@@ -2308,35 +2347,45 @@ export default function App(){
           {/* Expanded lineup section */}
           {isEx?(<div style={{padding:"0 12px 14px",borderTop:"1px solid "+C.bd}}>
             <div style={{fontSize:11,fontWeight:700,color:_tp,marginTop:10,marginBottom:8}}>Distance Event Lineup</div>
-            {/* Coach coverage summary */}
+            {/* Coach coverage summary — per (event, team) compact format like 1600B / 800G */}
             {(function(){
-              var headRaces=[];var asstRaces=[];var sharedRaces=[];
+              var headEntries=[];var asstEntries=[];var sharedEntries=[];
               EVTS.forEach(function(en){
                 var ed=lu[en];if(!ed||!(ed.runners||[]).length)return;
-                var ac=ed.assignedCoaches||["head","asst"];
-                var label=en;
-                if(ac.length===1&&ac[0]==="head")headRaces.push(label);
-                else if(ac.length===1&&ac[0]==="asst")asstRaces.push(label);
-                else{
-                  var ra=ed.runnerAssign||{};
-                  var hCount=0,aCount=0;(ed.runners||[]).forEach(function(r){if((ra[r]||"head")==="head")hCount++;else aCount++;});
-                  sharedRaces.push(en+" ("+hCount+"H/"+aCount+"A)");
-                }
+                ["boys","girls"].forEach(function(team){
+                  /* Skip if no runners on this team */
+                  var teamHas=(ed.runners||[]).some(function(rid){var a=roster.find(function(x){return x.id===rid;});return a&&a.team===team;});
+                  if(!teamHas)return;
+                  var ac=getEventCoaches(ed,team);
+                  var label=en+(team==="boys"?"B":"G");
+                  if(ac.length===1&&ac[0]==="head")headEntries.push(label);
+                  else if(ac.length===1&&ac[0]==="asst")asstEntries.push(label);
+                  else{
+                    var ra=ed.runnerAssign||{};
+                    var hCount=0,aCount=0;
+                    (ed.runners||[]).forEach(function(rid){
+                      var a=roster.find(function(x){return x.id===rid;});
+                      if(!a||a.team!==team)return;
+                      if((ra[rid]||"head")==="head")hCount++;else aCount++;
+                    });
+                    sharedEntries.push(label+" ("+hCount+"H/"+aCount+"A)");
+                  }
+                });
               });
-              if(!headRaces.length&&!asstRaces.length&&!sharedRaces.length)return null;
+              if(!headEntries.length&&!asstEntries.length&&!sharedEntries.length)return null;
               return(<div style={{padding:"8px 10px",marginBottom:10,borderRadius:6,background:lt?"#f8f9f6":"rgba(255,255,255,0.03)",border:"1px solid "+C.bd,display:"flex",flexDirection:"column",gap:4}}>
-                <div style={{fontSize:9,fontWeight:700,color:_tm,letterSpacing:1.5,textTransform:"uppercase",fontFamily:"monospace"}}>Coach Coverage</div>
+                <div style={{fontSize:9,fontWeight:700,color:_tm,letterSpacing:1.5,textTransform:"uppercase",fontFamily:"monospace"}}>Coach Coverage <span style={{color:_tm,opacity:0.7,letterSpacing:0,textTransform:"none"}}>(B = boys, G = girls)</span></div>
                 <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
                   <span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:C.greenLight+"22",color:C.greenLight,fontWeight:800,letterSpacing:0.5}}>HEAD</span>
-                  <span style={{fontSize:11,color:_ts}}>{headRaces.length?headRaces.join(", "):<span style={{color:_tm,fontStyle:"italic"}}>none assigned</span>}</span>
+                  <span style={{fontSize:11,color:_ts,fontFamily:"monospace"}}>{headEntries.length?headEntries.join(", "):<span style={{color:_tm,fontStyle:"italic",fontFamily:"inherit"}}>none assigned</span>}</span>
                 </div>
                 <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
                   <span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#3498DB22",color:"#3498DB",fontWeight:800,letterSpacing:0.5}}>ASST</span>
-                  <span style={{fontSize:11,color:_ts}}>{asstRaces.length?asstRaces.join(", "):<span style={{color:_tm,fontStyle:"italic"}}>none assigned</span>}</span>
+                  <span style={{fontSize:11,color:_ts,fontFamily:"monospace"}}>{asstEntries.length?asstEntries.join(", "):<span style={{color:_tm,fontStyle:"italic",fontFamily:"inherit"}}>none assigned</span>}</span>
                 </div>
-                {sharedRaces.length?<div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+                {sharedEntries.length?<div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
                   <span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:C.gold+"22",color:C.gold,fontWeight:800,letterSpacing:0.5}}>SHARED</span>
-                  <span style={{fontSize:11,color:_ts}}>{sharedRaces.join(", ")}</span>
+                  <span style={{fontSize:11,color:_ts,fontFamily:"monospace"}}>{sharedEntries.join(", ")}</span>
                 </div>:null}
               </div>);
             })()}
@@ -2354,20 +2403,6 @@ export default function App(){
                           {[1,2,3,4].map(function(h){return <option key={h} value={h}>{h}</option>;})}
                         </select>
                       </div>:null}
-                      {(function(){
-                        var ac=evData.assignedCoaches||["head","asst"];
-                        var isHead=ac.length===1&&ac[0]==="head";
-                        var isAsst=ac.length===1&&ac[0]==="asst";
-                        var isBoth=ac.length===2;
-                        var canEdit=cm&&cmRole==="head";
-                        var btn=function(label,active,clr,onClick){return <button onClick={canEdit?onClick:undefined} disabled={!canEdit} style={{padding:"2px 8px",fontSize:9,fontWeight:700,fontFamily:"inherit",border:"1px solid "+(active?clr:_tm+"33"),background:active?clr+"22":"transparent",color:active?clr:_tm,borderRadius:3,cursor:canEdit?"pointer":"default",letterSpacing:0.5}}>{label}</button>;};
-                        return(<div style={{display:"flex",alignItems:"center",gap:3,marginLeft:4}}>
-                          <span style={{fontSize:9,color:_tm,marginRight:2}}>Coach:</span>
-                          {btn("HEAD",isHead,C.greenLight,function(){upLineup(m.id,evName,"setCoaches",["head"]);})}
-                          {btn("ASST",isAsst,"#3498DB",function(){upLineup(m.id,evName,"setCoaches",["asst"]);})}
-                          {btn("BOTH",isBoth,C.gold,function(){upLineup(m.id,evName,"setCoaches",["head","asst"]);})}
-                        </div>);
-                      })()}
                     </div>
                     <div style={{display:"flex",alignItems:"center",gap:6}}>
                       <span style={{fontSize:10,color:_tm,fontFamily:"monospace"}}>Approx time:</span>
@@ -2379,8 +2414,22 @@ export default function App(){
                     var available=roster.filter(function(a){return a.team===grp.team&&!evData.runners.some(function(r){return r===a.id;});});
                     var numHeats=evName==="4x800"?1:Math.max(1,evData.heats||1);
                     var heatAssign=evData.heatAssign||{};
+                    var teamCoaches=getEventCoaches(evData,grp.team);
+                    var tcHead=teamCoaches.length===1&&teamCoaches[0]==="head";
+                    var tcAsst=teamCoaches.length===1&&teamCoaches[0]==="asst";
+                    var tcBoth=teamCoaches.length===2;
+                    var canEditCoaches=cm&&cmRole==="head";
+                    var coachBtn=function(label,active,clr,onClick){return <button onClick={canEditCoaches?onClick:undefined} disabled={!canEditCoaches} style={{padding:"2px 7px",fontSize:9,fontWeight:700,fontFamily:"inherit",border:"1px solid "+(active?clr:_tm+"33"),background:active?clr+"22":"transparent",color:active?clr:_tm,borderRadius:3,cursor:canEditCoaches?"pointer":"default",letterSpacing:0.5}}>{label}</button>;};
                     return(<div key={grp.team} style={{marginBottom:6}}>
-                      <div style={{fontSize:10,fontWeight:700,color:grp.clr,textTransform:"uppercase",letterSpacing:1,marginBottom:3}}>{grp.label}</div>
+                      <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3,flexWrap:"wrap"}}>
+                        <div style={{fontSize:10,fontWeight:700,color:grp.clr,textTransform:"uppercase",letterSpacing:1}}>{grp.label}</div>
+                        <div style={{display:"flex",alignItems:"center",gap:3}}>
+                          <span style={{fontSize:9,color:_tm}}>Coach:</span>
+                          {coachBtn("HEAD",tcHead,C.greenLight,function(){upLineup(m.id,evName,"setCoachesForTeam",{team:grp.team,coaches:["head"]});})}
+                          {coachBtn("ASST",tcAsst,"#3498DB",function(){upLineup(m.id,evName,"setCoachesForTeam",{team:grp.team,coaches:["asst"]});})}
+                          {coachBtn("BOTH",tcBoth,C.gold,function(){upLineup(m.id,evName,"setCoachesForTeam",{team:grp.team,coaches:["head","asst"]});})}
+                        </div>
+                      </div>
                       {Array.from({length:numHeats}).map(function(_,hi){
                         var heatNum=hi+1;
                         var heatRunners=teamRunners.filter(function(rId){return(heatAssign[rId]||1)===heatNum;});
@@ -2400,7 +2449,8 @@ export default function App(){
                                 {Array.from({length:numHeats}).map(function(_2,h2){return <option key={h2+1} value={h2+1}>H{h2+1}</option>;})}
                               </select>:null}
                               {(function(){
-                                var ac=evData.assignedCoaches||["head","asst"];
+                                /* Read team-specific coach assignment instead of event-level */
+                                var ac=getEventCoaches(evData,grp.team);
                                 if(ac.length!==2)return null;
                                 var ra=evData.runnerAssign||{};
                                 var assigned=ra[rId]||"head";

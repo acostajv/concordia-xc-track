@@ -499,25 +499,35 @@ export default function SplitTimer(props){
   var fmtPaceSec=function(s){var m=Math.floor(s/60);var sc=Math.round(s%60);return m+":"+(sc<10?"0":"")+sc;};
   var importPaceGroups=function(){var withPace=allAthletes.map(function(a){var p=fbPaces[a.name];return{ath:a,sec:parsePace(p&&p[paceKey])};}).filter(function(x){return x.sec!==null;}).sort(function(a,b){return a.sec-b.sec;});var used={};var groups=[];for(var i=0;i<withPace.length;i++){if(used[withPace[i].ath.id])continue;var grp=[withPace[i]];used[withPace[i].ath.id]=true;for(var j=i+1;j<withPace.length;j++){if(used[withPace[j].ath.id])continue;if(withPace[j].sec-grp[grp.length-1].sec<=paceTol){grp.push(withPace[j]);used[withPace[j].ath.id]=true;}}var avg=Math.round(grp.reduce(function(s,x){return s+x.sec;},0)/grp.length);groups.push({id:"pg_"+Date.now()+"_"+i,name:fmtPaceSec(avg)+"/mi",color:GROUP_COLORS[groups.length%GROUP_COLORS.length],runnerIds:grp.map(function(x){return String(x.ath.id);})});}setWoGroups(groups);};
 
+  /* Resolve coach assignment for a specific team within an event, with backward compat */
+  var resolveTeamCoaches=function(evtData,team){
+    if(evtData&&evtData.coaches&&evtData.coaches[team])return evtData.coaches[team];
+    if(evtData&&evtData.assignedCoaches&&evtData.assignedCoaches.length>0)return evtData.assignedCoaches;
+    return ["head","asst"];
+  };
   var importMeetEvents=function(meet){if(!meet||!meet.lineup)return;var athTeam={};allAthletes.forEach(function(a){athTeam[String(a.id)]=a.team;});var newRaces=[];var ts=Date.now();
     Object.entries(meet.lineup).forEach(function(entry){var evtKey=entry[0];var evtData=entry[1];var allIds=(evtData.runners||[]).map(function(r){return String(r);});if(!allIds.length)return;
-      /* Coach assignment filter: skip events not assigned to this coach */
-      var assignedCoaches=(evtData.assignedCoaches&&evtData.assignedCoaches.length>0)?evtData.assignedCoaches:["head","asst"];
-      if(assignedCoaches.indexOf(cmRole)===-1)return;
-      var isShared=assignedCoaches.length===2;
       var runnerAssign=evtData.runnerAssign||{};
-      /* If shared, filter to only this coach's runners */
-      if(isShared){allIds=allIds.filter(function(rid){return(runnerAssign[rid]||"head")===cmRole;});if(!allIds.length)return;}
       var numHeats=evtKey==="4x800"?1:Math.max(1,evtData.heats||1);var heatAssign=evtData.heatAssign||{};
       /* For 4x800 the split is always per-leg (800m); other events default to session label */
       var defaultSplit=evtKey==="4x800"?"800m":label;
-      for(var hi=0;hi<numHeats;hi++){var heatNum=hi+1;
-        var heatIds=numHeats===1?allIds:allIds.filter(function(rid){return(heatAssign[rid]||1)===heatNum;});
-        var bIds=heatIds.filter(function(r){return athTeam[r]==="boys";});var gIds=heatIds.filter(function(r){return athTeam[r]==="girls";});
-        var heatLabel=numHeats>1?" H"+heatNum:"";
-        if(bIds.length>0)newRaces.push({id:"r_"+evtKey+"_b_h"+heatNum+"_"+(ts++),event:evtKey,team:"boys",label:evtKey+" Boys"+heatLabel,approxTime:evtData.approxTime||"",runnerIds:bIds,splits:{},elapsed:0,status:"ready",finished:{},meetName:meet.name||"Meet",meetId:meet.id||"",meetDate:meet.date||"",heat:heatNum,splitLabel:defaultSplit,assignedCoaches:assignedCoaches,shared:isShared,type:"meet"});
-        if(gIds.length>0)newRaces.push({id:"r_"+evtKey+"_g_h"+heatNum+"_"+(ts++),event:evtKey,team:"girls",label:evtKey+" Girls"+heatLabel,approxTime:evtData.approxTime||"",runnerIds:gIds,splits:{},elapsed:0,status:"ready",finished:{},meetName:meet.name||"Meet",meetId:meet.id||"",meetDate:meet.date||"",heat:heatNum,splitLabel:defaultSplit,assignedCoaches:assignedCoaches,shared:isShared,type:"meet"});
-      }
+      /* Process each (team, heat) combination independently so coach assignment
+         can vary per team within the same event. */
+      ["boys","girls"].forEach(function(team){
+        var teamCoaches=resolveTeamCoaches(evtData,team);
+        if(teamCoaches.indexOf(cmRole)===-1)return;
+        var isShared=teamCoaches.length===2;
+        var teamIds=allIds.filter(function(r){return athTeam[r]===team;});
+        if(!teamIds.length)return;
+        if(isShared){teamIds=teamIds.filter(function(rid){return(runnerAssign[rid]||"head")===cmRole;});if(!teamIds.length)return;}
+        for(var hi=0;hi<numHeats;hi++){var heatNum=hi+1;
+          var heatIds=numHeats===1?teamIds:teamIds.filter(function(rid){return(heatAssign[rid]||1)===heatNum;});
+          if(!heatIds.length)continue;
+          var heatLabel=numHeats>1?" H"+heatNum:"";
+          var teamLabel=team==="boys"?"Boys":"Girls";
+          newRaces.push({id:"r_"+evtKey+"_"+team[0]+"_h"+heatNum+"_"+(ts++),event:evtKey,team:team,label:evtKey+" "+teamLabel+heatLabel,approxTime:evtData.approxTime||"",runnerIds:heatIds,splits:{},elapsed:0,status:"ready",finished:{},meetName:meet.name||"Meet",meetId:meet.id||"",meetDate:meet.date||"",heat:heatNum,splitLabel:defaultSplit,assignedCoaches:teamCoaches,shared:isShared,type:"meet"});
+        }
+      });
     });
     newRaces.sort(function(a,b){var ea=EVT_ORDER[a.event]!==undefined?EVT_ORDER[a.event]:9;var eb=EVT_ORDER[b.event]!==undefined?EVT_ORDER[b.event]:9;if(ea!==eb)return ea-eb;if(a.team!==b.team)return a.team==="boys"?-1:1;return(a.heat||1)-(b.heat||1);});
     /* Replace any existing meet races but preserve workout/open races */
