@@ -346,6 +346,7 @@ export default function App(){
   var _rr=useState([]);var raceResults=_rr[0];var setRaceResults=_rr[1];
   var _rrEdit=useState(null);var rrEdit=_rrEdit[0];var setRrEdit=_rrEdit[1];
   var _rrEditVal=useState("");var rrEditVal=_rrEditVal[0];var setRrEditVal=_rrEditVal[1];
+  var _rrShowPace=useState(true);var rrShowPace=_rrShowPace[0];var setRrShowPace=_rrShowPace[1];
   var _raffleUsed=useState({});var raffleUsed=_raffleUsed[0];var setRaffleUsed=_raffleUsed[1];
   var _raffleWinner=useState(null);var raffleWinner=_raffleWinner[0];var setRaffleWinner=_raffleWinner[1];
   var _raffleSpinning=useState(false);var raffleSpinning=_raffleSpinning[0];var setRaffleSpinning=_raffleSpinning[1];
@@ -402,6 +403,19 @@ export default function App(){
   }
   function fmtTime(ms){if(ms<0)ms=0;var m=Math.floor(ms/60000);var s=Math.floor((ms%60000)/1000);var cs=Math.floor((ms%1000)/10);return(m<10?"0":"")+m+":"+(s<10?"0":"")+s+"."+(cs<10?"0":"")+cs;}
   function fmtSplit(ms){if(ms<0)ms=0;if(ms<60000){var s2=Math.floor(ms/1000);var cs2=Math.floor((ms%1000)/10);return s2+"."+(cs2<10?"0":"")+cs2;}return fmtTime(ms);}
+  /* Distance lookup for split labels and event names → meters */
+  var SPLIT_M={"200m":200,"400m":400,"800m":800,"1200m":1200,"1600m":1600,"3200m":3200,"Half Mile":805,"1 Mile":1609,"Quarter Mile":402,"3K":3000,"5K":5000,"4x800":3200,"800":800,"1600":1600,"3200":3200};
+  function fmtDistLabel(m){if(!m||m<=0)return"";if(m>=1000)return(m%1000===0?(m/1000)+"k":(m/1000).toFixed(1)+"k");return m+"m";}
+  function fmtPace(deltaMs,distMeters){
+    /* Returns pace per mile, e.g. "4:11/mi" */
+    if(!deltaMs||deltaMs<=0||!distMeters||distMeters<=0)return"";
+    var miles=distMeters/1609.34;
+    var paceSecPerMile=(deltaMs/1000)/miles;
+    var pm=Math.floor(paceSecPerMile/60);
+    var ps=Math.round(paceSecPerMile%60);
+    if(ps===60){pm++;ps=0;}
+    return pm+":"+(ps<10?"0":"")+ps+"/mi";
+  }
   var EVTS=["4x800","800","1600","3200"];
   function upLineup(meetId,evtName,field,val){
     upM(meets.map(function(m){
@@ -2916,7 +2930,10 @@ export default function App(){
 
       {/* ══════ RESULTS TAB ══════ */}
       {view==="results"?(<div>
-        <div style={{fontSize:16,fontWeight:800,color:_tp,marginBottom:4}}>Race Results</div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+          <div style={{fontSize:16,fontWeight:800,color:_tp}}>Race Results</div>
+          <button onClick={function(){setRrShowPace(!rrShowPace);}} style={{padding:"4px 10px",fontSize:10,fontWeight:700,borderRadius:4,background:rrShowPace?C.greenLight+"22":"transparent",color:rrShowPace?C.greenLight:_tm,border:"1px solid "+(rrShowPace?C.greenLight+"55":C.bd),cursor:"pointer"}}>{rrShowPace?"\u2713 Show Paces":"Show Paces"}</button>
+        </div>
         <div style={{fontSize:11,color:_tm,marginBottom:16}}>Times from meets, recorded by the split timer.</div>
         {raceResults.length===0?<div style={{textAlign:"center",padding:"40px 20px"}}><div style={{fontSize:14,color:_tm,fontStyle:"italic"}}>No race results yet. Use the Split Timer during a meet to record times.</div></div>:null}
         {(function(){
@@ -2967,6 +2984,11 @@ export default function App(){
                 var teamTotal=isRelay?runners.reduce(function(m,r){return!r.dnf&&r.finalTime>m?r.finalTime:m;},0):0;
                 /* Any leg DNF in a relay marks the team as DNF */
                 var relayDnf=isRelay&&runners.some(function(r){return r.dnf;});
+                /* Resolve split distance in meters: prefer saved label, else infer from event/numSplits */
+                var splitM=race.splitLabel?(SPLIT_M[race.splitLabel]||0):0;
+                if(!splitM&&maxSplits>0){var evM=SPLIT_M[race.event]||0;if(evM>0)splitM=Math.round(evM/maxSplits);}
+                /* Total race distance in meters (for the Final column pace) */
+                var raceM=SPLIT_M[race.event]||(splitM*maxSplits)||0;
                 var mkEditableFor=function(r){
                   var editKey=function(si){return race.id+"|"+r.id+"|"+si;};
                   return function(displayStr,totalMs,splitIndex){
@@ -2994,18 +3016,22 @@ export default function App(){
                       <div style={{display:"flex",gap:4,padding:"4px 8px",marginBottom:4}}>
                         <span style={{width:36,fontSize:9,fontWeight:700,color:_tm}}>Leg</span>
                         <span style={{flex:1,fontSize:9,fontWeight:700,color:_tm}}>Runner</span>
-                        <span style={{width:75,fontSize:9,fontWeight:700,color:_tm,textAlign:"center"}}>Leg Time</span>
+                        <span style={{width:75,fontSize:9,fontWeight:700,color:_tm,textAlign:"center"}}>800m Leg</span>
                         <span style={{width:75,fontSize:9,fontWeight:700,color:_tm,textAlign:"right"}}>Cumulative</span>
                       </div>
                       {runners.map(function(r,ri){
                         var sp=(r.splits||[])[0];
                         var legTime=r.dnf?"DNF":sp?fmtSplit(sp.split):"--";
                         var cumTime=r.dnf?"DNF":sp?fmtTime(sp.total):"--";
+                        var legPace=sp&&!r.dnf?fmtPace(sp.split,800):"";
                         var mkE=mkEditableFor(r);
                         return(<div key={r.id} style={{display:"flex",gap:4,alignItems:"center",padding:"5px 8px",marginBottom:2,borderRadius:6,background:r.dnf?"rgba(239,68,68,0.06)":"transparent",border:"1px solid "+(r.dnf?"#ef444444":C.bd)}}>
                           <span style={{width:36,fontSize:11,fontWeight:800,color:r.dnf?"#ef4444":evClr,textAlign:"center"}}>Leg {ri+1}</span>
                           <span style={{flex:1,fontSize:12,fontWeight:600,color:r.dnf?"#ef4444":_tp,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textDecoration:r.dnf?"line-through":"none"}}>{r.name}</span>
-                          <span style={{width:75,fontSize:12,fontWeight:700,color:r.dnf?"#ef4444":_tp,fontFamily:"monospace",textAlign:"center"}}>{r.dnf?"DNF":(cm&&sp?mkE(legTime,sp.total,0)||legTime:legTime)}</span>
+                          <span style={{width:75,fontSize:12,fontWeight:700,color:r.dnf?"#ef4444":_tp,fontFamily:"monospace",textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",lineHeight:1.1}}>
+                            <span>{r.dnf?"DNF":(cm&&sp?mkE(legTime,sp.total,0)||legTime:legTime)}</span>
+                            {rrShowPace&&legPace?<span style={{fontSize:8,color:_tm,opacity:0.7,fontWeight:600}}>{legPace}</span>:null}
+                          </span>
                           <span style={{width:75,fontSize:12,fontWeight:700,color:r.dnf?"#ef4444":_tm,fontFamily:"monospace",textAlign:"right"}}>{r.dnf?"DNF":(cm&&sp?mkE(cumTime,sp.total,-1)||cumTime:cumTime)}</span>
                         </div>);
                       })}
@@ -3014,26 +3040,39 @@ export default function App(){
                         <span style={{width:36,fontSize:11,fontWeight:900,color:relayDnf?"#ef4444":evClr,textAlign:"center",letterSpacing:1}}>TOTAL</span>
                         <span style={{flex:1,fontSize:11,color:_tm}}>{race.team?race.team.toUpperCase()+" 4x800 Team":"Team"}</span>
                         <span style={{width:75,fontSize:11,color:_tm,textAlign:"center"}}>{"\u2014"}</span>
-                        <span style={{width:75,fontSize:14,fontWeight:900,color:relayDnf?"#ef4444":evClr,fontFamily:"monospace",textAlign:"right"}}>{relayDnf?"DNF":teamTotal?fmtTime(teamTotal):"--"}</span>
+                        <span style={{width:75,fontSize:14,fontWeight:900,color:relayDnf?"#ef4444":evClr,fontFamily:"monospace",textAlign:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",lineHeight:1.1}}>
+                          <span>{relayDnf?"DNF":teamTotal?fmtTime(teamTotal):"--"}</span>
+                          {rrShowPace&&!relayDnf&&teamTotal?<span style={{fontSize:9,color:_tm,opacity:0.7,fontWeight:600}}>{fmtPace(teamTotal,3200)}</span>:null}
+                        </span>
                       </div>
                     </div>):(<div>
                       {/* Standard race header */}
-                      <div style={{display:"flex",gap:4,padding:"4px 8px",marginBottom:4}}>
+                      <div style={{display:"flex",gap:4,padding:"4px 8px",marginBottom:4,alignItems:"flex-end"}}>
                         <span style={{width:24,fontSize:9,fontWeight:700,color:_tm}}>Pl</span>
                         <span style={{flex:1,fontSize:9,fontWeight:700,color:_tm}}>Runner</span>
-                        {maxSplits>0?Array.from({length:maxSplits},function(_,si){return <span key={si} style={{width:65,fontSize:9,fontWeight:700,color:_tm,textAlign:"center"}}>Split {si+1}</span>;}):null}
-                        <span style={{width:75,fontSize:9,fontWeight:700,color:_tm,textAlign:"right"}}>Final</span>
+                        {maxSplits>0?Array.from({length:maxSplits},function(_,si){
+                          var distLabel=splitM>0?fmtDistLabel(splitM*(si+1)):("Split "+(si+1));
+                          return <span key={si} style={{width:65,fontSize:9,fontWeight:700,color:_tm,textAlign:"center"}}>{distLabel}</span>;
+                        }):null}
+                        <span style={{width:75,fontSize:9,fontWeight:700,color:_tm,textAlign:"right"}}>{raceM>0?fmtDistLabel(raceM)+" Final":"Final"}</span>
                       </div>
                       {runners.map(function(r,ri){
                         var fmtFinal=r.finalTime?fmtTime(r.finalTime):"--";
                         var isFirst=ri===0&&!r.dnf;
                         var mkE=mkEditableFor(r);
                         var sps=r.splits||[];
+                        var avgPace=r.dnf||!r.finalTime||raceM<=0?"":fmtPace(r.finalTime,raceM);
                         return(<div key={r.id} style={{display:"flex",gap:4,alignItems:"center",padding:"5px 8px",marginBottom:2,borderRadius:6,background:r.dnf?"rgba(239,68,68,0.06)":isFirst?evClr+"12":"transparent",border:r.dnf?"1px solid #ef444444":isFirst?"1px solid "+evClr+"33":"1px solid "+C.bd}}>
                           <span style={{width:24,fontSize:12,fontWeight:800,color:r.dnf?"#ef4444":isFirst?evClr:_tm,textAlign:"center"}}>{r.dnf?"\u2014":ri+1}</span>
                           <span style={{flex:1,fontSize:12,fontWeight:isFirst?700:500,color:r.dnf?"#ef4444":isFirst?evClr:_tp,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textDecoration:r.dnf?"line-through":"none"}}>{r.name}</span>
-                          {maxSplits>0?Array.from({length:maxSplits},function(_,si){var s=sps[si];return <span key={si} style={{width:65,fontSize:11,fontFamily:"monospace",color:r.dnf?"#ef4444":_tm,textAlign:"center"}}>{s?(cm?mkE(fmtSplit(s.split),s.total,si)||fmtSplit(s.split):fmtSplit(s.split)):""}</span>;}):null}
-                          <span style={{width:75,fontSize:13,fontWeight:800,color:r.dnf?"#ef4444":isFirst?evClr:_tp,fontFamily:"monospace",textAlign:"right"}}>{r.dnf?"DNF":cm&&r.finalTime?mkE(fmtFinal,r.finalTime,-1)||fmtFinal:fmtFinal}</span>
+                          {maxSplits>0?Array.from({length:maxSplits},function(_,si){var s=sps[si];var splitPace=s&&splitM>0&&!r.dnf?fmtPace(s.split,splitM):"";return <span key={si} style={{width:65,fontSize:11,fontFamily:"monospace",color:r.dnf?"#ef4444":_tm,textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",lineHeight:1.1}}>
+                            <span>{s?(cm?mkE(fmtSplit(s.split),s.total,si)||fmtSplit(s.split):fmtSplit(s.split)):""}</span>
+                            {rrShowPace&&splitPace?<span style={{fontSize:8,color:_tm,opacity:0.7}}>{splitPace}</span>:null}
+                          </span>;}):null}
+                          <span style={{width:75,fontSize:13,fontWeight:800,color:r.dnf?"#ef4444":isFirst?evClr:_tp,fontFamily:"monospace",textAlign:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",lineHeight:1.1}}>
+                            <span>{r.dnf?"DNF":cm&&r.finalTime?mkE(fmtFinal,r.finalTime,-1)||fmtFinal:fmtFinal}</span>
+                            {rrShowPace&&avgPace?<span style={{fontSize:8,color:_tm,opacity:0.7,fontWeight:600}}>{avgPace}</span>:null}
+                          </span>
                         </div>);
                       })}
                     </div>)}

@@ -128,7 +128,8 @@ function RaceCard(props){
     }
   };
 
-  var splitsToFinish=getSplitsToFinish(race.event,splitLabel);
+  var effectiveSplit=race.splitLabel||splitLabel;
+  var splitsToFinish=getSplitsToFinish(race.event,effectiveSplit);
   var finishedMap=race.finished||{};
   var isRelay=race.event==="4x800";
   /* For relay: figure out which leg is active */
@@ -176,6 +177,9 @@ function RaceCard(props){
         <div style={{fontSize:15,fontWeight:800,color:evClr}}>{race.label||race.event}</div>
         {race.team?<span style={{fontSize:11,fontWeight:700,color:teamClr,padding:"1px 8px",borderRadius:3,background:teamClr+"18",textTransform:"uppercase",letterSpacing:1}}>{race.team}</span>:null}
         <span style={{fontSize:10,color:T.muted}}>{runners.length} runners</span>
+        {isReady?<select value={effectiveSplit} onChange={function(e){onUpdateRace(race.id,{splitLabel:e.target.value});}} style={{background:T.timerBg,border:"1px solid "+T.border,color:T.text,padding:"2px 6px",borderRadius:3,fontFamily:"inherit",fontSize:10}} title="Split distance">
+          {["200m","400m","800m","1200m","1600m","Half Mile","1 Mile","3K","5K"].map(function(d){return <option key={d} value={d}>{d}</option>;})}
+        </select>:<span style={{fontSize:9,color:T.muted,fontFamily:"'Share Tech Mono',monospace",padding:"1px 5px",border:"1px solid "+T.border,borderRadius:3}}>{effectiveSplit}</span>}
         {splitsToFinish>0?<span style={{fontSize:9,color:T.muted,fontFamily:"'Share Tech Mono',monospace"}}>{splitsToFinish} splits=done</span>:null}
       </div>
       <div style={{display:"flex",gap:4,alignItems:"center"}}>
@@ -278,7 +282,7 @@ export default function SplitTimer(props){
   /* Build result object from a race */
   var buildRaceResult=function(race){
     var runners=(race.runnerIds||[]).map(function(rid){var ath=rosterMap[String(rid)];var sp=(race.splits||{})[rid]||[];var ft=sp.length>0?sp[sp.length-1].total:race.elapsed||0;var isDnf=!!(race.dnf||{})[rid];return{id:rid,name:ath?ath.name:"Unknown",team:ath?ath.team:"",splits:sp,finalTime:ft,dnf:isDnf};});
-    return{meetId:race.meetId||"",meetName:race.meetName||"Session",meetDate:race.meetDate||sessionDate,event:race.event||race.label||label,team:race.team||"",heat:race.heat||0,runners:runners,elapsed:race.elapsed||0,type:mode,sortKey:(EVT_ORDER[race.event]!==undefined?EVT_ORDER[race.event]:9)*1000+(race.team==="boys"?0:100)+(race.heat||1)};
+    return{meetId:race.meetId||"",meetName:race.meetName||"Session",meetDate:race.meetDate||sessionDate,event:race.event||race.label||label,team:race.team||"",heat:race.heat||0,runners:runners,elapsed:race.elapsed||0,type:mode,splitLabel:race.splitLabel||label,sortKey:(EVT_ORDER[race.event]!==undefined?EVT_ORDER[race.event]:9)*1000+(race.team==="boys"?0:100)+(race.heat||1)};
   };
   var saveOneRace=function(race){
     if(race.saved)return;var result=buildRaceResult(race);
@@ -300,18 +304,20 @@ export default function SplitTimer(props){
   var importMeetEvents=function(meet){if(!meet||!meet.lineup)return;var athTeam={};allAthletes.forEach(function(a){athTeam[String(a.id)]=a.team;});var newRaces=[];var ts=Date.now();
     Object.entries(meet.lineup).forEach(function(entry){var evtKey=entry[0];var evtData=entry[1];var allIds=(evtData.runners||[]).map(function(r){return String(r);});if(!allIds.length)return;
       var numHeats=evtKey==="4x800"?1:Math.max(1,evtData.heats||1);var heatAssign=evtData.heatAssign||{};
+      /* For 4x800 the split is always per-leg (800m); other events default to session label */
+      var defaultSplit=evtKey==="4x800"?"800m":label;
       for(var hi=0;hi<numHeats;hi++){var heatNum=hi+1;
         var heatIds=numHeats===1?allIds:allIds.filter(function(rid){return(heatAssign[rid]||1)===heatNum;});
         var bIds=heatIds.filter(function(r){return athTeam[r]==="boys";});var gIds=heatIds.filter(function(r){return athTeam[r]==="girls";});
         var heatLabel=numHeats>1?" H"+heatNum:"";
-        if(bIds.length>0)newRaces.push({id:"r_"+evtKey+"_b_h"+heatNum+"_"+(ts++),event:evtKey,team:"boys",label:evtKey+" Boys"+heatLabel,approxTime:evtData.approxTime||"",runnerIds:bIds,splits:{},elapsed:0,status:"ready",finished:{},meetName:meet.name||"Meet",meetId:meet.id||"",meetDate:meet.date||"",heat:heatNum});
-        if(gIds.length>0)newRaces.push({id:"r_"+evtKey+"_g_h"+heatNum+"_"+(ts++),event:evtKey,team:"girls",label:evtKey+" Girls"+heatLabel,approxTime:evtData.approxTime||"",runnerIds:gIds,splits:{},elapsed:0,status:"ready",finished:{},meetName:meet.name||"Meet",meetId:meet.id||"",meetDate:meet.date||"",heat:heatNum});
+        if(bIds.length>0)newRaces.push({id:"r_"+evtKey+"_b_h"+heatNum+"_"+(ts++),event:evtKey,team:"boys",label:evtKey+" Boys"+heatLabel,approxTime:evtData.approxTime||"",runnerIds:bIds,splits:{},elapsed:0,status:"ready",finished:{},meetName:meet.name||"Meet",meetId:meet.id||"",meetDate:meet.date||"",heat:heatNum,splitLabel:defaultSplit});
+        if(gIds.length>0)newRaces.push({id:"r_"+evtKey+"_g_h"+heatNum+"_"+(ts++),event:evtKey,team:"girls",label:evtKey+" Girls"+heatLabel,approxTime:evtData.approxTime||"",runnerIds:gIds,splits:{},elapsed:0,status:"ready",finished:{},meetName:meet.name||"Meet",meetId:meet.id||"",meetDate:meet.date||"",heat:heatNum,splitLabel:defaultSplit});
       }
     });
     newRaces.sort(function(a,b){var ea=EVT_ORDER[a.event]!==undefined?EVT_ORDER[a.event]:9;var eb=EVT_ORDER[b.event]!==undefined?EVT_ORDER[b.event]:9;if(ea!==eb)return ea-eb;if(a.team!==b.team)return a.team==="boys"?-1:1;return(a.heat||1)-(b.heat||1);});
     setRaces(newRaces);setImportedMeetId(meet.id||meet.name);};
 
-  var startWorkout=function(){var name=woName.trim()||"Workout";var newRaces=woGroups.map(function(g,gi){return{id:"wo_"+Date.now()+"_"+gi,event:name,team:"",label:g.name,color:g.color,runnerIds:g.runnerIds,splits:{},elapsed:0,status:"ready",finished:{},meetName:name,meetDate:sessionDate,type:"workout"};});setRaces(newRaces);};
+  var startWorkout=function(){var name=woName.trim()||"Workout";var newRaces=woGroups.map(function(g,gi){return{id:"wo_"+Date.now()+"_"+gi,event:name,team:"",label:g.name,color:g.color,runnerIds:g.runnerIds,splits:{},elapsed:0,status:"ready",finished:{},meetName:name,meetDate:sessionDate,type:"workout",splitLabel:label};});setRaces(newRaces);};
   var resetAll=function(){setRaces([]);setImportedMeetId(null);try{localStorage.removeItem(STORAGE_KEY);}catch(e){}};
 
   /* Filter meets: only show today and future, with lineups */
