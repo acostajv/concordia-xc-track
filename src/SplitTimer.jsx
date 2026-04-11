@@ -366,7 +366,7 @@ function RaceCard(props){
 
 /* ── MAIN ────────────────────────────────────────────────────────────── */
 export default function SplitTimer(props){
-  var onRaceFinish=props.onRaceFinish;var onDeleteHistory=props.onDeleteHistory;var parentMeets=props.meets||[];var parentRoster=props.roster||[];var raceResults=props.raceResults||[];var cmRole=props.cmRole||"head";
+  var onRaceFinish=props.onRaceFinish;var onDeleteHistory=props.onDeleteHistory;var parentMeets=props.meets||[];var parentRoster=props.roster||[];var raceResults=props.raceResults||[];var cmRole=props.cmRole||"head";var navigateToResultsMeet=props.navigateToResultsMeet;
   var _scr=useState("setup");var screen=_scr[0];var setScreen=_scr[1];
   var _mode=useState("meet");var mode=_mode[0];var setMode=_mode[1];
   var _theme=useState(localStorage.getItem("beacon_theme")||"dark");var theme=_theme[0];var setThemeState=_theme[1];
@@ -458,9 +458,31 @@ export default function SplitTimer(props){
   /* Sort by date asc so next meet is first */
   meetsWithLineups.sort(function(a,b){return(a.date||"").localeCompare(b.date||"");});
 
-  /* History */
-  var histBySession={};raceResults.forEach(function(r){var key=(r.meetName||"Session")+"\u2014"+(r.meetDate||"");if(!histBySession[key])histBySession[key]={name:r.meetName||"Session",date:r.meetDate||"",type:r.type||"meet",races:[]};histBySession[key].races.push(r);});
+  /* Saved Meets — group raceResults by meet (matching App.jsx Race Results grouping) */
+  var histBySession={};raceResults.forEach(function(r){
+    var key=(r.meetName||"Session")+"\u2014"+(r.meetDate||"");
+    if(!histBySession[key]){histBySession[key]={
+      name:r.meetName||"Session",
+      date:r.meetDate||"",
+      type:r.type||"meet",
+      /* meetKey matches App.jsx race results grouping: r.meetId || r.meetName */
+      meetKey:r.meetId||r.meetName||"Unknown",
+      races:[],
+      headCount:0,
+      asstCount:0
+    };}
+    histBySession[key].races.push(r);
+    if(r.savedBy==="asst")histBySession[key].asstCount++;
+    else histBySession[key].headCount++;
+  });
   var histKeys=Object.keys(histBySession).sort(function(a,b){return(histBySession[b].date||"").localeCompare(histBySession[a].date||"");});
+  /* Count any unsaved done races in the timer that match each session (so we can warn) */
+  var unsavedByMeet={};races.forEach(function(r){
+    if(r.status==="done"&&!r.saved&&Object.keys(r.splits||{}).length>0){
+      var key=(r.meetName||"Session")+"\u2014"+(r.meetDate||"");
+      unsavedByMeet[key]=(unsavedByMeet[key]||0)+1;
+    }
+  });
 
   /* Check if all races done */
   var allSaved=races.length>0&&races.every(function(r){return r.saved||(!r.splits||Object.keys(r.splits).length===0);});
@@ -591,18 +613,30 @@ export default function SplitTimer(props){
       {/* ── HISTORY ── */}
       <div style={{marginTop:24}}>
         <button onClick={function(){setHistOpen(!histOpen);}} style={{width:"100%",padding:"10px 14px",background:T.card,border:"1px solid "+T.border,borderRadius:4,cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",fontFamily:"inherit"}}>
-          <span style={{fontSize:13,fontWeight:800,color:T.accent,letterSpacing:1}}>Session History ({raceResults.length})</span>
+          <span style={{fontSize:13,fontWeight:800,color:T.accent,letterSpacing:1}}>Saved Meets ({histKeys.length})</span>
           <span style={{fontSize:10,color:T.muted}}>{histOpen?"[-]":"[+]"}</span>
         </button>
         {histOpen?<div style={{marginTop:8}}>
           {histKeys.length===0?<div style={{fontSize:12,color:T.muted,fontStyle:"italic",padding:"12px"}}>No saved sessions yet.</div>:null}
-          {histKeys.map(function(key){var sess=histBySession[key];return(<div key={key} style={{marginBottom:12,background:T.card,border:"1px solid "+T.border,borderRadius:4,overflow:"hidden"}}>
-            <div style={{padding:"8px 12px",borderBottom:"1px solid "+T.border,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <div><div style={{fontSize:13,fontWeight:700,color:T.text}}>{sess.name}</div><div style={{fontSize:10,color:T.muted}}>{sess.date} — {sess.races.length} race{sess.races.length!==1?"s":""}</div></div>
+          {histKeys.map(function(key){var sess=histBySession[key];var unsaved=unsavedByMeet[key]||0;return(<div key={key} style={{marginBottom:12,background:T.card,border:"1px solid "+T.border,borderRadius:4,overflow:"hidden"}}>
+            <div style={{padding:"8px 12px",borderBottom:"1px solid "+T.border,display:"flex",justifyContent:"space-between",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+              <div style={{minWidth:0,flex:1}}>
+                <div style={{fontSize:13,fontWeight:700,color:T.text,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                  <span>{sess.name}</span>
+                  {unsaved>0?<span title={unsaved+" race(s) in the timer haven't been saved yet"} style={{fontSize:8,padding:"1px 5px",borderRadius:3,background:"#f0a50022",color:"#f0a500",border:"1px solid #f0a50066",fontWeight:800,letterSpacing:0.5}}>{"\u26A0 "+unsaved+" UNSAVED"}</span>:null}
+                </div>
+                <div style={{fontSize:10,color:T.muted,display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginTop:1}}>
+                  <span>{sess.date}</span>
+                  <span>{"\u00B7"}</span>
+                  <span>{sess.races.length} race{sess.races.length!==1?"s":""}</span>
+                  {sess.headCount>0||sess.asstCount>0?<span>{"\u00B7"}</span>:null}
+                  {sess.headCount>0?<span style={{color:"#5ddb6a"}}>{sess.headCount} head</span>:null}
+                  {sess.headCount>0&&sess.asstCount>0?<span style={{color:T.muted}}>{","}</span>:null}
+                  {sess.asstCount>0?<span style={{color:"#3498DB"}}>{sess.asstCount} asst</span>:null}
+                </div>
+              </div>
               <div style={{display:"flex",gap:4}}>
-              <button onClick={function(){
-                sess.races.slice().sort(function(a,b){return(a.sortKey||0)-(b.sortKey||0);}).forEach(function(race){if(onRaceFinish)onRaceFinish(race);});
-              }} style={{background:"#27ae6018",border:"1px solid #27ae6044",color:"#27ae60",borderRadius:3,padding:"3px 8px",cursor:"pointer",fontSize:10,fontWeight:700,fontFamily:"inherit"}}>To Results</button>
+              {navigateToResultsMeet?<button onClick={function(){navigateToResultsMeet(sess.meetKey);}} title="Open this meet in the Race Results tab" style={{background:"#27ae6018",border:"1px solid #27ae6044",color:"#27ae60",borderRadius:3,padding:"3px 8px",cursor:"pointer",fontSize:10,fontWeight:700,fontFamily:"inherit"}}>View in Results</button>:null}
               <button onClick={function(){
                 var rows=[["Race","Place","Athlete","Team","Split #","Split Time","Total Time"]];
                 sess.races.forEach(function(race){var evLabel=(race.event||"")+(race.team?" "+race.team:"");var runners=(race.runners||[]).slice().sort(function(a,b){return(a.finalTime||999999)-(b.finalTime||999999);});runners.forEach(function(r,ri){var sp=r.splits||[];if(!sp.length){rows.push([evLabel,ri+1,r.name,r.team||"","","",""]);}else{sp.forEach(function(s,si){rows.push([si===0?evLabel:"",si===0?ri+1:"",si===0?r.name:"",si===0?r.team||"":"",si+1,fmtSplit(s.split),fmtTime(s.total)]);});}});});

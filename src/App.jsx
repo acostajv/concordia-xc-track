@@ -801,6 +801,15 @@ export default function App(){
     });
   }
   function onDeleteHistory(remaining){setRaceResults(remaining);atomicUpdateAthleteData("raceresults-v1",function(){return remaining;});}
+  function navigateToResultsMeet(meetKey){
+    /* Switch to Race Results tab and scroll to a specific meet's card */
+    setView("results");
+    setTimeout(function(){
+      var safeKey=String(meetKey||"").replace(/[^a-z0-9]/gi,"_");
+      var el=document.getElementById("rr-meet-"+safeKey);
+      if(el)el.scrollIntoView({behavior:"smooth",block:"start"});
+    },100);
+  }
   function saveRaffle(used,history){setRaffleUsed(used);setRaffleHistory(history);atomicUpdateAthleteData("raffle-v1",function(){return{used:used,history:history};});}
   function upQA(q){setQaData(q);saveAthleteData("qa-v1",JSON.stringify(q));}
   function submitQuestion(){if(!qaInput.trim()||!myAth)return;var q=qaData.slice();q.push({id:"q"+Date.now(),athId:myAth,question:qaInput.trim(),ts:Date.now(),answer:"",answerTs:0});upQA(q);setQaInput("");}
@@ -3054,7 +3063,7 @@ export default function App(){
               if(ea!==eb)return ea-eb;
               return a.team==="boys"?-1:1;
             });
-            return(<div key={mk} style={{marginBottom:20}}>
+            return(<div key={mk} id={"rr-meet-"+String(mk).replace(/[^a-z0-9]/gi,"_")} style={{marginBottom:20,scrollMarginTop:80}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,paddingBottom:6,borderBottom:"1px solid "+C.bd}}>
                 <div>
                   <div style={{fontSize:14,fontWeight:700,color:_tp}}>{meetGroup.name}</div>
@@ -3196,7 +3205,7 @@ export default function App(){
       </div>):null}
 
       {/* ══════ SPLIT TIMER TAB ══════ */}
-      {view==="splits"?<SplitTimer onRaceFinish={onRaceFinish} onDeleteHistory={onDeleteHistory} meets={meets} roster={roster} raceResults={raceResults} cmRole={cmRole} />:null}
+      {view==="splits"?<SplitTimer onRaceFinish={onRaceFinish} onDeleteHistory={onDeleteHistory} meets={meets} roster={roster} raceResults={raceResults} cmRole={cmRole} navigateToResultsMeet={navigateToResultsMeet} />:null}
 
       {/* Daily Summary Modal */}
       {dsMod!==null?(<div style={{position:"fixed",inset:0,zIndex:1100,background:lt?"rgba(255,255,255,0.85)":"rgba(8,18,8,0.85)",backdropFilter:"blur(10px)",display:"flex",alignItems:"center",justifyContent:"center"}} onClick={function(){setDsMod(null);}}>
