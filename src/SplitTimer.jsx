@@ -458,8 +458,11 @@ export default function SplitTimer(props){
   /* Sort by date asc so next meet is first */
   meetsWithLineups.sort(function(a,b){return(a.date||"").localeCompare(b.date||"");});
 
-  /* Saved Meets — group raceResults by meet (matching App.jsx Race Results grouping) */
-  var histBySession={};raceResults.forEach(function(r){
+  /* Filter raceResults to only the current mode's type (legacy results without
+     a type default to "meet" for backward compat). */
+  var modeFilteredResults=raceResults.filter(function(r){var t=r.type||"meet";return t===mode;});
+  /* Group filtered results by session (meet/workout/open). */
+  var histBySession={};modeFilteredResults.forEach(function(r){
     var key=(r.meetName||"Session")+"\u2014"+(r.meetDate||"");
     if(!histBySession[key]){histBySession[key]={
       name:r.meetName||"Session",
@@ -476,9 +479,12 @@ export default function SplitTimer(props){
     else histBySession[key].headCount++;
   });
   var histKeys=Object.keys(histBySession).sort(function(a,b){return(histBySession[b].date||"").localeCompare(histBySession[a].date||"");});
-  /* Count any unsaved done races in the timer that match each session (so we can warn) */
+  /* Count any unsaved done races in the timer that match each session AND match
+     the current mode (so we don't show unsaved meet races on the workout panel). */
   var unsavedByMeet={};races.forEach(function(r){
     if(r.status==="done"&&!r.saved&&Object.keys(r.splits||{}).length>0){
+      var rType=r.type||(r.meetId?"meet":mode);
+      if(rType!==mode)return;
       var key=(r.meetName||"Session")+"\u2014"+(r.meetDate||"");
       unsavedByMeet[key]=(unsavedByMeet[key]||0)+1;
     }
@@ -613,11 +619,11 @@ export default function SplitTimer(props){
       {/* ── HISTORY ── */}
       <div style={{marginTop:24}}>
         <button onClick={function(){setHistOpen(!histOpen);}} style={{width:"100%",padding:"10px 14px",background:T.card,border:"1px solid "+T.border,borderRadius:4,cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",fontFamily:"inherit"}}>
-          <span style={{fontSize:13,fontWeight:800,color:T.accent,letterSpacing:1}}>Saved Meets ({histKeys.length})</span>
+          <span style={{fontSize:13,fontWeight:800,color:T.accent,letterSpacing:1}}>{mode==="workout"?"Workout History":mode==="open"?"Open Timer History":"Saved Meets"} ({histKeys.length})</span>
           <span style={{fontSize:10,color:T.muted}}>{histOpen?"[-]":"[+]"}</span>
         </button>
         {histOpen?<div style={{marginTop:8}}>
-          {histKeys.length===0?<div style={{fontSize:12,color:T.muted,fontStyle:"italic",padding:"12px"}}>No saved sessions yet.</div>:null}
+          {histKeys.length===0?<div style={{fontSize:12,color:T.muted,fontStyle:"italic",padding:"12px"}}>{mode==="workout"?"No saved workouts yet.":mode==="open"?"No saved open timer sessions yet.":"No saved meets yet."}</div>:null}
           {histKeys.map(function(key){var sess=histBySession[key];var unsaved=unsavedByMeet[key]||0;return(<div key={key} style={{marginBottom:12,background:T.card,border:"1px solid "+T.border,borderRadius:4,overflow:"hidden"}}>
             <div style={{padding:"8px 12px",borderBottom:"1px solid "+T.border,display:"flex",justifyContent:"space-between",alignItems:"center",gap:6,flexWrap:"wrap"}}>
               <div style={{minWidth:0,flex:1}}>
@@ -636,7 +642,7 @@ export default function SplitTimer(props){
                 </div>
               </div>
               <div style={{display:"flex",gap:4}}>
-              {navigateToResultsMeet?<button onClick={function(){navigateToResultsMeet(sess.meetKey);}} title="Open this meet in the Race Results tab" style={{background:"#27ae6018",border:"1px solid #27ae6044",color:"#27ae60",borderRadius:3,padding:"3px 8px",cursor:"pointer",fontSize:10,fontWeight:700,fontFamily:"inherit"}}>View in Results</button>:null}
+              {mode==="meet"&&navigateToResultsMeet?<button onClick={function(){navigateToResultsMeet(sess.meetKey);}} title="Open this meet in the Race Results tab" style={{background:"#27ae6018",border:"1px solid #27ae6044",color:"#27ae60",borderRadius:3,padding:"3px 8px",cursor:"pointer",fontSize:10,fontWeight:700,fontFamily:"inherit"}}>View in Results</button>:null}
               <button onClick={function(){
                 var rows=[["Race","Place","Athlete","Team","Split #","Split Time","Total Time"]];
                 sess.races.forEach(function(race){var evLabel=(race.event||"")+(race.team?" "+race.team:"");var runners=(race.runners||[]).slice().sort(function(a,b){return(a.finalTime||999999)-(b.finalTime||999999);});runners.forEach(function(r,ri){var sp=r.splits||[];if(!sp.length){rows.push([evLabel,ri+1,r.name,r.team||"","","",""]);}else{sp.forEach(function(s,si){rows.push([si===0?evLabel:"",si===0?ri+1:"",si===0?r.name:"",si===0?r.team||"":"",si+1,fmtSplit(s.split),fmtTime(s.total)]);});}});});
