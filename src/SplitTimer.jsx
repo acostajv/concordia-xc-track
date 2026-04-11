@@ -42,6 +42,9 @@ function RaceCard(props){
   var startRef=useRef(null);var pausedRef=useRef(race.elapsed||0);var rafRef=useRef(null);var elapsedRef=useRef(race.elapsed||0);
   var _drag=useState(null);var dragIdx=_drag[0];var setDragIdx=_drag[1];
   var _showAdd=useState(false);var showAdd=_showAdd[0];var setShowAdd=_showAdd[1];
+  var _actionFor=useState(null);var actionFor=_actionFor[0];var setActionFor=_actionFor[1];
+  var longPressRef=useRef({timer:null,fired:false});
+  var wakeLockRef=useRef(null);
 
   var tick=useCallback(function(){var now=Date.now()-startRef.current+pausedRef.current;elapsedRef.current=now;setElapsed(now);rafRef.current=requestAnimationFrame(tick);},[]);
   var startTimer=function(){startRef.current=Date.now();setIsRunning(true);rafRef.current=requestAnimationFrame(tick);};
@@ -72,6 +75,24 @@ function RaceCard(props){
   var resetRace=function(){cancelAnimationFrame(rafRef.current);setIsRunning(false);setElapsed(0);elapsedRef.current=0;pausedRef.current=0;onUpdateRace(race.id,{elapsed:0,splits:{},status:"ready",finished:{}});};
   useEffect(function(){return function(){cancelAnimationFrame(rafRef.current);};},[]);
 
+  /* Wake lock — keep the screen on while a race is actively running */
+  useEffect(function(){
+    if(typeof navigator==="undefined"||!navigator.wakeLock)return;
+    var releaseLock=function(){if(wakeLockRef.current){wakeLockRef.current.release().catch(function(){});wakeLockRef.current=null;}};
+    var acquire=function(){
+      if(!isRunning||wakeLockRef.current)return;
+      navigator.wakeLock.request("screen").then(function(s){
+        wakeLockRef.current=s;
+        s.addEventListener("release",function(){if(wakeLockRef.current===s)wakeLockRef.current=null;});
+      }).catch(function(){});
+    };
+    if(isRunning)acquire();else releaseLock();
+    /* Re-acquire on tab visibility change (Wake Lock auto-releases on hide) */
+    var onVis=function(){if(document.visibilityState==="visible"&&isRunning)acquire();};
+    document.addEventListener("visibilitychange",onVis);
+    return function(){document.removeEventListener("visibilitychange",onVis);releaseLock();};
+  },[isRunning]);
+
   var isReady=race.status==="ready"&&!isRunning&&elapsed===0;
   var moveRunner=function(fromIdx,toIdx){
     if(fromIdx===toIdx)return;
@@ -87,6 +108,19 @@ function RaceCard(props){
   var addRunner=function(rid){
     if((race.runnerIds||[]).includes(rid))return;
     onUpdateRace(race.id,{runnerIds:(race.runnerIds||[]).concat([rid])});
+  };
+  var pressStart=function(rid){
+    longPressRef.current.fired=false;
+    if(longPressRef.current.timer)clearTimeout(longPressRef.current.timer);
+    longPressRef.current.timer=setTimeout(function(){
+      longPressRef.current.fired=true;
+      longPressRef.current.timer=null;
+      setActionFor(rid);
+      if(typeof navigator!=="undefined"&&typeof navigator.vibrate==="function"){try{navigator.vibrate(40);}catch(e){}}
+    },500);
+  };
+  var pressEnd=function(){
+    if(longPressRef.current.timer){clearTimeout(longPressRef.current.timer);longPressRef.current.timer=null;}
   };
   var undoSplit=function(rid){
     var sp=(race.splits||{})[rid]||[];
@@ -162,6 +196,8 @@ function RaceCard(props){
       else{onUpdateRace(race.id,{splits:ns,status:"running",finished:nf});}
     }
     setFlashMap(function(p){var n=Object.assign({},p);n[rid]=true;return n;});setTimeout(function(){setFlashMap(function(p){var n=Object.assign({},p);n[rid]=false;return n;});},350);
+    /* Haptic confirmation so the coach knows the tap registered without looking */
+    if(typeof navigator!=="undefined"&&typeof navigator.vibrate==="function"){try{navigator.vibrate(50);}catch(e){}}
   };
 
   var runners=(race.runnerIds||[]).map(function(rid){return rosterMap[rid]||rosterMap[String(rid)];}).filter(Boolean);
@@ -171,7 +207,7 @@ function RaceCard(props){
   var isDone=race.status==="done";
   var finCount=Object.keys(finishedMap).length;
 
-  return(<div style={{borderRadius:6,border:"1px solid "+(isRunning?evClr+"66":T.border),background:isRunning?T.card:T.card,borderLeft:"3px solid "+evClr,overflow:"hidden",marginBottom:8}}>
+  return(<div style={{borderRadius:6,border:"1px solid "+(isRunning?evClr+"66":T.border),background:isRunning?T.card:T.card,borderLeft:"3px solid "+evClr,marginBottom:8}}>
     <div style={{padding:"10px 12px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
       <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
         <div style={{fontSize:15,fontWeight:800,color:evClr}}>{race.label||race.event}</div>
@@ -189,8 +225,8 @@ function RaceCard(props){
         {hasSplits&&!isDone?<button onClick={finishRace} style={{padding:"3px 8px",background:"#27ae6022",color:"#5ddb6a",border:"1px solid #27ae6044",borderRadius:3,cursor:"pointer",fontSize:10,fontWeight:700,fontFamily:"inherit"}}>Finish</button>:null}
       </div>
     </div>
-    <div style={{padding:"6px 12px",background:T.timerBg,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-      <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:36,color:isRunning?T.text:elapsed>0?evClr:T.muted,letterSpacing:2,lineHeight:1}}>{fmtTime(elapsed)}</div>
+    <div style={{padding:"6px 12px",background:T.timerBg,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:42,zIndex:5,borderTop:"1px solid "+T.border,borderBottom:"1px solid "+T.border}}>
+      <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:isRunning?52:36,color:isRunning?T.text:elapsed>0?evClr:T.muted,letterSpacing:2,lineHeight:1}}>{fmtTime(elapsed)}</div>
       <div style={{display:"flex",gap:5}}>
         {!isDone&&!isRunning?<button onClick={startTimer} style={{padding:"6px 16px",background:evClr,color:T.bg,border:"none",borderRadius:3,cursor:"pointer",fontSize:13,fontWeight:900,fontFamily:"inherit",letterSpacing:2}}>{elapsed>0?"GO":"START"}</button>:!isDone?<button onClick={pauseTimer} style={{padding:"6px 16px",background:"transparent",color:evClr,border:"1.5px solid "+evClr,borderRadius:3,cursor:"pointer",fontSize:13,fontWeight:900,fontFamily:"inherit",letterSpacing:2}}>STOP</button>:null}
         <button onClick={function(){if(confirm("Reset this race? All splits will be lost."))resetRace();}} style={{padding:"6px 10px",background:"transparent",color:T.muted,border:"1px solid "+T.border,borderRadius:3,cursor:"pointer",fontSize:10,fontWeight:700,fontFamily:"inherit"}}>Reset</button>
@@ -204,23 +240,38 @@ function RaceCard(props){
           var canClick=isDnf?false:isRelay?isActiveLeg&&(isRunning||elapsed>0)&&!isDone:(isRunning||elapsed>0)&&!isDone&&!isFin;
           var showActions=!isReady&&(isRunning||elapsed>0||isDone);
           var p=paces[ath.name]||{};
+          var hidePaces=isRunning||elapsed>0;
           return(<div key={ath.id} style={{position:"relative",width:"100%"}}
             draggable={isReady} onDragStart={function(e){if(!isReady)return;setDragIdx(athIdx);e.dataTransfer.effectAllowed="move";}}
             onDragOver={function(e){if(!isReady||dragIdx===null)return;e.preventDefault();e.dataTransfer.dropEffect="move";}}
             onDrop={function(e){if(!isReady||dragIdx===null)return;e.preventDefault();moveRunner(dragIdx,athIdx);setDragIdx(null);}}
             onDragEnd={function(){setDragIdx(null);}}>
-            {isReady?<span onClick={function(e){e.stopPropagation();removeRunner(ath.id);}} style={{position:"absolute",top:2,right:2,zIndex:2,width:16,height:16,borderRadius:"50%",background:"#ef444433",color:"#ef4444",border:"none",cursor:"pointer",fontSize:10,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>{"\u00D7"}</span>:null}
-            {showActions?<span onClick={function(e){e.stopPropagation();toggleDnf(ath.id);}} title={isDnf?"Un-mark DNF":"Mark as DNF"} style={{position:"absolute",top:2,left:2,zIndex:2,padding:"1px 5px",borderRadius:3,background:isDnf?"#ef444466":"#ef444422",color:isDnf?"#fff":"#ef4444",border:"1px solid #ef444455",cursor:"pointer",fontSize:8,fontWeight:800,letterSpacing:0.5,lineHeight:1.4}}>DNF</span>:null}
-            {showActions&&hasSp?<span onClick={function(e){e.stopPropagation();undoSplit(ath.id);}} title="Undo last split" style={{position:"absolute",top:2,right:2,zIndex:2,width:18,height:16,borderRadius:3,background:"#f0a50022",color:"#f0a500",border:"1px solid #f0a50055",cursor:"pointer",fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>{"\u21B6"}</span>:null}
-            <button onClick={function(){if(canClick)recordSplit(ath.id);}} style={{width:"100%",padding:(showActions?"18px 10px 8px":"8px 10px"),background:flash?"#0c1f0e":dragIdx===athIdx?"rgba(255,255,255,0.05)":isDnf?"rgba(239,68,68,0.06)":T.card,border:"1px solid "+(flash?"#2d7a35":isDnf?"#ef444444":isFin?"#27ae6044":hasSp?"#1a2e1a":T.border),borderTop:"2px solid "+(isDnf?"#ef4444":isFin?"#27ae60":flash?"#5ddb6a":hasSp?"#1e4a1e":teamClr+"44"),borderRadius:4,cursor:isReady?"grab":canClick?"pointer":"default",textAlign:"left",userSelect:"none",fontFamily:"inherit",display:"flex",flexDirection:"column",gap:2,opacity:dragIdx===athIdx?0.4:isDnf?0.7:isFin&&!flash?0.6:(isRelay&&!isActiveLeg&&!isFin)?0.4:1}}>
+            {isReady?<span onClick={function(e){e.stopPropagation();removeRunner(ath.id);}} style={{position:"absolute",top:2,right:2,zIndex:2,width:18,height:18,borderRadius:"50%",background:"#ef444433",color:"#ef4444",border:"none",cursor:"pointer",fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>{"\u00D7"}</span>:null}
+            <button
+              onClick={function(){if(longPressRef.current.fired){longPressRef.current.fired=false;return;}if(canClick)recordSplit(ath.id);}}
+              onMouseDown={function(){if(showActions)pressStart(ath.id);}}
+              onMouseUp={pressEnd}
+              onMouseLeave={pressEnd}
+              onTouchStart={function(){if(showActions)pressStart(ath.id);}}
+              onTouchEnd={pressEnd}
+              onTouchCancel={pressEnd}
+              onContextMenu={function(e){e.preventDefault();}}
+              style={{width:"100%",padding:"12px 12px",minHeight:64,background:flash?"#0c1f0e":dragIdx===athIdx?"rgba(255,255,255,0.05)":isDnf?"rgba(239,68,68,0.06)":T.card,border:"1px solid "+(flash?"#2d7a35":isDnf?"#ef444444":isFin?"#27ae6044":hasSp?"#1a2e1a":T.border),borderTop:"3px solid "+(isDnf?"#ef4444":isFin?"#27ae60":flash?"#5ddb6a":hasSp?"#1e4a1e":teamClr+"44"),borderRadius:4,cursor:isReady?"grab":canClick?"pointer":"default",textAlign:"left",userSelect:"none",WebkitUserSelect:"none",WebkitTouchCallout:"none",fontFamily:"inherit",display:"flex",flexDirection:"column",gap:2,opacity:dragIdx===athIdx?0.4:isDnf?0.7:isFin&&!flash?0.6:(isRelay&&!isActiveLeg&&!isFin)?0.4:1}}>
             {isReady?<div style={{display:"flex",alignItems:"center",gap:4,marginBottom:1}}><span style={{fontSize:10,color:T.muted,letterSpacing:1,cursor:"grab"}}>{"\u2630"}</span>{isRelay?<span style={{fontSize:9,fontWeight:700,color:evClr,padding:"0 4px",borderRadius:2,background:evClr+"18"}}>Leg {athIdx+1}</span>:null}</div>:null}
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:4}}>
-              <span style={{fontSize:16,fontWeight:800,color:flash?"#5ddb6a":isDnf?"#ef4444":isFin?"#27ae60":T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",flex:1,minWidth:0,lineHeight:1.1,textDecoration:isDnf?"line-through":"none"}}>{ath.name}</span>
-              <span style={{fontSize:18,fontWeight:900,lineHeight:1,color:hasSp?(flash?"#5ddb6a":isDnf?"#ef4444":isFin?"#27ae60":T.accent):T.dim,flexShrink:0}}>{sp.length}</span>
+              <span style={{fontSize:18,fontWeight:800,color:flash?"#5ddb6a":isDnf?"#ef4444":isFin?"#27ae60":T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",flex:1,minWidth:0,lineHeight:1.1,textDecoration:isDnf?"line-through":"none"}}>{ath.name}</span>
+              <span style={{fontSize:20,fontWeight:900,lineHeight:1,color:hasSp?(flash?"#5ddb6a":isDnf?"#ef4444":isFin?"#27ae60":T.accent):T.dim,flexShrink:0}}>{sp.length}</span>
             </div>
-            <div style={{minHeight:22}}>{last?<div style={{display:"flex",alignItems:"baseline",gap:5}}><span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:19,fontWeight:800,color:flash?"#5ddb6a":isDnf?"#ef4444":isFin?"#27ae60":T.splitClr}}>{fmtSplit(last.split)}</span><span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:13,fontWeight:700,color:T.timeClr}}>{fmtTime(last.total)}</span></div>:<span style={{fontSize:9,color:isDnf?"#ef4444":isFin?"#27ae60":isActiveLeg?T.accent:T.dim}}>{isDnf?"\u2717 DNF":isFin?"\u2713 FINISHED":isActiveLeg?"\u25B6 ACTIVE LEG":isRelay&&!isFin?"waiting":canClick?"tap to split":""}</span>}</div>
-            {(p.thrSafe||p.cv||p.vo2Safe)?<div style={{display:"flex",flexWrap:"wrap",gap:3,marginTop:1}}>{p.thrSafe?<PacePill label="T" value={p.thrSafe} color="#f0a500"/>:null}{p.cv?<PacePill label="CV" value={p.cv} color="#4a9eff"/>:null}{p.vo2Safe?<PacePill label="V2" value={p.vo2Safe} color="#e84393"/>:null}</div>:null}
-          </button></div>);
+            <div style={{minHeight:24}}>{last?<div style={{display:"flex",alignItems:"baseline",gap:5}}><span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:22,fontWeight:800,color:flash?"#5ddb6a":isDnf?"#ef4444":isFin?"#27ae60":T.splitClr}}>{fmtSplit(last.split)}</span><span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:14,fontWeight:700,color:T.timeClr}}>{fmtTime(last.total)}</span></div>:<span style={{fontSize:10,color:isDnf?"#ef4444":isFin?"#27ae60":isActiveLeg?T.accent:T.dim}}>{isDnf?"\u2717 DNF":isFin?"\u2713 FINISHED":isActiveLeg?"\u25B6 ACTIVE LEG":isRelay&&!isFin?"waiting":canClick?"tap to split":""}</span>}</div>
+            {!hidePaces&&(p.thrSafe||p.cv||p.vo2Safe)?<div style={{display:"flex",flexWrap:"wrap",gap:3,marginTop:1}}>{p.thrSafe?<PacePill label="T" value={p.thrSafe} color="#f0a500"/>:null}{p.cv?<PacePill label="CV" value={p.cv} color="#4a9eff"/>:null}{p.vo2Safe?<PacePill label="V2" value={p.vo2Safe} color="#e84393"/>:null}</div>:null}
+          </button>
+          {actionFor===ath.id?(<div style={{position:"absolute",inset:0,zIndex:20,background:T.bg,border:"2px solid "+T.accent,borderRadius:4,display:"flex",flexDirection:"column",padding:6,gap:5}}>
+            <div style={{fontSize:10,color:T.muted,textAlign:"center",letterSpacing:1,textTransform:"uppercase"}}>{ath.name}</div>
+            {hasSp?<button onClick={function(){undoSplit(ath.id);setActionFor(null);}} style={{padding:"10px",background:"#f0a50022",border:"1px solid #f0a50066",color:"#f0a500",borderRadius:3,fontSize:13,fontWeight:800,fontFamily:"inherit",cursor:"pointer"}}>{"\u21B6 Undo Last Split"}</button>:null}
+            <button onClick={function(){toggleDnf(ath.id);setActionFor(null);}} style={{padding:"10px",background:isDnf?"#27ae6022":"#ef444422",border:"1px solid "+(isDnf?"#27ae6066":"#ef444466"),color:isDnf?"#27ae60":"#ef4444",borderRadius:3,fontSize:13,fontWeight:800,fontFamily:"inherit",cursor:"pointer"}}>{isDnf?"\u2713 Un-mark DNF":"\u2717 Mark DNF"}</button>
+            <button onClick={function(){setActionFor(null);}} style={{padding:"8px",background:"transparent",border:"1px solid "+T.border,color:T.muted,borderRadius:3,fontSize:11,fontWeight:700,fontFamily:"inherit",cursor:"pointer"}}>Cancel</button>
+          </div>):null}
+          </div>);
         })}
       </div>
       {isReady?<div style={{marginTop:4,display:"flex",gap:4,alignItems:"center"}}>
@@ -480,10 +531,32 @@ export default function SplitTimer(props){
               <button onClick={function(){if(confirm("Delete "+sess.name+"?")){if(onDeleteHistory){var keep=raceResults.filter(function(r){return!((r.meetName||"Session")+"\u2014"+(r.meetDate||"")===key);});onDeleteHistory(keep);}}}} style={{background:"rgba(239,68,68,0.1)",border:"none",color:"#ef4444",borderRadius:3,padding:"3px 8px",cursor:"pointer",fontSize:10,fontWeight:700,fontFamily:"inherit"}}>Delete</button>
               </div>
             </div>
-            {sess.races.slice().sort(function(a,b){return(a.sortKey||0)-(b.sortKey||0);}).map(function(race){var evClr=EVENT_COLORS[race.event]||T.accent;var runners=(race.runners||[]).slice().sort(function(a,b){return(a.finalTime||999999)-(b.finalTime||999999);});return(<div key={race.id||race.event+race.team} style={{padding:"8px 12px",borderBottom:"1px solid "+T.dim}}>
+            {sess.races.slice().sort(function(a,b){return(a.sortKey||0)-(b.sortKey||0);}).map(function(race){
+              var evClr=EVENT_COLORS[race.event]||T.accent;
+              var isRelay=race.event==="4x800";
+              /* Relay: preserve leg order. Standard: sort by finalTime. */
+              var runners=isRelay?(race.runners||[]).slice():(race.runners||[]).slice().sort(function(a,b){return(a.finalTime||999999)-(b.finalTime||999999);});
+              var maxSplits=runners.reduce(function(m,r){return Math.max(m,(r.splits||[]).length);},0);
+              var teamTotal=isRelay?runners.reduce(function(m,r){return r.finalTime>m?r.finalTime:m;},0):0;
+              return(<div key={race.id||race.event+race.team} style={{padding:"8px 12px",borderBottom:"1px solid "+T.dim}}>
               <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}><span style={{fontSize:12,fontWeight:800,color:evClr}}>{race.event}</span>{race.team?<span style={{fontSize:10,fontWeight:700,color:TEAM_COLORS[race.team]||evClr}}>{race.team}</span>:null}{race.heat>1?<span style={{fontSize:9,color:T.muted}}>H{race.heat}</span>:null}{race.savedBy?<span style={{fontSize:8,padding:"1px 4px",borderRadius:2,background:race.savedBy==="asst"?"#3498DB18":"#27ae6018",color:race.savedBy==="asst"?"#3498DB":"#27ae60"}}>{race.savedBy==="asst"?"Asst":"Head"}</span>:null}<button onClick={function(){if(confirm("Delete this race?")){if(onDeleteHistory){var keep=raceResults.filter(function(r2){return r2.id!==race.id;});onDeleteHistory(keep);}}}} style={{marginLeft:"auto",background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:10,padding:0}}>x</button></div>
-              {runners.map(function(r,ri){return(<div key={r.id||ri} style={{display:"flex",alignItems:"center",gap:6,padding:"2px 0"}}><span style={{width:18,fontSize:10,fontWeight:700,color:ri===0?evClr:T.muted,textAlign:"center"}}>{ri+1}</span><span style={{flex:1,fontSize:11,fontWeight:ri===0?700:500,color:ri===0?evClr:T.muted}}>{r.name}</span>
-                {(r.splits||[]).length>1?(r.splits||[]).slice(0,-1).map(function(s,si){return <span key={si} style={{fontSize:13,fontWeight:700,color:T.oldSplit||T.timeClr,fontFamily:"'Share Tech Mono',monospace",width:55,textAlign:"center"}}>{fmtSplit(s.split)}</span>;}):null}
+              {isRelay?(<div>
+                {runners.map(function(r,ri){var sp=(r.splits||[])[0];return(<div key={r.id||ri} style={{display:"flex",alignItems:"center",gap:6,padding:"2px 0"}}>
+                  <span style={{width:36,fontSize:10,fontWeight:700,color:evClr,textAlign:"center"}}>Leg {ri+1}</span>
+                  <span style={{flex:1,fontSize:11,fontWeight:600,color:T.text}}>{r.name}</span>
+                  <span style={{fontSize:13,fontWeight:700,color:T.splitClr||T.text,fontFamily:"'Share Tech Mono',monospace",width:65,textAlign:"center"}}>{sp?fmtSplit(sp.split):"--"}</span>
+                  <span style={{fontSize:13,fontWeight:700,color:T.timeClr,fontFamily:"'Share Tech Mono',monospace",minWidth:65,textAlign:"right"}}>{sp?fmtTime(sp.total):"--"}</span>
+                </div>);})}
+                <div style={{display:"flex",alignItems:"center",gap:6,padding:"4px 6px",marginTop:3,borderRadius:3,background:evClr+"15",border:"1px solid "+evClr+"55"}}>
+                  <span style={{width:36,fontSize:10,fontWeight:900,color:evClr,textAlign:"center",letterSpacing:1}}>TOTAL</span>
+                  <span style={{flex:1,fontSize:10,color:T.muted}}>4x800 Team</span>
+                  <span style={{width:65,fontSize:10,color:T.muted,textAlign:"center"}}>{"\u2014"}</span>
+                  <span style={{fontSize:14,fontWeight:900,color:evClr,fontFamily:"'Share Tech Mono',monospace",minWidth:65,textAlign:"right"}}>{teamTotal?fmtTime(teamTotal):"--"}</span>
+                </div>
+              </div>):runners.map(function(r,ri){var sps=r.splits||[];return(<div key={r.id||ri} style={{display:"flex",alignItems:"center",gap:6,padding:"2px 0"}}>
+                <span style={{width:18,fontSize:10,fontWeight:700,color:ri===0?evClr:T.muted,textAlign:"center"}}>{ri+1}</span>
+                <span style={{flex:1,fontSize:11,fontWeight:ri===0?700:500,color:ri===0?evClr:T.muted}}>{r.name}</span>
+                {maxSplits>0?Array.from({length:maxSplits},function(_,si){var s=sps[si];return <span key={si} style={{fontSize:13,fontWeight:700,color:T.oldSplit||T.timeClr,fontFamily:"'Share Tech Mono',monospace",width:55,textAlign:"center"}}>{s?fmtSplit(s.split):""}</span>;}):null}
                 <span style={{fontSize:14,fontWeight:800,color:ri===0?"#5ddb6a":T.timeClr,fontFamily:"'Share Tech Mono',monospace",minWidth:65,textAlign:"right"}}>{r.finalTime?fmtTime(r.finalTime):"--"}</span>
               </div>);})}
             </div>);})}
