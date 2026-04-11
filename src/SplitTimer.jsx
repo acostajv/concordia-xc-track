@@ -46,22 +46,13 @@ function RaceCard(props){
   var tick=useCallback(function(){var now=Date.now()-startRef.current+pausedRef.current;elapsedRef.current=now;setElapsed(now);rafRef.current=requestAnimationFrame(tick);},[]);
   var startTimer=function(){startRef.current=Date.now();setIsRunning(true);rafRef.current=requestAnimationFrame(tick);};
   var pauseTimer=function(){
-    cancelAnimationFrame(rafRef.current);var now=elapsedRef.current;pausedRef.current=now;setIsRunning(false);
-    var ns=Object.assign({},race.splits||{});var nf=Object.assign({},race.finished||{});var changed=false;
-    if(isRelay){
-      /* For relay STOP: record split for active leg runner */
-      if(activeLeg>=0&&activeLeg<(race.runnerIds||[]).length){
-        var rid=race.runnerIds[activeLeg];
-        if(!nf[rid]){
-          var legStart=0;
-          if(activeLeg>0){var prevRid=race.runnerIds[activeLeg-1];var prevSp=ns[prevRid]||[];if(prevSp.length>0)legStart=prevSp[prevSp.length-1].total;}
-          ns[rid]=[{split:now-legStart,total:now}];nf[rid]=true;changed=true;
-        }
-      }
-    } else {
-      (race.runnerIds||[]).forEach(function(rid){if(nf[rid])return;var sp=ns[rid]||[];if(sp.length>0){var last=sp[sp.length-1].total;if(now>last+500){ns[rid]=sp.concat([{split:now-last,total:now}]);nf[rid]=true;changed=true;}}});
-    }
-    onUpdateRace(race.id,{elapsed:now,status:"paused",splits:changed?ns:race.splits,finished:nf});
+    /* STOP just pauses the timer cleanly. It does NOT auto-record any splits.
+       Use the runner buttons to record splits, or "Finish" to mass-finish a race. */
+    cancelAnimationFrame(rafRef.current);
+    var now=elapsedRef.current;
+    pausedRef.current=now;
+    setIsRunning(false);
+    onUpdateRace(race.id,{elapsed:now,status:"paused"});
   };
   var finishRace=function(){
     cancelAnimationFrame(rafRef.current);var now=elapsedRef.current;pausedRef.current=now;setIsRunning(false);
@@ -96,6 +87,45 @@ function RaceCard(props){
   var addRunner=function(rid){
     if((race.runnerIds||[]).includes(rid))return;
     onUpdateRace(race.id,{runnerIds:(race.runnerIds||[]).concat([rid])});
+  };
+  var undoSplit=function(rid){
+    var sp=(race.splits||{})[rid]||[];
+    if(sp.length===0)return;
+    var ns=Object.assign({},race.splits||{});
+    ns[rid]=sp.slice(0,-1);
+    var nf=Object.assign({},race.finished||{});
+    delete nf[rid];/* un-finish them */
+    var dnfMap=Object.assign({},race.dnf||{});
+    delete dnfMap[rid];/* un-DNF if they were DNF */
+    var wasDone=race.status==="done";
+    if(wasDone){cancelAnimationFrame(rafRef.current);setIsRunning(false);}
+    onUpdateRace(race.id,{splits:ns,finished:nf,dnf:dnfMap,status:wasDone?"paused":race.status});
+  };
+  var toggleDnf=function(rid){
+    var dnfMap=Object.assign({},race.dnf||{});
+    var nf=Object.assign({},race.finished||{});
+    if(dnfMap[rid]){
+      /* Un-DNF: clear flag and un-finish */
+      delete dnfMap[rid];
+      delete nf[rid];
+      var wasDone=race.status==="done";
+      if(wasDone){cancelAnimationFrame(rafRef.current);setIsRunning(false);}
+      onUpdateRace(race.id,{dnf:dnfMap,finished:nf,status:wasDone?"paused":race.status});
+    } else {
+      /* Mark DNF: add flag and mark finished so race can complete */
+      dnfMap[rid]=true;
+      nf[rid]=true;
+      var allDone=(race.runnerIds||[]).every(function(r){return nf[r];});
+      if(allDone){
+        cancelAnimationFrame(rafRef.current);
+        var now=elapsedRef.current;
+        pausedRef.current=now;
+        setIsRunning(false);
+        onUpdateRace(race.id,{dnf:dnfMap,finished:nf,status:"done",elapsed:now});
+      } else {
+        onUpdateRace(race.id,{dnf:dnfMap,finished:nf});
+      }
+    }
   };
 
   var splitsToFinish=getSplitsToFinish(race.event,splitLabel);
@@ -165,8 +195,10 @@ function RaceCard(props){
     <div style={{padding:"6px"}}>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4}}>
         {runners.map(function(ath,athIdx){var sp=(race.splits||{})[ath.id]||[];var last=sp[sp.length-1];var flash=flashMap[ath.id];var hasSp=sp.length>0;var isFin=!!finishedMap[ath.id];
+          var isDnf=!!(race.dnf||{})[ath.id];
           var isActiveLeg=isRelay&&athIdx===activeLeg;
-          var canClick=isRelay?isActiveLeg&&(isRunning||elapsed>0)&&!isDone:(isRunning||elapsed>0)&&!isDone&&!isFin;
+          var canClick=isDnf?false:isRelay?isActiveLeg&&(isRunning||elapsed>0)&&!isDone:(isRunning||elapsed>0)&&!isDone&&!isFin;
+          var showActions=!isReady&&(isRunning||elapsed>0||isDone);
           var p=paces[ath.name]||{};
           return(<div key={ath.id} style={{position:"relative",width:"100%"}}
             draggable={isReady} onDragStart={function(e){if(!isReady)return;setDragIdx(athIdx);e.dataTransfer.effectAllowed="move";}}
@@ -174,13 +206,15 @@ function RaceCard(props){
             onDrop={function(e){if(!isReady||dragIdx===null)return;e.preventDefault();moveRunner(dragIdx,athIdx);setDragIdx(null);}}
             onDragEnd={function(){setDragIdx(null);}}>
             {isReady?<span onClick={function(e){e.stopPropagation();removeRunner(ath.id);}} style={{position:"absolute",top:2,right:2,zIndex:2,width:16,height:16,borderRadius:"50%",background:"#ef444433",color:"#ef4444",border:"none",cursor:"pointer",fontSize:10,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>{"\u00D7"}</span>:null}
-            <button onClick={function(){if(canClick)recordSplit(ath.id);}} style={{width:"100%",padding:"8px 10px",background:flash?"#0c1f0e":dragIdx===athIdx?"rgba(255,255,255,0.05)":T.card,border:"1px solid "+(flash?"#2d7a35":isFin?"#27ae6044":hasSp?"#1a2e1a":T.border),borderTop:"2px solid "+(isFin?"#27ae60":flash?"#5ddb6a":hasSp?"#1e4a1e":teamClr+"44"),borderRadius:4,cursor:isReady?"grab":canClick?"pointer":"default",textAlign:"left",userSelect:"none",fontFamily:"inherit",display:"flex",flexDirection:"column",gap:2,opacity:dragIdx===athIdx?0.4:isFin&&!flash?0.6:(isRelay&&!isActiveLeg&&!isFin)?0.4:1}}>
+            {showActions?<span onClick={function(e){e.stopPropagation();toggleDnf(ath.id);}} title={isDnf?"Un-mark DNF":"Mark as DNF"} style={{position:"absolute",top:2,left:2,zIndex:2,padding:"1px 5px",borderRadius:3,background:isDnf?"#ef444466":"#ef444422",color:isDnf?"#fff":"#ef4444",border:"1px solid #ef444455",cursor:"pointer",fontSize:8,fontWeight:800,letterSpacing:0.5,lineHeight:1.4}}>DNF</span>:null}
+            {showActions&&hasSp?<span onClick={function(e){e.stopPropagation();undoSplit(ath.id);}} title="Undo last split" style={{position:"absolute",top:2,right:2,zIndex:2,width:18,height:16,borderRadius:3,background:"#f0a50022",color:"#f0a500",border:"1px solid #f0a50055",cursor:"pointer",fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>{"\u21B6"}</span>:null}
+            <button onClick={function(){if(canClick)recordSplit(ath.id);}} style={{width:"100%",padding:(showActions?"18px 10px 8px":"8px 10px"),background:flash?"#0c1f0e":dragIdx===athIdx?"rgba(255,255,255,0.05)":isDnf?"rgba(239,68,68,0.06)":T.card,border:"1px solid "+(flash?"#2d7a35":isDnf?"#ef444444":isFin?"#27ae6044":hasSp?"#1a2e1a":T.border),borderTop:"2px solid "+(isDnf?"#ef4444":isFin?"#27ae60":flash?"#5ddb6a":hasSp?"#1e4a1e":teamClr+"44"),borderRadius:4,cursor:isReady?"grab":canClick?"pointer":"default",textAlign:"left",userSelect:"none",fontFamily:"inherit",display:"flex",flexDirection:"column",gap:2,opacity:dragIdx===athIdx?0.4:isDnf?0.7:isFin&&!flash?0.6:(isRelay&&!isActiveLeg&&!isFin)?0.4:1}}>
             {isReady?<div style={{display:"flex",alignItems:"center",gap:4,marginBottom:1}}><span style={{fontSize:10,color:T.muted,letterSpacing:1,cursor:"grab"}}>{"\u2630"}</span>{isRelay?<span style={{fontSize:9,fontWeight:700,color:evClr,padding:"0 4px",borderRadius:2,background:evClr+"18"}}>Leg {athIdx+1}</span>:null}</div>:null}
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:4}}>
-              <span style={{fontSize:16,fontWeight:800,color:flash?"#5ddb6a":isFin?"#27ae60":T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",flex:1,minWidth:0,lineHeight:1.1}}>{ath.name}</span>
-              <span style={{fontSize:18,fontWeight:900,lineHeight:1,color:hasSp?(flash?"#5ddb6a":isFin?"#27ae60":T.accent):T.dim,flexShrink:0}}>{sp.length}</span>
+              <span style={{fontSize:16,fontWeight:800,color:flash?"#5ddb6a":isDnf?"#ef4444":isFin?"#27ae60":T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",flex:1,minWidth:0,lineHeight:1.1,textDecoration:isDnf?"line-through":"none"}}>{ath.name}</span>
+              <span style={{fontSize:18,fontWeight:900,lineHeight:1,color:hasSp?(flash?"#5ddb6a":isDnf?"#ef4444":isFin?"#27ae60":T.accent):T.dim,flexShrink:0}}>{sp.length}</span>
             </div>
-            <div style={{minHeight:22}}>{last?<div style={{display:"flex",alignItems:"baseline",gap:5}}><span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:19,fontWeight:800,color:flash?"#5ddb6a":isFin?"#27ae60":T.splitClr}}>{fmtSplit(last.split)}</span><span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:13,fontWeight:700,color:T.timeClr}}>{fmtTime(last.total)}</span></div>:<span style={{fontSize:9,color:isFin?"#27ae60":isActiveLeg?T.accent:T.dim}}>{isFin?"\u2713 FINISHED":isActiveLeg?"\u25B6 ACTIVE LEG":isRelay&&!isFin?"waiting":canClick?"tap to split":""}</span>}</div>
+            <div style={{minHeight:22}}>{last?<div style={{display:"flex",alignItems:"baseline",gap:5}}><span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:19,fontWeight:800,color:flash?"#5ddb6a":isDnf?"#ef4444":isFin?"#27ae60":T.splitClr}}>{fmtSplit(last.split)}</span><span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:13,fontWeight:700,color:T.timeClr}}>{fmtTime(last.total)}</span></div>:<span style={{fontSize:9,color:isDnf?"#ef4444":isFin?"#27ae60":isActiveLeg?T.accent:T.dim}}>{isDnf?"\u2717 DNF":isFin?"\u2713 FINISHED":isActiveLeg?"\u25B6 ACTIVE LEG":isRelay&&!isFin?"waiting":canClick?"tap to split":""}</span>}</div>
             {(p.thrSafe||p.cv||p.vo2Safe)?<div style={{display:"flex",flexWrap:"wrap",gap:3,marginTop:1}}>{p.thrSafe?<PacePill label="T" value={p.thrSafe} color="#f0a500"/>:null}{p.cv?<PacePill label="CV" value={p.cv} color="#4a9eff"/>:null}{p.vo2Safe?<PacePill label="V2" value={p.vo2Safe} color="#e84393"/>:null}</div>:null}
           </button></div>);
         })}
@@ -243,7 +277,7 @@ export default function SplitTimer(props){
 
   /* Build result object from a race */
   var buildRaceResult=function(race){
-    var runners=(race.runnerIds||[]).map(function(rid){var ath=rosterMap[String(rid)];var sp=(race.splits||{})[rid]||[];var ft=sp.length>0?sp[sp.length-1].total:race.elapsed||0;return{id:rid,name:ath?ath.name:"Unknown",team:ath?ath.team:"",splits:sp,finalTime:ft};});
+    var runners=(race.runnerIds||[]).map(function(rid){var ath=rosterMap[String(rid)];var sp=(race.splits||{})[rid]||[];var ft=sp.length>0?sp[sp.length-1].total:race.elapsed||0;var isDnf=!!(race.dnf||{})[rid];return{id:rid,name:ath?ath.name:"Unknown",team:ath?ath.team:"",splits:sp,finalTime:ft,dnf:isDnf};});
     return{meetId:race.meetId||"",meetName:race.meetName||"Session",meetDate:race.meetDate||sessionDate,event:race.event||race.label||label,team:race.team||"",heat:race.heat||0,runners:runners,elapsed:race.elapsed||0,type:mode,sortKey:(EVT_ORDER[race.event]!==undefined?EVT_ORDER[race.event]:9)*1000+(race.team==="boys"?0:100)+(race.heat||1)};
   };
   var saveOneRace=function(race){

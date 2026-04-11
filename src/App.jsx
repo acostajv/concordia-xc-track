@@ -2948,7 +2948,7 @@ export default function App(){
                 <div style={{display:"flex",gap:4}}>
                 <button onClick={function(){
                   var rows=[["Race","Place","Athlete","Team","Split #","Split Time","Final Time"]];
-                  meetGroup.races.forEach(function(race){var evLabel=(race.event||"")+(race.team?" "+race.team:"");var runners=(race.runners||[]).slice().sort(function(a,b){return(a.finalTime||999999)-(b.finalTime||999999);});runners.forEach(function(r,ri){var sp=r.splits||[];if(!sp.length){rows.push([evLabel,ri+1,r.name,r.team||"","","",r.finalTime?fmtTime(r.finalTime):""]);}else{sp.forEach(function(s,si){rows.push([si===0?evLabel:"",si===0?ri+1:"",si===0?r.name:"",si===0?r.team||"":"",si+1,fmtSplit(s.split),si===sp.length-1?fmtTime(s.total):""]);});}});});
+                  meetGroup.races.forEach(function(race){var evLabel=(race.event||"")+(race.team?" "+race.team:"");var runners=(race.runners||[]).slice().sort(function(a,b){if(a.dnf&&!b.dnf)return 1;if(!a.dnf&&b.dnf)return -1;return(a.finalTime||999999)-(b.finalTime||999999);});runners.forEach(function(r,ri){var sp=r.splits||[];var finalCell=r.dnf?"DNF":r.finalTime?fmtTime(r.finalTime):"";if(!sp.length){rows.push([evLabel,r.dnf?"DNF":ri+1,r.name,r.team||"","","",finalCell]);}else{sp.forEach(function(s,si){rows.push([si===0?evLabel:"",si===0?(r.dnf?"DNF":ri+1):"",si===0?r.name:"",si===0?r.team||"":"",si+1,fmtSplit(s.split),si===sp.length-1?finalCell:""]);});}});});
                   var csv=rows.map(function(r){return r.map(function(v){return'"'+v+'"';}).join(",");}).join("\n");
                   var el=document.createElement("a");el.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));el.download="results_"+meetGroup.name.replace(/\s+/g,"_")+"_"+(meetGroup.date||"")+".csv";el.click();
                 }} style={{background:C.greenLight+"15",border:"1px solid "+C.greenLight+"33",color:C.greenLight,borderRadius:4,padding:"3px 8px",cursor:"pointer",fontSize:10,fontWeight:600}}>CSV</button>
@@ -2959,12 +2959,14 @@ export default function App(){
                 var evClr={"800":"#F39C12","1600":"#D4A017","3200":"#27ae60","4x800":"#a855f7"}[race.event]||"#4a9eff";
                 var tClr=race.team==="boys"?C.greenLight:C.gold;
                 var isRelay=race.event==="4x800";
-                /* Relay: preserve leg order. Standard: sort by finalTime. */
-                var runners=isRelay?(race.runners||[]).slice():(race.runners||[]).slice().sort(function(a,b){return(a.finalTime||999999)-(b.finalTime||999999);});
+                /* Relay: preserve leg order. Standard: sort DNFs to bottom, then by finalTime. */
+                var runners=isRelay?(race.runners||[]).slice():(race.runners||[]).slice().sort(function(a,b){if(a.dnf&&!b.dnf)return 1;if(!a.dnf&&b.dnf)return -1;return(a.finalTime||999999)-(b.finalTime||999999);});
                 /* Max splits across all runners (for standard race header) */
                 var maxSplits=runners.reduce(function(m,r){return Math.max(m,(r.splits||[]).length);},0);
-                /* Team total for relay (max finalTime = leg 4 cumulative) */
-                var teamTotal=isRelay?runners.reduce(function(m,r){return r.finalTime>m?r.finalTime:m;},0):0;
+                /* Team total for relay (max finalTime among non-DNF legs = leg 4 cumulative) */
+                var teamTotal=isRelay?runners.reduce(function(m,r){return!r.dnf&&r.finalTime>m?r.finalTime:m;},0):0;
+                /* Any leg DNF in a relay marks the team as DNF */
+                var relayDnf=isRelay&&runners.some(function(r){return r.dnf;});
                 var mkEditableFor=function(r){
                   var editKey=function(si){return race.id+"|"+r.id+"|"+si;};
                   return function(displayStr,totalMs,splitIndex){
@@ -2997,22 +2999,22 @@ export default function App(){
                       </div>
                       {runners.map(function(r,ri){
                         var sp=(r.splits||[])[0];
-                        var legTime=sp?fmtSplit(sp.split):"--";
-                        var cumTime=sp?fmtTime(sp.total):"--";
+                        var legTime=r.dnf?"DNF":sp?fmtSplit(sp.split):"--";
+                        var cumTime=r.dnf?"DNF":sp?fmtTime(sp.total):"--";
                         var mkE=mkEditableFor(r);
-                        return(<div key={r.id} style={{display:"flex",gap:4,alignItems:"center",padding:"5px 8px",marginBottom:2,borderRadius:6,background:"transparent",border:"1px solid "+C.bd}}>
-                          <span style={{width:36,fontSize:11,fontWeight:800,color:evClr,textAlign:"center"}}>Leg {ri+1}</span>
-                          <span style={{flex:1,fontSize:12,fontWeight:600,color:_tp,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.name}</span>
-                          <span style={{width:75,fontSize:12,fontWeight:700,color:_tp,fontFamily:"monospace",textAlign:"center"}}>{cm&&sp?mkE(legTime,sp.total,0)||legTime:legTime}</span>
-                          <span style={{width:75,fontSize:12,fontWeight:700,color:_tm,fontFamily:"monospace",textAlign:"right"}}>{cm&&sp?mkE(cumTime,sp.total,-1)||cumTime:cumTime}</span>
+                        return(<div key={r.id} style={{display:"flex",gap:4,alignItems:"center",padding:"5px 8px",marginBottom:2,borderRadius:6,background:r.dnf?"rgba(239,68,68,0.06)":"transparent",border:"1px solid "+(r.dnf?"#ef444444":C.bd)}}>
+                          <span style={{width:36,fontSize:11,fontWeight:800,color:r.dnf?"#ef4444":evClr,textAlign:"center"}}>Leg {ri+1}</span>
+                          <span style={{flex:1,fontSize:12,fontWeight:600,color:r.dnf?"#ef4444":_tp,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textDecoration:r.dnf?"line-through":"none"}}>{r.name}</span>
+                          <span style={{width:75,fontSize:12,fontWeight:700,color:r.dnf?"#ef4444":_tp,fontFamily:"monospace",textAlign:"center"}}>{r.dnf?"DNF":(cm&&sp?mkE(legTime,sp.total,0)||legTime:legTime)}</span>
+                          <span style={{width:75,fontSize:12,fontWeight:700,color:r.dnf?"#ef4444":_tm,fontFamily:"monospace",textAlign:"right"}}>{r.dnf?"DNF":(cm&&sp?mkE(cumTime,sp.total,-1)||cumTime:cumTime)}</span>
                         </div>);
                       })}
                       {/* Team TOTAL row */}
-                      <div style={{display:"flex",gap:4,alignItems:"center",padding:"6px 8px",marginTop:4,borderRadius:6,background:evClr+"15",border:"2px solid "+evClr+"55"}}>
-                        <span style={{width:36,fontSize:11,fontWeight:900,color:evClr,textAlign:"center",letterSpacing:1}}>TOTAL</span>
+                      <div style={{display:"flex",gap:4,alignItems:"center",padding:"6px 8px",marginTop:4,borderRadius:6,background:relayDnf?"rgba(239,68,68,0.12)":evClr+"15",border:"2px solid "+(relayDnf?"#ef444466":evClr+"55")}}>
+                        <span style={{width:36,fontSize:11,fontWeight:900,color:relayDnf?"#ef4444":evClr,textAlign:"center",letterSpacing:1}}>TOTAL</span>
                         <span style={{flex:1,fontSize:11,color:_tm}}>{race.team?race.team.toUpperCase()+" 4x800 Team":"Team"}</span>
                         <span style={{width:75,fontSize:11,color:_tm,textAlign:"center"}}>{"\u2014"}</span>
-                        <span style={{width:75,fontSize:14,fontWeight:900,color:evClr,fontFamily:"monospace",textAlign:"right"}}>{teamTotal?fmtTime(teamTotal):"--"}</span>
+                        <span style={{width:75,fontSize:14,fontWeight:900,color:relayDnf?"#ef4444":evClr,fontFamily:"monospace",textAlign:"right"}}>{relayDnf?"DNF":teamTotal?fmtTime(teamTotal):"--"}</span>
                       </div>
                     </div>):(<div>
                       {/* Standard race header */}
@@ -3024,14 +3026,14 @@ export default function App(){
                       </div>
                       {runners.map(function(r,ri){
                         var fmtFinal=r.finalTime?fmtTime(r.finalTime):"--";
-                        var isFirst=ri===0;
+                        var isFirst=ri===0&&!r.dnf;
                         var mkE=mkEditableFor(r);
                         var sps=r.splits||[];
-                        return(<div key={r.id} style={{display:"flex",gap:4,alignItems:"center",padding:"5px 8px",marginBottom:2,borderRadius:6,background:isFirst?evClr+"12":"transparent",border:isFirst?"1px solid "+evClr+"33":"1px solid "+C.bd}}>
-                          <span style={{width:24,fontSize:12,fontWeight:800,color:isFirst?evClr:_tm,textAlign:"center"}}>{ri+1}</span>
-                          <span style={{flex:1,fontSize:12,fontWeight:isFirst?700:500,color:isFirst?evClr:_tp,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.name}</span>
-                          {maxSplits>0?Array.from({length:maxSplits},function(_,si){var s=sps[si];return <span key={si} style={{width:65,fontSize:11,fontFamily:"monospace",color:_tm,textAlign:"center"}}>{s?(cm?mkE(fmtSplit(s.split),s.total,si)||fmtSplit(s.split):fmtSplit(s.split)):""}</span>;}):null}
-                          <span style={{width:75,fontSize:13,fontWeight:800,color:isFirst?evClr:_tp,fontFamily:"monospace",textAlign:"right"}}>{cm&&r.finalTime?mkE(fmtFinal,r.finalTime,-1)||fmtFinal:fmtFinal}</span>
+                        return(<div key={r.id} style={{display:"flex",gap:4,alignItems:"center",padding:"5px 8px",marginBottom:2,borderRadius:6,background:r.dnf?"rgba(239,68,68,0.06)":isFirst?evClr+"12":"transparent",border:r.dnf?"1px solid #ef444444":isFirst?"1px solid "+evClr+"33":"1px solid "+C.bd}}>
+                          <span style={{width:24,fontSize:12,fontWeight:800,color:r.dnf?"#ef4444":isFirst?evClr:_tm,textAlign:"center"}}>{r.dnf?"\u2014":ri+1}</span>
+                          <span style={{flex:1,fontSize:12,fontWeight:isFirst?700:500,color:r.dnf?"#ef4444":isFirst?evClr:_tp,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textDecoration:r.dnf?"line-through":"none"}}>{r.name}</span>
+                          {maxSplits>0?Array.from({length:maxSplits},function(_,si){var s=sps[si];return <span key={si} style={{width:65,fontSize:11,fontFamily:"monospace",color:r.dnf?"#ef4444":_tm,textAlign:"center"}}>{s?(cm?mkE(fmtSplit(s.split),s.total,si)||fmtSplit(s.split):fmtSplit(s.split)):""}</span>;}):null}
+                          <span style={{width:75,fontSize:13,fontWeight:800,color:r.dnf?"#ef4444":isFirst?evClr:_tp,fontFamily:"monospace",textAlign:"right"}}>{r.dnf?"DNF":cm&&r.finalTime?mkE(fmtFinal,r.finalTime,-1)||fmtFinal:fmtFinal}</span>
                         </div>);
                       })}
                     </div>)}
