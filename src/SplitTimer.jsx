@@ -35,7 +35,7 @@ function PacePill(p){if(!p.value)return null;return(<span style={{display:"inlin
 
 /* ── RACE CARD ─────────────────────────────────────────────────────────── */
 function RaceCard(props){
-  var race=props.race,rosterMap=props.rosterMap,paces=props.paces,onUpdateRace=props.onUpdateRace,onSaveRace=props.onSaveRace,splitLabel=props.splitLabel||"400m",T=props.T,allAthletes=props.allAthletes||[];
+  var race=props.race,rosterMap=props.rosterMap,paces=props.paces,onUpdateRace=props.onUpdateRace,onSaveRace=props.onSaveRace,splitLabel=props.splitLabel||"400m",T=props.T,allAthletes=props.allAthletes||[],beepOn=!!props.beepOn;
   var _r=useState(false);var isRunning=_r[0];var setIsRunning=_r[1];
   var _e=useState(race.elapsed||0);var elapsed=_e[0];var setElapsed=_e[1];
   var _f=useState({});var flashMap=_f[0];var setFlashMap=_f[1];
@@ -43,8 +43,25 @@ function RaceCard(props){
   var _drag=useState(null);var dragIdx=_drag[0];var setDragIdx=_drag[1];
   var _showAdd=useState(false);var showAdd=_showAdd[0];var setShowAdd=_showAdd[1];
   var _actionFor=useState(null);var actionFor=_actionFor[0];var setActionFor=_actionFor[1];
+  var _manEntry=useState({rid:null,value:""});var manualEntry=_manEntry[0];var setManualEntry=_manEntry[1];
+  var _confirm=useState(null);var confirmModal=_confirm[0];var setConfirmModal=_confirm[1];
   var longPressRef=useRef({timer:null,fired:false});
   var wakeLockRef=useRef(null);
+  var audioCtxRef=useRef(null);
+  var playBeep=function(){
+    if(!beepOn)return;
+    try{
+      if(!audioCtxRef.current){var Ctor=window.AudioContext||window.webkitAudioContext;if(!Ctor)return;audioCtxRef.current=new Ctor();}
+      var ctx=audioCtxRef.current;
+      if(ctx.state==="suspended")ctx.resume();
+      var osc=ctx.createOscillator();var gain=ctx.createGain();
+      osc.connect(gain);gain.connect(ctx.destination);
+      osc.frequency.value=880;osc.type="sine";
+      gain.gain.setValueAtTime(0.15,ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.08);
+      osc.start();osc.stop(ctx.currentTime+0.09);
+    }catch(e){}
+  };
 
   var tick=useCallback(function(){var now=Date.now()-startRef.current+pausedRef.current;elapsedRef.current=now;setElapsed(now);rafRef.current=requestAnimationFrame(tick);},[]);
   var startTimer=function(){startRef.current=Date.now();setIsRunning(true);rafRef.current=requestAnimationFrame(tick);};
@@ -122,6 +139,39 @@ function RaceCard(props){
   var pressEnd=function(){
     if(longPressRef.current.timer){clearTimeout(longPressRef.current.timer);longPressRef.current.timer=null;}
   };
+  var parseTimeStr=function(str){
+    /* Accepts "1:23.45", "1:23", "83.45", or "83" */
+    str=(str||"").trim();if(!str)return null;
+    var parts=str.split(":");
+    if(parts.length===2){var mm=parseInt(parts[0]);var rest=parts[1].split(".");var ss=parseInt(rest[0])||0;var cs=rest[1]?parseInt((rest[1]+"00").slice(0,2)):0;if(isNaN(mm))return null;return mm*60000+ss*1000+cs*10;}
+    if(parts.length===1){var rest2=str.split(".");var sec=parseInt(rest2[0])||0;var cs2=rest2[1]?parseInt((rest2[1]+"00").slice(0,2)):0;return sec*1000+cs2*10;}
+    return null;
+  };
+  var submitManualEntry=function(rid,str){
+    var ms=parseTimeStr(str);if(ms===null||ms<=0)return;
+    var ns=Object.assign({},race.splits||{});
+    var nf=Object.assign({},race.finished||{});
+    if(isRelay){
+      var legIdx=(race.runnerIds||[]).indexOf(rid);
+      var legStart=0;
+      if(legIdx>0){var prevRid=race.runnerIds[legIdx-1];var prevSp=ns[prevRid]||[];if(prevSp.length>0)legStart=prevSp[prevSp.length-1].total;}
+      if(ms<=legStart)return;
+      ns[rid]=[{split:ms-legStart,total:ms}];
+      nf[rid]=true;
+    } else {
+      var prev=ns[rid]||[];
+      var lastTotal=prev.length>0?prev[prev.length-1].total:0;
+      if(ms<=lastTotal)return;/* Must be after the previous split */
+      ns[rid]=prev.concat([{split:ms-lastTotal,total:ms}]);
+      if(splitsToFinish>0&&ns[rid].length>=splitsToFinish)nf[rid]=true;
+    }
+    /* If this push exceeds elapsed, bump elapsed up to match */
+    var newElapsed=Math.max(elapsedRef.current,ms);
+    if(newElapsed>elapsedRef.current){elapsedRef.current=newElapsed;pausedRef.current=newElapsed;setElapsed(newElapsed);}
+    var allDone=(race.runnerIds||[]).every(function(r){return nf[r];});
+    if(allDone){cancelAnimationFrame(rafRef.current);setIsRunning(false);onUpdateRace(race.id,{splits:ns,status:"done",elapsed:newElapsed,finished:nf});}
+    else{onUpdateRace(race.id,{splits:ns,status:isRunning?"running":"paused",elapsed:newElapsed,finished:nf});}
+  };
   var undoSplit=function(rid){
     var sp=(race.splits||{})[rid]||[];
     if(sp.length===0)return;
@@ -196,8 +246,9 @@ function RaceCard(props){
       else{onUpdateRace(race.id,{splits:ns,status:"running",finished:nf});}
     }
     setFlashMap(function(p){var n=Object.assign({},p);n[rid]=true;return n;});setTimeout(function(){setFlashMap(function(p){var n=Object.assign({},p);n[rid]=false;return n;});},350);
-    /* Haptic confirmation so the coach knows the tap registered without looking */
+    /* Haptic + audio confirmation so the coach knows the tap registered without looking */
     if(typeof navigator!=="undefined"&&typeof navigator.vibrate==="function"){try{navigator.vibrate(50);}catch(e){}}
+    playBeep();
   };
 
   var runners=(race.runnerIds||[]).map(function(rid){return rosterMap[rid]||rosterMap[String(rid)];}).filter(Boolean);
@@ -229,7 +280,7 @@ function RaceCard(props){
       <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:isRunning?52:36,color:isRunning?T.text:elapsed>0?evClr:T.muted,letterSpacing:2,lineHeight:1}}>{fmtTime(elapsed)}</div>
       <div style={{display:"flex",gap:5}}>
         {!isDone&&!isRunning?<button onClick={startTimer} style={{padding:"6px 16px",background:evClr,color:T.bg,border:"none",borderRadius:3,cursor:"pointer",fontSize:13,fontWeight:900,fontFamily:"inherit",letterSpacing:2}}>{elapsed>0?"GO":"START"}</button>:!isDone?<button onClick={pauseTimer} style={{padding:"6px 16px",background:"transparent",color:evClr,border:"1.5px solid "+evClr,borderRadius:3,cursor:"pointer",fontSize:13,fontWeight:900,fontFamily:"inherit",letterSpacing:2}}>STOP</button>:null}
-        <button onClick={function(){if(confirm("Reset this race? All splits will be lost."))resetRace();}} style={{padding:"6px 10px",background:"transparent",color:T.muted,border:"1px solid "+T.border,borderRadius:3,cursor:"pointer",fontSize:10,fontWeight:700,fontFamily:"inherit"}}>Reset</button>
+        <button onClick={function(){setConfirmModal({title:"Reset this race?",message:"All splits and the timer will be cleared. This cannot be undone.",confirmLabel:"Reset",destructive:true,onConfirm:function(){resetRace();}});}} style={{padding:"6px 10px",background:"transparent",color:T.muted,border:"1px solid "+T.border,borderRadius:3,cursor:"pointer",fontSize:10,fontWeight:700,fontFamily:"inherit"}}>Reset</button>
       </div>
     </div>
     <div style={{padding:"6px"}}>
@@ -267,9 +318,19 @@ function RaceCard(props){
           </button>
           {actionFor===ath.id?(<div style={{position:"absolute",inset:0,zIndex:20,background:T.bg,border:"2px solid "+T.accent,borderRadius:4,display:"flex",flexDirection:"column",padding:6,gap:5}}>
             <div style={{fontSize:10,color:T.muted,textAlign:"center",letterSpacing:1,textTransform:"uppercase"}}>{ath.name}</div>
-            {hasSp?<button onClick={function(){undoSplit(ath.id);setActionFor(null);}} style={{padding:"10px",background:"#f0a50022",border:"1px solid #f0a50066",color:"#f0a500",borderRadius:3,fontSize:13,fontWeight:800,fontFamily:"inherit",cursor:"pointer"}}>{"\u21B6 Undo Last Split"}</button>:null}
-            <button onClick={function(){toggleDnf(ath.id);setActionFor(null);}} style={{padding:"10px",background:isDnf?"#27ae6022":"#ef444422",border:"1px solid "+(isDnf?"#27ae6066":"#ef444466"),color:isDnf?"#27ae60":"#ef4444",borderRadius:3,fontSize:13,fontWeight:800,fontFamily:"inherit",cursor:"pointer"}}>{isDnf?"\u2713 Un-mark DNF":"\u2717 Mark DNF"}</button>
-            <button onClick={function(){setActionFor(null);}} style={{padding:"8px",background:"transparent",border:"1px solid "+T.border,color:T.muted,borderRadius:3,fontSize:11,fontWeight:700,fontFamily:"inherit",cursor:"pointer"}}>Cancel</button>
+            {manualEntry.rid===ath.id?(<div style={{display:"flex",flexDirection:"column",gap:5}}>
+              <input value={manualEntry.value} onChange={function(e){setManualEntry({rid:ath.id,value:e.target.value});}} placeholder="e.g. 1:23.45 or 83.45" autoFocus style={{padding:"8px",background:T.timerBg,border:"1px solid "+T.accent,color:T.text,borderRadius:3,fontSize:13,fontFamily:"'Share Tech Mono',monospace",outline:"none",textAlign:"center"}}/>
+              <div style={{fontSize:9,color:T.muted,textAlign:"center"}}>Cumulative time from race start</div>
+              <div style={{display:"flex",gap:5}}>
+                <button onClick={function(){submitManualEntry(ath.id,manualEntry.value);setManualEntry({rid:null,value:""});setActionFor(null);}} style={{flex:1,padding:"8px",background:T.accent+"22",border:"1px solid "+T.accent+"66",color:T.accent,borderRadius:3,fontSize:12,fontWeight:800,fontFamily:"inherit",cursor:"pointer"}}>Save</button>
+                <button onClick={function(){setManualEntry({rid:null,value:""});}} style={{flex:1,padding:"8px",background:"transparent",border:"1px solid "+T.border,color:T.muted,borderRadius:3,fontSize:12,fontWeight:700,fontFamily:"inherit",cursor:"pointer"}}>Back</button>
+              </div>
+            </div>):(<div style={{display:"flex",flexDirection:"column",gap:5}}>
+              {hasSp?<button onClick={function(){undoSplit(ath.id);setActionFor(null);}} style={{padding:"10px",background:"#f0a50022",border:"1px solid #f0a50066",color:"#f0a500",borderRadius:3,fontSize:13,fontWeight:800,fontFamily:"inherit",cursor:"pointer"}}>{"\u21B6 Undo Last Split"}</button>:null}
+              <button onClick={function(){setManualEntry({rid:ath.id,value:""});}} style={{padding:"10px",background:T.accent+"22",border:"1px solid "+T.accent+"66",color:T.accent,borderRadius:3,fontSize:13,fontWeight:800,fontFamily:"inherit",cursor:"pointer"}}>{"\u270E Enter Time Manually"}</button>
+              <button onClick={function(){toggleDnf(ath.id);setActionFor(null);}} style={{padding:"10px",background:isDnf?"#27ae6022":"#ef444422",border:"1px solid "+(isDnf?"#27ae6066":"#ef444466"),color:isDnf?"#27ae60":"#ef4444",borderRadius:3,fontSize:13,fontWeight:800,fontFamily:"inherit",cursor:"pointer"}}>{isDnf?"\u2713 Un-mark DNF":"\u2717 Mark DNF"}</button>
+              <button onClick={function(){setActionFor(null);}} style={{padding:"8px",background:"transparent",border:"1px solid "+T.border,color:T.muted,borderRadius:3,fontSize:11,fontWeight:700,fontFamily:"inherit",cursor:"pointer"}}>Cancel</button>
+            </div>)}
           </div>):null}
           </div>);
         })}
@@ -289,6 +350,16 @@ function RaceCard(props){
           </div>);})}
         </div></div>:null}
     </div>
+    {confirmModal?(<div onClick={function(){setConfirmModal(null);}} style={{position:"fixed",inset:0,zIndex:1000,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div onClick={function(e){e.stopPropagation();}} style={{background:T.card,border:"2px solid "+(confirmModal.destructive?"#ef4444":T.accent),borderRadius:8,padding:20,maxWidth:360,width:"100%",boxShadow:"0 24px 80px rgba(0,0,0,0.6)"}}>
+        <div style={{fontSize:18,fontWeight:800,color:confirmModal.destructive?"#ef4444":T.text,marginBottom:8}}>{confirmModal.title||"Confirm"}</div>
+        {confirmModal.message?<div style={{fontSize:13,color:T.muted,marginBottom:18,lineHeight:1.5}}>{confirmModal.message}</div>:null}
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={function(){setConfirmModal(null);}} style={{flex:1,padding:"14px",background:"transparent",border:"1px solid "+T.border,color:T.text,borderRadius:6,fontSize:14,fontWeight:700,fontFamily:"inherit",cursor:"pointer"}}>Cancel</button>
+          <button onClick={function(){var fn=confirmModal.onConfirm;setConfirmModal(null);if(fn)fn();}} style={{flex:1,padding:"14px",background:confirmModal.destructive?"#ef4444":T.accent,border:"none",color:"#fff",borderRadius:6,fontSize:14,fontWeight:900,fontFamily:"inherit",cursor:"pointer",letterSpacing:1,textTransform:"uppercase"}}>{confirmModal.confirmLabel||"Confirm"}</button>
+        </div>
+      </div>
+    </div>):null}
   </div>);
 }
 
@@ -299,6 +370,8 @@ export default function SplitTimer(props){
   var _mode=useState("meet");var mode=_mode[0];var setMode=_mode[1];
   var _theme=useState(localStorage.getItem("beacon_theme")||"dark");var theme=_theme[0];var setThemeState=_theme[1];
   var setTheme=function(t){setThemeState(t);localStorage.setItem("beacon_theme",t);};
+  var _beep=useState(localStorage.getItem("beacon_beep")==="1");var beepOn=_beep[0];var setBeepState=_beep[1];
+  var setBeep=function(v){setBeepState(v);localStorage.setItem("beacon_beep",v?"1":"0");};
   var T=THEMES[theme]||THEMES.dark;
   var _ath=useState([]);var allAthletes=_ath[0];var setAllAthletes=_ath[1];
   var _races=useState([]);var races=_races[0];var setRaces=_races[1];
@@ -573,12 +646,13 @@ export default function SplitTimer(props){
         <button onClick={function(){setScreen("setup");}} style={{background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:10,fontFamily:"inherit",letterSpacing:2,textTransform:"uppercase",padding:0}}>{"\u2190"} Setup</button>
         <span style={{fontSize:12,fontWeight:800,color:T.accent,letterSpacing:2,textTransform:"uppercase"}}>{label}</span>
       </div>
-      <div style={{display:"flex",gap:5}}>
+      <div style={{display:"flex",gap:5,alignItems:"center"}}>
+        <button onClick={function(){setBeep(!beepOn);}} title={beepOn?"Beep on":"Beep off"} style={{padding:"6px 10px",background:beepOn?T.accent+"22":"transparent",color:beepOn?T.accent:T.muted,border:"1px solid "+(beepOn?T.accent+"66":T.border),borderRadius:3,cursor:"pointer",fontSize:14,fontFamily:"inherit",lineHeight:1}}>{beepOn?"\uD83D\uDD0A":"\uD83D\uDD07"}</button>
         {anyHasSplits&&!allSaved?<button onClick={saveAllUnsaved} style={{padding:"6px 14px",background:"#3498DB",color:T.bg,border:"none",borderRadius:3,cursor:"pointer",fontSize:12,fontWeight:900,fontFamily:"inherit",letterSpacing:1,textTransform:"uppercase"}}>Save All</button>:null}
         {allSaved&&anyHasSplits?<button onClick={clearSession} style={{padding:"6px 14px",background:"#27ae60",color:T.bg,border:"none",borderRadius:3,cursor:"pointer",fontSize:12,fontWeight:900,fontFamily:"inherit",letterSpacing:1,textTransform:"uppercase"}}>Done - Clear</button>:null}
       </div>
     </div>
     <div style={{padding:"8px 10px"}}>
-      {races.map(function(race){return <RaceCard key={race.id} race={race} rosterMap={rosterMap} paces={fbPaces} onUpdateRace={updateRace} onSaveRace={saveOneRace} splitLabel={label} T={T} allAthletes={allAthletes}/>;})}</div>
+      {races.map(function(race){return <RaceCard key={race.id} race={race} rosterMap={rosterMap} paces={fbPaces} onUpdateRace={updateRace} onSaveRace={saveOneRace} splitLabel={label} T={T} allAthletes={allAthletes} beepOn={beepOn}/>;})}</div>
   </div>);
 }

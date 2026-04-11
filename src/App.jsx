@@ -3062,6 +3062,18 @@ export default function App(){
                         var mkE=mkEditableFor(r);
                         var sps=r.splits||[];
                         var avgPace=r.dnf||!r.finalTime||raceM<=0?"":fmtPace(r.finalTime,raceM);
+                        /* PB delta lookup */
+                        var rosterAth=roster.find(function(a){return a.id===r.id||a.name===r.name;});
+                        var pbStr=rosterAth&&rosterAth.pbs?rosterAth.pbs[race.event]:null;
+                        var pbMs=pbStr?parseTimeToMs(pbStr):null;
+                        var pbDelta=null;var pbDeltaText="";var pbDeltaPositive=false;
+                        if(!r.dnf&&r.finalTime&&pbMs){
+                          pbDelta=r.finalTime-pbMs;
+                          pbDeltaPositive=pbDelta<0;
+                          var absMs=Math.abs(pbDelta);
+                          var dm=Math.floor(absMs/60000);var ds=Math.floor((absMs%60000)/1000);var dcs=Math.floor((absMs%1000)/10);
+                          pbDeltaText=(pbDelta<0?"\u2212":"+")+(dm>0?dm+":"+(ds<10?"0":"")+ds:ds)+"."+(dcs<10?"0":"")+dcs;
+                        }
                         return(<div key={r.id} style={{display:"flex",gap:4,alignItems:"center",padding:"5px 8px",marginBottom:2,borderRadius:6,background:r.dnf?"rgba(239,68,68,0.06)":isFirst?evClr+"12":"transparent",border:r.dnf?"1px solid #ef444444":isFirst?"1px solid "+evClr+"33":"1px solid "+C.bd}}>
                           <span style={{width:24,fontSize:12,fontWeight:800,color:r.dnf?"#ef4444":isFirst?evClr:_tm,textAlign:"center"}}>{r.dnf?"\u2014":ri+1}</span>
                           <span style={{flex:1,fontSize:12,fontWeight:isFirst?700:500,color:r.dnf?"#ef4444":isFirst?evClr:_tp,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textDecoration:r.dnf?"line-through":"none"}}>{r.name}</span>
@@ -3073,6 +3085,7 @@ export default function App(){
                             <span>{r.dnf?"DNF":cm&&r.finalTime?mkE(fmtFinal,r.finalTime,-1)||fmtFinal:fmtFinal}</span>
                             {rrShowPace&&avgPace?<span style={{fontSize:8,color:_tm,opacity:0.7,fontWeight:600}}>{avgPace}</span>:null}
                           </span>
+                          {pbDeltaText?<span title={"PB: "+pbStr} style={{minWidth:48,fontSize:10,fontWeight:800,fontFamily:"monospace",textAlign:"right",padding:"2px 5px",borderRadius:3,background:pbDeltaPositive?"#27ae6022":"#ef444422",color:pbDeltaPositive?"#27ae60":"#ef4444",border:"1px solid "+(pbDeltaPositive?"#27ae6044":"#ef444444")}}>{pbDeltaText}</span>:null}
                         </div>);
                       })}
                     </div>)}
