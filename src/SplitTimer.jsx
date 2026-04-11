@@ -264,6 +264,7 @@ function RaceCard(props){
         <div style={{fontSize:15,fontWeight:800,color:evClr}}>{race.label||race.event}</div>
         {race.team?<span style={{fontSize:11,fontWeight:700,color:teamClr,padding:"1px 8px",borderRadius:3,background:teamClr+"18",textTransform:"uppercase",letterSpacing:1}}>{race.team}</span>:null}
         <span style={{fontSize:10,color:T.muted}}>{runners.length} runners</span>
+        {race.shared?<span title="Shared race — only your assigned runners are shown" style={{fontSize:9,fontWeight:800,padding:"2px 6px",borderRadius:3,background:"#f0a50022",color:"#f0a500",border:"1px solid #f0a50066",letterSpacing:0.5}}>SHARED</span>:race.assignedCoaches&&race.assignedCoaches.length===1?<span title="Solo race — only you" style={{fontSize:9,fontWeight:800,padding:"2px 6px",borderRadius:3,background:"#27ae6022",color:"#5ddb6a",border:"1px solid #27ae6066",letterSpacing:0.5}}>YOURS</span>:null}
         {isReady?<select value={effectiveSplit} onChange={function(e){onUpdateRace(race.id,{splitLabel:e.target.value});}} style={{background:T.timerBg,border:"1px solid "+T.border,color:T.text,padding:"2px 6px",borderRadius:3,fontFamily:"inherit",fontSize:10}} title="Split distance">
           {["200m","400m","800m","1200m","1600m","Half Mile","1 Mile","3K","5K"].map(function(d){return <option key={d} value={d}>{d}</option>;})}
         </select>:<span style={{fontSize:9,color:T.muted,fontFamily:"'Share Tech Mono',monospace",padding:"1px 5px",border:"1px solid "+T.border,borderRadius:3}}>{effectiveSplit}</span>}
@@ -365,7 +366,7 @@ function RaceCard(props){
 
 /* ── MAIN ────────────────────────────────────────────────────────────── */
 export default function SplitTimer(props){
-  var onRaceFinish=props.onRaceFinish;var onDeleteHistory=props.onDeleteHistory;var parentMeets=props.meets||[];var parentRoster=props.roster||[];var raceResults=props.raceResults||[];
+  var onRaceFinish=props.onRaceFinish;var onDeleteHistory=props.onDeleteHistory;var parentMeets=props.meets||[];var parentRoster=props.roster||[];var raceResults=props.raceResults||[];var cmRole=props.cmRole||"head";
   var _scr=useState("setup");var screen=_scr[0];var setScreen=_scr[1];
   var _mode=useState("meet");var mode=_mode[0];var setMode=_mode[1];
   var _theme=useState(localStorage.getItem("beacon_theme")||"dark");var theme=_theme[0];var setThemeState=_theme[1];
@@ -427,6 +428,13 @@ export default function SplitTimer(props){
 
   var importMeetEvents=function(meet){if(!meet||!meet.lineup)return;var athTeam={};allAthletes.forEach(function(a){athTeam[String(a.id)]=a.team;});var newRaces=[];var ts=Date.now();
     Object.entries(meet.lineup).forEach(function(entry){var evtKey=entry[0];var evtData=entry[1];var allIds=(evtData.runners||[]).map(function(r){return String(r);});if(!allIds.length)return;
+      /* Coach assignment filter: skip events not assigned to this coach */
+      var assignedCoaches=(evtData.assignedCoaches&&evtData.assignedCoaches.length>0)?evtData.assignedCoaches:["head","asst"];
+      if(assignedCoaches.indexOf(cmRole)===-1)return;
+      var isShared=assignedCoaches.length===2;
+      var runnerAssign=evtData.runnerAssign||{};
+      /* If shared, filter to only this coach's runners */
+      if(isShared){allIds=allIds.filter(function(rid){return(runnerAssign[rid]||"head")===cmRole;});if(!allIds.length)return;}
       var numHeats=evtKey==="4x800"?1:Math.max(1,evtData.heats||1);var heatAssign=evtData.heatAssign||{};
       /* For 4x800 the split is always per-leg (800m); other events default to session label */
       var defaultSplit=evtKey==="4x800"?"800m":label;
@@ -434,8 +442,8 @@ export default function SplitTimer(props){
         var heatIds=numHeats===1?allIds:allIds.filter(function(rid){return(heatAssign[rid]||1)===heatNum;});
         var bIds=heatIds.filter(function(r){return athTeam[r]==="boys";});var gIds=heatIds.filter(function(r){return athTeam[r]==="girls";});
         var heatLabel=numHeats>1?" H"+heatNum:"";
-        if(bIds.length>0)newRaces.push({id:"r_"+evtKey+"_b_h"+heatNum+"_"+(ts++),event:evtKey,team:"boys",label:evtKey+" Boys"+heatLabel,approxTime:evtData.approxTime||"",runnerIds:bIds,splits:{},elapsed:0,status:"ready",finished:{},meetName:meet.name||"Meet",meetId:meet.id||"",meetDate:meet.date||"",heat:heatNum,splitLabel:defaultSplit});
-        if(gIds.length>0)newRaces.push({id:"r_"+evtKey+"_g_h"+heatNum+"_"+(ts++),event:evtKey,team:"girls",label:evtKey+" Girls"+heatLabel,approxTime:evtData.approxTime||"",runnerIds:gIds,splits:{},elapsed:0,status:"ready",finished:{},meetName:meet.name||"Meet",meetId:meet.id||"",meetDate:meet.date||"",heat:heatNum,splitLabel:defaultSplit});
+        if(bIds.length>0)newRaces.push({id:"r_"+evtKey+"_b_h"+heatNum+"_"+(ts++),event:evtKey,team:"boys",label:evtKey+" Boys"+heatLabel,approxTime:evtData.approxTime||"",runnerIds:bIds,splits:{},elapsed:0,status:"ready",finished:{},meetName:meet.name||"Meet",meetId:meet.id||"",meetDate:meet.date||"",heat:heatNum,splitLabel:defaultSplit,assignedCoaches:assignedCoaches,shared:isShared});
+        if(gIds.length>0)newRaces.push({id:"r_"+evtKey+"_g_h"+heatNum+"_"+(ts++),event:evtKey,team:"girls",label:evtKey+" Girls"+heatLabel,approxTime:evtData.approxTime||"",runnerIds:gIds,splits:{},elapsed:0,status:"ready",finished:{},meetName:meet.name||"Meet",meetId:meet.id||"",meetDate:meet.date||"",heat:heatNum,splitLabel:defaultSplit,assignedCoaches:assignedCoaches,shared:isShared});
       }
     });
     newRaces.sort(function(a,b){var ea=EVT_ORDER[a.event]!==undefined?EVT_ORDER[a.event]:9;var eb=EVT_ORDER[b.event]!==undefined?EVT_ORDER[b.event]:9;if(ea!==eb)return ea-eb;if(a.team!==b.team)return a.team==="boys"?-1:1;return(a.heat||1)-(b.heat||1);});

@@ -417,17 +417,60 @@ export default function App(){
     return pm+":"+(ps<10?"0":"")+ps+"/mi";
   }
   var EVTS=["4x800","800","1600","3200"];
+  /* Parse a pace string like "6:30/mi" or "6:30" → seconds/mile */
+  function parsePaceSec(str){if(!str)return null;var clean=String(str).replace(/\/mi$/i,"").trim();var parts=clean.split(":");if(parts.length!==2)return null;var m=parseInt(parts[0]);var s=parseInt(parts[1]);if(isNaN(m)||isNaN(s))return null;return m*60+s;}
+  /* Score a runner for ability-based auto-split: lower = faster.
+     Priority: most recent same-event race result finalTime; else roster.paces.cv;
+     else thrSafe; else Infinity (sorts to slow end). */
+  function abilityScore(rid,evtName){
+    var ath=roster.find(function(a){return a.id===rid;});
+    if(!ath)return Infinity;
+    /* Look for most recent race result for this runner in the same event */
+    var best=null;
+    raceResults.forEach(function(rr){
+      if(rr.event!==evtName)return;
+      var hit=(rr.runners||[]).find(function(r){return r.id===rid||r.name===ath.name;});
+      if(hit&&hit.finalTime&&!hit.dnf){if(!best||(rr.savedAt||0)>(best.savedAt||0))best={time:hit.finalTime,savedAt:rr.savedAt||0};}
+    });
+    if(best)return best.time/1000;/* normalize to seconds */
+    /* Fall back to pace-per-mile from roster */
+    var p=ath.paces||{};
+    var sec=parsePaceSec(p.cv)||parsePaceSec(p.thrSafe)||parsePaceSec(p.thrMed)||parsePaceSec(p.vo2Safe);
+    if(sec)return sec*1000;/* large multiplier so race times always sort below pace fallbacks */
+    return Infinity;
+  }
+  function autoSplitByAbility(runnerIds,evtName){
+    var scored=runnerIds.map(function(rid){return{rid:rid,score:abilityScore(rid,evtName)};});
+    scored.sort(function(a,b){return a.score-b.score;});
+    var assign={};
+    var half=Math.ceil(scored.length/2);
+    scored.forEach(function(s,i){assign[s.rid]=i<half?"head":"asst";});
+    return assign;
+  }
   function upLineup(meetId,evtName,field,val){
     upM(meets.map(function(m){
       if(m.id!==meetId)return m;
       var lu=Object.assign({},m.lineup||{});
       var ev=Object.assign({},lu[evtName]||{runners:[],approxTime:"",heats:1,heatAssign:{}});
       if(field==="approxTime")ev.approxTime=val;
-      else if(field==="addRunner"&&val){ev.runners=ev.runners.concat([val]);var ha=Object.assign({},ev.heatAssign||{});if(!ha[val])ha[val]=1;ev.heatAssign=ha;}
-      else if(field==="removeRunner"){ev.runners=ev.runners.filter(function(r){return r!==val;});var ha=Object.assign({},ev.heatAssign||{});delete ha[val];ev.heatAssign=ha;}
+      else if(field==="addRunner"&&val){ev.runners=ev.runners.concat([val]);var ha=Object.assign({},ev.heatAssign||{});if(!ha[val])ha[val]=1;ev.heatAssign=ha;
+        /* If both coaches assigned, auto-add new runner to whichever side has fewer */
+        if((ev.assignedCoaches||[]).length===2){var ra=Object.assign({},ev.runnerAssign||{});var hCount=0,aCount=0;Object.keys(ra).forEach(function(k){if(ra[k]==="head")hCount++;else if(ra[k]==="asst")aCount++;});ra[val]=hCount<=aCount?"head":"asst";ev.runnerAssign=ra;}}
+      else if(field==="removeRunner"){ev.runners=ev.runners.filter(function(r){return r!==val;});var ha=Object.assign({},ev.heatAssign||{});delete ha[val];ev.heatAssign=ha;
+        if(ev.runnerAssign){var ra=Object.assign({},ev.runnerAssign);delete ra[val];ev.runnerAssign=ra;}}
       else if(field==="reorder")ev.runners=val;
       else if(field==="setHeats"){var nh=Math.max(1,parseInt(val)||1);ev.heats=nh;var ha=Object.assign({},ev.heatAssign||{});Object.keys(ha).forEach(function(rid){if(ha[rid]>nh)ha[rid]=nh;});ev.heatAssign=ha;}
       else if(field==="assignHeat"){var ha=Object.assign({},ev.heatAssign||{});ha[val.rid]=val.heat;ev.heatAssign=ha;}
+      else if(field==="setCoaches"){
+        /* val is an array like ["head"], ["asst"], or ["head","asst"] */
+        ev.assignedCoaches=val.slice();
+        if(val.length===2){ev.runnerAssign=autoSplitByAbility(ev.runners||[],evtName);}
+        else{ev.runnerAssign={};}
+      }
+      else if(field==="setRunnerCoach"){
+        /* val = {rid, coach: "head"|"asst"} */
+        var ra=Object.assign({},ev.runnerAssign||{});ra[val.rid]=val.coach;ev.runnerAssign=ra;
+      }
       lu[evtName]=ev;return Object.assign({},m,{lineup:lu});
     }));
   }
@@ -2256,13 +2299,45 @@ export default function App(){
           {/* Expanded lineup section */}
           {isEx?(<div style={{padding:"0 12px 14px",borderTop:"1px solid "+C.bd}}>
             <div style={{fontSize:11,fontWeight:700,color:_tp,marginTop:10,marginBottom:8}}>Distance Event Lineup</div>
+            {/* Coach coverage summary */}
+            {(function(){
+              var headRaces=[];var asstRaces=[];var sharedRaces=[];
+              EVTS.forEach(function(en){
+                var ed=lu[en];if(!ed||!(ed.runners||[]).length)return;
+                var ac=ed.assignedCoaches||["head","asst"];
+                var label=en;
+                if(ac.length===1&&ac[0]==="head")headRaces.push(label);
+                else if(ac.length===1&&ac[0]==="asst")asstRaces.push(label);
+                else{
+                  var ra=ed.runnerAssign||{};
+                  var hCount=0,aCount=0;(ed.runners||[]).forEach(function(r){if((ra[r]||"head")==="head")hCount++;else aCount++;});
+                  sharedRaces.push(en+" ("+hCount+"H/"+aCount+"A)");
+                }
+              });
+              if(!headRaces.length&&!asstRaces.length&&!sharedRaces.length)return null;
+              return(<div style={{padding:"8px 10px",marginBottom:10,borderRadius:6,background:lt?"#f8f9f6":"rgba(255,255,255,0.03)",border:"1px solid "+C.bd,display:"flex",flexDirection:"column",gap:4}}>
+                <div style={{fontSize:9,fontWeight:700,color:_tm,letterSpacing:1.5,textTransform:"uppercase",fontFamily:"monospace"}}>Coach Coverage</div>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+                  <span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:C.greenLight+"22",color:C.greenLight,fontWeight:800,letterSpacing:0.5}}>HEAD</span>
+                  <span style={{fontSize:11,color:_ts}}>{headRaces.length?headRaces.join(", "):<span style={{color:_tm,fontStyle:"italic"}}>none assigned</span>}</span>
+                </div>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+                  <span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#3498DB22",color:"#3498DB",fontWeight:800,letterSpacing:0.5}}>ASST</span>
+                  <span style={{fontSize:11,color:_ts}}>{asstRaces.length?asstRaces.join(", "):<span style={{color:_tm,fontStyle:"italic"}}>none assigned</span>}</span>
+                </div>
+                {sharedRaces.length?<div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+                  <span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:C.gold+"22",color:C.gold,fontWeight:800,letterSpacing:0.5}}>SHARED</span>
+                  <span style={{fontSize:11,color:_ts}}>{sharedRaces.join(", ")}</span>
+                </div>:null}
+              </div>);
+            })()}
             {EVTS.map(function(evName){
               var evData=lu[evName]||{runners:[],approxTime:""};
               var evColor=evName==="800"?"#F39C12":evName==="1600"?"#D4A017":evName==="3200"?"#2ECC71":"#3498DB";
               return(
                 <div key={evName} style={{padding:"10px",marginBottom:6,borderRadius:8,background:evColor+"0a",border:"1px solid "+evColor+"33"}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6,flexWrap:"wrap",gap:6}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                       <div style={{fontSize:12,fontWeight:700,color:evColor}}>{evName}</div>
                       {evName!=="4x800"&&cm?<div style={{display:"flex",alignItems:"center",gap:4}}>
                         <span style={{fontSize:9,color:_tm}}>Heats:</span>
@@ -2270,6 +2345,20 @@ export default function App(){
                           {[1,2,3,4].map(function(h){return <option key={h} value={h}>{h}</option>;})}
                         </select>
                       </div>:null}
+                      {(function(){
+                        var ac=evData.assignedCoaches||["head","asst"];
+                        var isHead=ac.length===1&&ac[0]==="head";
+                        var isAsst=ac.length===1&&ac[0]==="asst";
+                        var isBoth=ac.length===2;
+                        var canEdit=cm&&cmRole==="head";
+                        var btn=function(label,active,clr,onClick){return <button onClick={canEdit?onClick:undefined} disabled={!canEdit} style={{padding:"2px 8px",fontSize:9,fontWeight:700,fontFamily:"inherit",border:"1px solid "+(active?clr:_tm+"33"),background:active?clr+"22":"transparent",color:active?clr:_tm,borderRadius:3,cursor:canEdit?"pointer":"default",letterSpacing:0.5}}>{label}</button>;};
+                        return(<div style={{display:"flex",alignItems:"center",gap:3,marginLeft:4}}>
+                          <span style={{fontSize:9,color:_tm,marginRight:2}}>Coach:</span>
+                          {btn("HEAD",isHead,C.greenLight,function(){upLineup(m.id,evName,"setCoaches",["head"]);})}
+                          {btn("ASST",isAsst,"#3498DB",function(){upLineup(m.id,evName,"setCoaches",["asst"]);})}
+                          {btn("BOTH",isBoth,C.gold,function(){upLineup(m.id,evName,"setCoaches",["head","asst"]);})}
+                        </div>);
+                      })()}
                     </div>
                     <div style={{display:"flex",alignItems:"center",gap:6}}>
                       <span style={{fontSize:10,color:_tm,fontFamily:"monospace"}}>Approx time:</span>
@@ -2301,6 +2390,15 @@ export default function App(){
                               {cm&&numHeats>1&&!isRelay?<select value={heatAssign[rId]||1} onChange={function(ev2){upLineup(m.id,evName,"assignHeat",{rid:rId,heat:parseInt(ev2.target.value)});}} style={{background:"transparent",border:"1px solid "+evColor+"44",color:evColor,padding:"1px 4px",borderRadius:3,fontSize:9,fontFamily:"inherit",cursor:"pointer"}}>
                                 {Array.from({length:numHeats}).map(function(_2,h2){return <option key={h2+1} value={h2+1}>H{h2+1}</option>;})}
                               </select>:null}
+                              {(function(){
+                                var ac=evData.assignedCoaches||["head","asst"];
+                                if(ac.length!==2)return null;
+                                var ra=evData.runnerAssign||{};
+                                var assigned=ra[rId]||"head";
+                                var canEdit=cm&&cmRole==="head";
+                                var clr=assigned==="head"?C.greenLight:"#3498DB";
+                                return <button onClick={canEdit?function(){upLineup(m.id,evName,"setRunnerCoach",{rid:rId,coach:assigned==="head"?"asst":"head"});}:undefined} disabled={!canEdit} title={canEdit?"Click to toggle coach":""+assigned} style={{padding:"1px 5px",borderRadius:3,fontSize:9,fontWeight:800,fontFamily:"monospace",background:clr+"22",color:clr,border:"1px solid "+clr+"66",cursor:canEdit?"pointer":"default",letterSpacing:0.5}}>{assigned==="head"?"H":"A"}</button>;
+                              })()}
                               <input value={mRes} readOnly={!cm} onChange={function(ev){if(cm)saveMeetResult(m.id,evName,rId,ev.target.value);}} placeholder={cm?"Result":"--"} style={Object.assign({},IS,{width:80,padding:"3px 6px",fontSize:11,textAlign:"center",background:mRes?"rgba(27,174,96,0.1)":"rgba(255,255,255,0.04)"})}/>
                               {cm&&isRelay&&ri>0?<button onClick={function(){var runners=evData.runners.slice();var teamIds=runners.filter(function(r){var a2=roster.find(function(x){return x.id===r;});return a2&&a2.team===grp.team;});var globalIdx=runners.indexOf(rId);var prevTeamId=teamIds[teamIds.indexOf(rId)-1];var prevGlobalIdx=runners.indexOf(prevTeamId);if(globalIdx>=0&&prevGlobalIdx>=0){runners[globalIdx]=prevTeamId;runners[prevGlobalIdx]=rId;upLineup(m.id,evName,"reorder",runners);}}} style={{background:"none",border:"none",color:_tm,cursor:"pointer",fontSize:10,padding:"0 2px"}}>{"^"}</button>:null}
                               {cm?<button onClick={function(){upLineup(m.id,evName,"removeRunner",rId);}} style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:10,padding:"0 2px"}}>x</button>:null}
@@ -3098,7 +3196,7 @@ export default function App(){
       </div>):null}
 
       {/* ══════ SPLIT TIMER TAB ══════ */}
-      {view==="splits"?<SplitTimer onRaceFinish={onRaceFinish} onDeleteHistory={onDeleteHistory} meets={meets} roster={roster} raceResults={raceResults} />:null}
+      {view==="splits"?<SplitTimer onRaceFinish={onRaceFinish} onDeleteHistory={onDeleteHistory} meets={meets} roster={roster} raceResults={raceResults} cmRole={cmRole} />:null}
 
       {/* Daily Summary Modal */}
       {dsMod!==null?(<div style={{position:"fixed",inset:0,zIndex:1100,background:lt?"rgba(255,255,255,0.85)":"rgba(8,18,8,0.85)",backdropFilter:"blur(10px)",display:"flex",alignItems:"center",justifyContent:"center"}} onClick={function(){setDsMod(null);}}>
