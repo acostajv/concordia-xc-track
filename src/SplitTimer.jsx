@@ -80,7 +80,14 @@ function RaceCard(props){
     if(isRelay){
       if(activeLeg>=0&&activeLeg<(race.runnerIds||[]).length){
         var rid=race.runnerIds[activeLeg];
-        if(!nf[rid]){var legStart=0;if(activeLeg>0){var prevRid=race.runnerIds[activeLeg-1];var prevSp=ns[prevRid]||[];if(prevSp.length>0)legStart=prevSp[prevSp.length-1].total;}ns[rid]=[{split:now-legStart,total:now}];}nf[rid]=true;
+        if(!nf[rid]){
+          var prev=ns[rid]||[];
+          /* lastTotal: runner's own previous split if any, else previous leg's last total */
+          var lastTotal=0;
+          if(prev.length>0){lastTotal=prev[prev.length-1].total;}
+          else if(activeLeg>0){var prevRid=race.runnerIds[activeLeg-1];var prevSp=ns[prevRid]||[];if(prevSp.length>0)lastTotal=prevSp[prevSp.length-1].total;}
+          if(now>lastTotal+500){ns[rid]=prev.concat([{split:now-lastTotal,total:now}]);}
+        }
       }
       /* Mark all remaining as finished */
       (race.runnerIds||[]).forEach(function(rid){nf[rid]=true;});
@@ -185,6 +192,43 @@ function RaceCard(props){
     if(wasDone){cancelAnimationFrame(rafRef.current);setIsRunning(false);}
     onUpdateRace(race.id,{splits:ns,finished:nf,dnf:dnfMap,status:wasDone?"paused":race.status});
   };
+  var markMissedSplit=function(rid){
+    /* Inserts a placeholder split so the runner advances toward auto-finish.
+       The placeholder has split:0, total=previousTotal, and missed:true.
+       Coach fills in the real value later in the Race Results tab. */
+    if(finishedMap[rid])return;
+    var prev=(race.splits||{})[rid]||[];
+    var lastTotal=0;
+    if(prev.length>0){lastTotal=prev[prev.length-1].total;}
+    else if(isRelay){var legIdx=(race.runnerIds||[]).indexOf(rid);if(legIdx>0){var prevRid=race.runnerIds[legIdx-1];var prevSp=(race.splits||{})[prevRid]||[];if(prevSp.length>0)lastTotal=prevSp[prevSp.length-1].total;}}
+    var ns=Object.assign({},race.splits||{});
+    ns[rid]=prev.concat([{split:0,total:lastTotal,missed:true}]);
+    var nf=Object.assign({},finishedMap);
+    var perRunner=isRelay?splitsPerLeg:splitsToFinish;
+    if(perRunner>0&&ns[rid].length>=perRunner)nf[rid]=true;
+    var allDone=(race.runnerIds||[]).every(function(r){return nf[r];});
+    if(allDone){cancelAnimationFrame(rafRef.current);pausedRef.current=elapsedRef.current;setIsRunning(false);onUpdateRace(race.id,{splits:ns,finished:nf,status:"done",elapsed:elapsedRef.current});}
+    else{onUpdateRace(race.id,{splits:ns,finished:nf,status:isRunning?"running":(race.status==="ready"?"ready":"paused")});}
+    if(typeof navigator!=="undefined"&&typeof navigator.vibrate==="function"){try{navigator.vibrate([20,40,20]);}catch(e){}}
+  };
+  var markRunnerDone=function(rid){
+    /* Closes out a runner who's finished but hasn't reached splitsToFinish.
+       Appends a final split bringing them to current elapsed, then marks finished. */
+    if(finishedMap[rid])return;
+    var now=elapsedRef.current;
+    if(now===0&&!isRunning&&!race.elapsed)return;
+    var prev=(race.splits||{})[rid]||[];
+    var lastTotal=0;
+    if(prev.length>0){lastTotal=prev[prev.length-1].total;}
+    else if(isRelay){var legIdx=(race.runnerIds||[]).indexOf(rid);if(legIdx>0){var prevRid=race.runnerIds[legIdx-1];var prevSp=(race.splits||{})[prevRid]||[];if(prevSp.length>0)lastTotal=prevSp[prevSp.length-1].total;}}
+    var ns=Object.assign({},race.splits||{});
+    if(now>lastTotal+100){ns[rid]=prev.concat([{split:now-lastTotal,total:now}]);}
+    else{ns[rid]=prev;}
+    var nf=Object.assign({},finishedMap);nf[rid]=true;
+    var allDone=(race.runnerIds||[]).every(function(r){return nf[r];});
+    if(allDone){cancelAnimationFrame(rafRef.current);pausedRef.current=now;setIsRunning(false);onUpdateRace(race.id,{splits:ns,finished:nf,status:"done",elapsed:now});}
+    else{onUpdateRace(race.id,{splits:ns,finished:nf,status:isRunning?"running":"paused"});}
+  };
   var toggleDnf=function(rid){
     var dnfMap=Object.assign({},race.dnf||{});
     var nf=Object.assign({},race.finished||{});
@@ -216,6 +260,10 @@ function RaceCard(props){
   var splitsToFinish=getSplitsToFinish(race.event,effectiveSplit);
   var finishedMap=race.finished||{};
   var isRelay=race.event==="4x800";
+  /* For relays, how many splits each leg runner needs to take before that leg
+     is "done". Defaults to 1 if the math doesn't divide evenly. */
+  var legCount=(race.runnerIds||[]).length;
+  var splitsPerLeg=isRelay&&legCount>0&&splitsToFinish>0?Math.max(1,Math.round(splitsToFinish/legCount)):1;
   /* For relay: figure out which leg is active */
   var activeLeg=-1;
   if(isRelay){
@@ -225,15 +273,21 @@ function RaceCard(props){
   }
   var recordSplit=function(rid){var now=elapsedRef.current;if(now===0&&!isRunning)return;if(finishedMap[rid])return;
     if(isRelay){
-      /* Relay: tapping the active leg runner records their split and marks them done */
+      /* Relay: only the active leg runner is tappable. Each tap appends a split.
+         The runner is only marked finished after they accumulate splitsPerLeg splits. */
       var legIdx=(race.runnerIds||[]).indexOf(rid);
-      if(legIdx!==activeLeg)return;/* Only active leg is tappable */
+      if(legIdx!==activeLeg)return;
       var prev=(race.splits||{})[rid]||[];
-      var legStart=0;/* Leg starts at previous leg's finish time */
-      if(legIdx>0){var prevRid=race.runnerIds[legIdx-1];var prevSp=(race.splits||{})[prevRid]||[];if(prevSp.length>0)legStart=prevSp[prevSp.length-1].total;}
+      /* Compute the start time for this new split:
+         - If runner already has splits (mid-leg taps), use their own previous total
+         - Otherwise (first tap of this leg), use previous leg runner's last total */
+      var legStart=0;
+      if(prev.length>0){legStart=prev[prev.length-1].total;}
+      else if(legIdx>0){var prevRid=race.runnerIds[legIdx-1];var prevSp=(race.splits||{})[prevRid]||[];if(prevSp.length>0)legStart=prevSp[prevSp.length-1].total;}
       var ns=Object.assign({},race.splits||{});
-      ns[rid]=[{split:now-legStart,total:now}];/* One split per leg = their 800 time + cumulative */
-      var nf=Object.assign({},finishedMap);nf[rid]=true;
+      ns[rid]=prev.concat([{split:now-legStart,total:now}]);
+      var nf=Object.assign({},finishedMap);
+      if(ns[rid].length>=splitsPerLeg)nf[rid]=true;
       var done1=(race.runnerIds||[]).every(function(r){return nf[r];});
       if(done1){cancelAnimationFrame(rafRef.current);pausedRef.current=now;setIsRunning(false);onUpdateRace(race.id,{splits:ns,status:"done",elapsed:now,finished:nf});}
       else{onUpdateRace(race.id,{splits:ns,status:"running",finished:nf});}
@@ -290,6 +344,11 @@ function RaceCard(props){
           var isDnf=!!(race.dnf||{})[ath.id];
           var isActiveLeg=isRelay&&athIdx===activeLeg;
           var canClick=isDnf?false:isRelay?isActiveLeg&&(isRunning||elapsed>0)&&!isDone:(isRunning||elapsed>0)&&!isDone&&!isFin;
+          /* Incomplete = has any placeholder split, OR is finished but split count is below expected */
+          var hasPlaceholder=sp.some(function(s){return s&&s.missed;});
+          var perRunner=isRelay?splitsPerLeg:splitsToFinish;
+          var isIncomplete=!isDnf&&(hasPlaceholder||(isFin&&perRunner>0&&sp.length<perRunner));
+          var lastIsPlaceholder=last&&last.missed;
           var showActions=!isReady&&(isRunning||elapsed>0||isDone);
           var p=paces[ath.name]||{};
           var hidePaces=isRunning||elapsed>0;
@@ -314,7 +373,13 @@ function RaceCard(props){
               <span style={{fontSize:18,fontWeight:800,color:flash?"#5ddb6a":isDnf?"#ef4444":isFin?"#27ae60":T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",flex:1,minWidth:0,lineHeight:1.1,textDecoration:isDnf?"line-through":"none"}}>{ath.name}</span>
               <span style={{fontSize:20,fontWeight:900,lineHeight:1,color:hasSp?(flash?"#5ddb6a":isDnf?"#ef4444":isFin?"#27ae60":T.accent):T.dim,flexShrink:0}}>{sp.length}</span>
             </div>
-            <div style={{minHeight:24}}>{last?<div style={{display:"flex",alignItems:"baseline",gap:5}}><span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:22,fontWeight:800,color:flash?"#5ddb6a":isDnf?"#ef4444":isFin?"#27ae60":T.splitClr}}>{fmtSplit(last.split)}</span><span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:14,fontWeight:700,color:T.timeClr}}>{fmtTime(last.total)}</span></div>:<span style={{fontSize:10,color:isDnf?"#ef4444":isFin?"#27ae60":isActiveLeg?T.accent:T.dim}}>{isDnf?"\u2717 DNF":isFin?"\u2713 FINISHED":isActiveLeg?"\u25B6 ACTIVE LEG":isRelay&&!isFin?"waiting":canClick?"tap to split":""}</span>}</div>
+            <div style={{minHeight:24,display:"flex",alignItems:"center",gap:6}}>
+              {last?<div style={{display:"flex",alignItems:"baseline",gap:5}}>
+                <span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:22,fontWeight:800,color:flash?"#5ddb6a":isDnf?"#ef4444":lastIsPlaceholder?"#f0a500":isFin?"#27ae60":T.splitClr}}>{lastIsPlaceholder?"?":fmtSplit(last.split)}</span>
+                <span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:14,fontWeight:700,color:T.timeClr}}>{lastIsPlaceholder?"missed":fmtTime(last.total)}</span>
+              </div>:<span style={{fontSize:10,color:isDnf?"#ef4444":isFin?"#27ae60":isActiveLeg?T.accent:T.dim}}>{isDnf?"\u2717 DNF":isFin?"\u2713 FINISHED":isActiveLeg?"\u25B6 ACTIVE LEG":isRelay&&!isFin?"waiting":canClick?"tap to split":""}</span>}
+              {isIncomplete?<span title="Incomplete: has missed/placeholder splits — fix in Race Results" style={{fontSize:8,fontWeight:800,padding:"1px 5px",borderRadius:3,background:"#f0a50022",color:"#f0a500",border:"1px solid #f0a50066",letterSpacing:0.5,marginLeft:"auto"}}>{"\u26A0 INC"}</span>:null}
+            </div>
             {!hidePaces&&(p.thrSafe||p.cv||p.vo2Safe)?<div style={{display:"flex",flexWrap:"wrap",gap:3,marginTop:1}}>{p.thrSafe?<PacePill label="T" value={p.thrSafe} color="#f0a500"/>:null}{p.cv?<PacePill label="CV" value={p.cv} color="#4a9eff"/>:null}{p.vo2Safe?<PacePill label="V2" value={p.vo2Safe} color="#e84393"/>:null}</div>:null}
           </button>
           {actionFor===ath.id?(<div style={{position:"absolute",inset:0,zIndex:20,background:T.bg,border:"2px solid "+T.accent,borderRadius:4,display:"flex",flexDirection:"column",padding:6,gap:5}}>
@@ -328,6 +393,8 @@ function RaceCard(props){
               </div>
             </div>):(<div style={{display:"flex",flexDirection:"column",gap:5}}>
               {hasSp?<button onClick={function(){undoSplit(ath.id);setActionFor(null);}} style={{padding:"10px",background:"#f0a50022",border:"1px solid #f0a50066",color:"#f0a500",borderRadius:3,fontSize:13,fontWeight:800,fontFamily:"inherit",cursor:"pointer"}}>{"\u21B6 Undo Last Split"}</button>:null}
+              {!isFin&&!isDnf?<button onClick={function(){markMissedSplit(ath.id);setActionFor(null);}} title="Inserts a placeholder for a split you missed. Fix the time later in Race Results." style={{padding:"10px",background:"#f0a50022",border:"1px dashed #f0a50066",color:"#f0a500",borderRadius:3,fontSize:13,fontWeight:800,fontFamily:"inherit",cursor:"pointer"}}>{"? Mark Missed Split"}</button>:null}
+              {!isFin&&!isDnf?<button onClick={function(){markRunnerDone(ath.id);setActionFor(null);}} title="Closes this runner out at the current clock time. Use when they finished but you missed earlier splits." style={{padding:"10px",background:"#27ae6022",border:"1px solid #27ae6066",color:"#5ddb6a",borderRadius:3,fontSize:13,fontWeight:800,fontFamily:"inherit",cursor:"pointer"}}>{"\u2713 Mark as Done"}</button>:null}
               <button onClick={function(){setManualEntry({rid:ath.id,value:""});}} style={{padding:"10px",background:T.accent+"22",border:"1px solid "+T.accent+"66",color:T.accent,borderRadius:3,fontSize:13,fontWeight:800,fontFamily:"inherit",cursor:"pointer"}}>{"\u270E Enter Time Manually"}</button>
               <button onClick={function(){toggleDnf(ath.id);setActionFor(null);}} style={{padding:"10px",background:isDnf?"#27ae6022":"#ef444422",border:"1px solid "+(isDnf?"#27ae6066":"#ef444466"),color:isDnf?"#27ae60":"#ef4444",borderRadius:3,fontSize:13,fontWeight:800,fontFamily:"inherit",cursor:"pointer"}}>{isDnf?"\u2713 Un-mark DNF":"\u2717 Mark DNF"}</button>
               <button onClick={function(){setActionFor(null);}} style={{padding:"8px",background:"transparent",border:"1px solid "+T.border,color:T.muted,borderRadius:3,fontSize:11,fontWeight:700,fontFamily:"inherit",cursor:"pointer"}}>Cancel</button>
@@ -414,13 +481,19 @@ export default function SplitTimer(props){
     if(onRaceFinish)onRaceFinish(result);
     updateRace(race.id,{saved:true});
   };
+  var matchesMode=function(r){var rType=r.type||(r.meetId?"meet":null);return rType===mode;};
   var saveAllUnsaved=function(){
-    var unsaved=races.filter(function(r){return r.status==="done"&&!r.saved&&Object.keys(r.splits||{}).length>0;});
+    var unsaved=races.filter(function(r){return matchesMode(r)&&r.status==="done"&&!r.saved&&Object.keys(r.splits||{}).length>0;});
     unsaved.sort(function(a,b){return(buildRaceResult(a).sortKey||0)-(buildRaceResult(b).sortKey||0);});
     unsaved.forEach(function(race){var result=buildRaceResult(race);if(onRaceFinish)onRaceFinish(result);});
-    setRaces(function(prev){return prev.map(function(r){return r.status==="done"&&!r.saved&&Object.keys(r.splits||{}).length>0?Object.assign({},r,{saved:true}):r;});});
+    setRaces(function(prev){return prev.map(function(r){return matchesMode(r)&&r.status==="done"&&!r.saved&&Object.keys(r.splits||{}).length>0?Object.assign({},r,{saved:true}):r;});});
   };
-  var clearSession=function(){setRaces([]);setImportedMeetId(null);try{localStorage.removeItem(STORAGE_KEY);}catch(e){}setScreen("setup");};
+  var clearSession=function(){
+    /* Only clear races matching the current mode; preserve other modes' races */
+    setRaces(function(prev){return prev.filter(function(r){return!matchesMode(r);});});
+    if(mode==="meet")setImportedMeetId(null);
+    setScreen("setup");
+  };
 
   var parsePace=function(s){if(!s)return null;var clean=s.replace(/\/mi$/,"").trim();var pts=clean.split(":");if(pts.length!==2)return null;var m=parseInt(pts[0]);var sc=parseInt(pts[1]);if(isNaN(m)||isNaN(sc))return null;return m*60+sc;};
   var fmtPaceSec=function(s){var m=Math.floor(s/60);var sc=Math.round(s%60);return m+":"+(sc<10?"0":"")+sc;};
@@ -442,15 +515,24 @@ export default function SplitTimer(props){
         var heatIds=numHeats===1?allIds:allIds.filter(function(rid){return(heatAssign[rid]||1)===heatNum;});
         var bIds=heatIds.filter(function(r){return athTeam[r]==="boys";});var gIds=heatIds.filter(function(r){return athTeam[r]==="girls";});
         var heatLabel=numHeats>1?" H"+heatNum:"";
-        if(bIds.length>0)newRaces.push({id:"r_"+evtKey+"_b_h"+heatNum+"_"+(ts++),event:evtKey,team:"boys",label:evtKey+" Boys"+heatLabel,approxTime:evtData.approxTime||"",runnerIds:bIds,splits:{},elapsed:0,status:"ready",finished:{},meetName:meet.name||"Meet",meetId:meet.id||"",meetDate:meet.date||"",heat:heatNum,splitLabel:defaultSplit,assignedCoaches:assignedCoaches,shared:isShared});
-        if(gIds.length>0)newRaces.push({id:"r_"+evtKey+"_g_h"+heatNum+"_"+(ts++),event:evtKey,team:"girls",label:evtKey+" Girls"+heatLabel,approxTime:evtData.approxTime||"",runnerIds:gIds,splits:{},elapsed:0,status:"ready",finished:{},meetName:meet.name||"Meet",meetId:meet.id||"",meetDate:meet.date||"",heat:heatNum,splitLabel:defaultSplit,assignedCoaches:assignedCoaches,shared:isShared});
+        if(bIds.length>0)newRaces.push({id:"r_"+evtKey+"_b_h"+heatNum+"_"+(ts++),event:evtKey,team:"boys",label:evtKey+" Boys"+heatLabel,approxTime:evtData.approxTime||"",runnerIds:bIds,splits:{},elapsed:0,status:"ready",finished:{},meetName:meet.name||"Meet",meetId:meet.id||"",meetDate:meet.date||"",heat:heatNum,splitLabel:defaultSplit,assignedCoaches:assignedCoaches,shared:isShared,type:"meet"});
+        if(gIds.length>0)newRaces.push({id:"r_"+evtKey+"_g_h"+heatNum+"_"+(ts++),event:evtKey,team:"girls",label:evtKey+" Girls"+heatLabel,approxTime:evtData.approxTime||"",runnerIds:gIds,splits:{},elapsed:0,status:"ready",finished:{},meetName:meet.name||"Meet",meetId:meet.id||"",meetDate:meet.date||"",heat:heatNum,splitLabel:defaultSplit,assignedCoaches:assignedCoaches,shared:isShared,type:"meet"});
       }
     });
     newRaces.sort(function(a,b){var ea=EVT_ORDER[a.event]!==undefined?EVT_ORDER[a.event]:9;var eb=EVT_ORDER[b.event]!==undefined?EVT_ORDER[b.event]:9;if(ea!==eb)return ea-eb;if(a.team!==b.team)return a.team==="boys"?-1:1;return(a.heat||1)-(b.heat||1);});
-    setRaces(newRaces);setImportedMeetId(meet.id||meet.name);};
+    /* Replace any existing meet races but preserve workout/open races */
+    setRaces(function(prev){return prev.filter(function(r){var t=r.type||(r.meetId?"meet":null);return t!=="meet";}).concat(newRaces);});
+    setImportedMeetId(meet.id||meet.name);};
 
-  var startWorkout=function(){var name=woName.trim()||"Workout";var newRaces=woGroups.map(function(g,gi){return{id:"wo_"+Date.now()+"_"+gi,event:name,team:"",label:g.name,color:g.color,runnerIds:g.runnerIds,splits:{},elapsed:0,status:"ready",finished:{},meetName:name,meetDate:sessionDate,type:"workout",splitLabel:label};});setRaces(newRaces);};
-  var resetAll=function(){setRaces([]);setImportedMeetId(null);try{localStorage.removeItem(STORAGE_KEY);}catch(e){}};
+  var startWorkout=function(){var name=woName.trim()||"Workout";var newRaces=woGroups.map(function(g,gi){return{id:"wo_"+Date.now()+"_"+gi,event:name,team:"",label:g.name,color:g.color,runnerIds:g.runnerIds,splits:{},elapsed:0,status:"ready",finished:{},meetName:name,meetDate:sessionDate,type:"workout",splitLabel:label};});
+    /* Replace any existing workout races but preserve meet/open races */
+    setRaces(function(prev){return prev.filter(function(r){return r.type!=="workout";}).concat(newRaces);});
+  };
+  var resetAll=function(){
+    /* Only clear races matching the current mode */
+    setRaces(function(prev){return prev.filter(function(r){var rType=r.type||(r.meetId?"meet":null);return rType!==mode;});});
+    if(mode==="meet")setImportedMeetId(null);
+  };
 
   /* Filter meets: only show today and future, with lineups */
   var today=new Date().toISOString().slice(0,10);
@@ -458,6 +540,10 @@ export default function SplitTimer(props){
   /* Sort by date asc so next meet is first */
   meetsWithLineups.sort(function(a,b){return(a.date||"").localeCompare(b.date||"");});
 
+  /* Filter the local races array by the current mode so each tab only shows
+     race cards relevant to that mode. Meet race objects don't carry an explicit
+     type — they're identified by having a meetId. */
+  var modeRaces=races.filter(function(r){var rType=r.type||(r.meetId?"meet":null);return rType===mode;});
   /* Filter raceResults to only the current mode's type (legacy results without
      a type default to "meet" for backward compat). */
   var modeFilteredResults=raceResults.filter(function(r){var t=r.type||"meet";return t===mode;});
@@ -491,8 +577,8 @@ export default function SplitTimer(props){
   });
 
   /* Check if all races done */
-  var allSaved=races.length>0&&races.every(function(r){return r.saved||(!r.splits||Object.keys(r.splits).length===0);});
-  var anyHasSplits=races.some(function(r){return Object.keys(r.splits||{}).length>0;});
+  var allSaved=modeRaces.length>0&&modeRaces.every(function(r){return r.saved||(!r.splits||Object.keys(r.splits).length===0);});
+  var anyHasSplits=modeRaces.some(function(r){return Object.keys(r.splits||{}).length>0;});
 
   /* ── SETUP ── */
   if(screen==="setup"){return(<div style={{background:T.bg,minHeight:"100vh",fontFamily:"'Barlow Condensed',sans-serif",color:T.text}}>
@@ -570,18 +656,25 @@ export default function SplitTimer(props){
         <div style={{background:T.card,border:"1px solid "+T.border,borderLeft:"3px solid "+T.accent,borderRadius:4,padding:"12px 14px",marginBottom:12}}>
           <div style={{fontSize:13,fontWeight:800,color:T.text,marginBottom:8}}>Select Runners</div>
           <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-            {[{label:"Boys",list:boys,clr:"#4a9eff"},{label:"Girls",list:girls,clr:"#ff7eb3"}].map(function(grp){var selected=(races[0]&&races[0].runnerIds)||[];return(<div key={grp.label} style={{flex:1,minWidth:140}}>
+            {[{label:"Boys",list:boys,clr:"#4a9eff"},{label:"Girls",list:girls,clr:"#ff7eb3"}].map(function(grp){var openR=races.find(function(r){return r.type==="open";});var selected=(openR&&openR.runnerIds)||[];return(<div key={grp.label} style={{flex:1,minWidth:140}}>
               <div style={{fontSize:10,fontWeight:700,color:grp.clr,textTransform:"uppercase",letterSpacing:1,marginBottom:4}}>{grp.label}</div>
-              {grp.list.map(function(a){var isIn=selected.includes(String(a.id));return(<button key={a.id} onClick={function(){setRaces(function(prev){var r=prev[0]||{id:"open_"+Date.now(),event:woName.trim()||"Open",team:"",label:woName.trim()||"Open Timer",runnerIds:[],splits:{},elapsed:0,status:"ready",finished:{},meetName:woName.trim()||"Open Timer",meetDate:sessionDate,type:"open"};var ids=(r.runnerIds||[]).slice();if(isIn)ids=ids.filter(function(x){return x!==String(a.id);});else ids.push(String(a.id));return[Object.assign({},r,{runnerIds:ids,event:woName.trim()||"Open",label:woName.trim()||"Open Timer",meetName:woName.trim()||"Open Timer"})];});}} style={{display:"block",width:"100%",textAlign:"left",padding:"4px 8px",marginBottom:2,borderRadius:3,cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:isIn?700:500,background:isIn?grp.clr+"18":"transparent",border:"1px solid "+(isIn?grp.clr+"44":T.dim),color:isIn?T.text:T.muted}}>{isIn?"\u2713 ":""}{a.name}</button>);})}
+              {grp.list.map(function(a){var isIn=selected.includes(String(a.id));return(<button key={a.id} onClick={function(){setRaces(function(prev){
+                var others=prev.filter(function(r){return r.type!=="open";});
+                var existing=prev.find(function(r){return r.type==="open";});
+                var base=existing||{id:"open_"+Date.now(),event:woName.trim()||"Open",team:"",label:woName.trim()||"Open Timer",runnerIds:[],splits:{},elapsed:0,status:"ready",finished:{},meetName:woName.trim()||"Open Timer",meetDate:sessionDate,type:"open"};
+                var ids=(base.runnerIds||[]).slice();
+                if(isIn)ids=ids.filter(function(x){return x!==String(a.id);});else ids.push(String(a.id));
+                return others.concat([Object.assign({},base,{runnerIds:ids,event:woName.trim()||"Open",label:woName.trim()||"Open Timer",meetName:woName.trim()||"Open Timer"})]);
+              });}} style={{display:"block",width:"100%",textAlign:"left",padding:"4px 8px",marginBottom:2,borderRadius:3,cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:isIn?700:500,background:isIn?grp.clr+"18":"transparent",border:"1px solid "+(isIn?grp.clr+"44":T.dim),color:isIn?T.text:T.muted}}>{isIn?"\u2713 ":""}{a.name}</button>);})}
             </div>);})}
           </div>
-          <button onClick={function(){var allIds=allAthletes.map(function(a){return String(a.id);});setRaces([{id:"open_"+Date.now(),event:woName.trim()||"Open",team:"",label:woName.trim()||"Open Timer",runnerIds:allIds,splits:{},elapsed:0,status:"ready",finished:{},meetName:woName.trim()||"Open Timer",meetDate:sessionDate,type:"open"}]);}} style={{marginTop:8,padding:"4px 10px",background:"transparent",color:T.muted,border:"1px solid "+T.dim,borderRadius:3,cursor:"pointer",fontSize:10,fontFamily:"inherit"}}>Select All</button>
+          <button onClick={function(){var allIds=allAthletes.map(function(a){return String(a.id);});var newOpen={id:"open_"+Date.now(),event:woName.trim()||"Open",team:"",label:woName.trim()||"Open Timer",runnerIds:allIds,splits:{},elapsed:0,status:"ready",finished:{},meetName:woName.trim()||"Open Timer",meetDate:sessionDate,type:"open"};setRaces(function(prev){return prev.filter(function(r){return r.type!=="open";}).concat([newOpen]);});}} style={{marginTop:8,padding:"4px 10px",background:"transparent",color:T.muted,border:"1px solid "+T.dim,borderRadius:3,cursor:"pointer",fontSize:10,fontFamily:"inherit"}}>Select All</button>
         </div>
       </div>):null}
 
-      {/* Race preview */}
-      {races.length>0?<div style={{marginTop:16,marginBottom:12}}><div style={{fontSize:9,letterSpacing:4,color:T.accent,textTransform:"uppercase",marginBottom:6}}>Race Cards ({races.length}) <span style={{fontSize:8,color:T.muted,fontStyle:"italic",letterSpacing:0,textTransform:"none"}}>tap to expand, drag to reorder runners</span></div>
-        {races.map(function(r){var evClr=EVENT_COLORS[r.event]||r.color||T.accent;var isExp=expandedRace===r.id;var rRunners=(r.runnerIds||[]).map(function(rid){return rosterMap[rid]||rosterMap[String(rid)];}).filter(Boolean);
+      {/* Race preview — only show races that match the current mode */}
+      {modeRaces.length>0?<div style={{marginTop:16,marginBottom:12}}><div style={{fontSize:9,letterSpacing:4,color:T.accent,textTransform:"uppercase",marginBottom:6}}>{mode==="workout"?"Workout Groups":mode==="open"?"Open Timer Session":"Race Cards"} ({modeRaces.length}) <span style={{fontSize:8,color:T.muted,fontStyle:"italic",letterSpacing:0,textTransform:"none"}}>tap to expand, drag to reorder runners</span></div>
+        {modeRaces.map(function(r){var evClr=EVENT_COLORS[r.event]||r.color||T.accent;var isExp=expandedRace===r.id;var rRunners=(r.runnerIds||[]).map(function(rid){return rosterMap[rid]||rosterMap[String(rid)];}).filter(Boolean);
           var previewMoveRunner=function(fromI,toI){if(fromI===toI)return;var ids=(r.runnerIds||[]).slice();var item=ids.splice(fromI,1)[0];ids.splice(toI,0,item);updateRace(r.id,{runnerIds:ids});};
           var previewRemoveRunner=function(rid){var ids=(r.runnerIds||[]).filter(function(x){return x!==rid;});updateRace(r.id,{runnerIds:ids});};
           var previewAddRunner=function(rid){if((r.runnerIds||[]).includes(rid))return;updateRace(r.id,{runnerIds:(r.runnerIds||[]).concat([rid])});};
@@ -611,9 +704,9 @@ export default function SplitTimer(props){
 
       {/* Begin */}
       <div style={{marginTop:12,display:"flex",gap:8}}>
-        {mode==="meet"?<button onClick={function(){if(races.length)setScreen("race");}} disabled={!races.length} style={{flex:1,padding:"13px",borderRadius:3,cursor:races.length?"pointer":"not-allowed",background:races.length?T.accent:T.card,color:races.length?T.bg:T.muted,border:"1px solid "+(races.length?T.accent:T.border),fontSize:15,fontWeight:900,fontFamily:"inherit",letterSpacing:3,textTransform:"uppercase"}}>{races.length?"Begin \u2192":"Import a meet"}</button>:null}
-        {mode==="workout"?<button onClick={function(){if(woGroups.length>0){startWorkout();setScreen("race");}}} disabled={!woGroups.length} style={{flex:1,padding:"13px",borderRadius:3,cursor:woGroups.length?"pointer":"not-allowed",background:woGroups.length?T.accent:T.card,color:woGroups.length?T.bg:T.muted,border:"1px solid "+(woGroups.length?T.accent:T.border),fontSize:15,fontWeight:900,fontFamily:"inherit",letterSpacing:3,textTransform:"uppercase"}}>{woGroups.length?"Start Workout \u2192":"Create groups"}</button>:null}
-        {mode==="open"?(function(){var ok=races.length>0&&(races[0].runnerIds||[]).length>0;return <button onClick={function(){if(ok)setScreen("race");}} disabled={!ok} style={{flex:1,padding:"13px",borderRadius:3,cursor:ok?"pointer":"not-allowed",background:ok?T.accent:T.card,color:ok?T.bg:T.muted,border:"1px solid "+(ok?T.accent:T.border),fontSize:15,fontWeight:900,fontFamily:"inherit",letterSpacing:3,textTransform:"uppercase"}}>{ok?"Start Timer \u2192":"Select runners"}</button>;})():null}
+        {mode==="meet"?<button onClick={function(){if(modeRaces.length)setScreen("race");}} disabled={!modeRaces.length} style={{flex:1,padding:"13px",borderRadius:3,cursor:modeRaces.length?"pointer":"not-allowed",background:modeRaces.length?T.accent:T.card,color:modeRaces.length?T.bg:T.muted,border:"1px solid "+(modeRaces.length?T.accent:T.border),fontSize:15,fontWeight:900,fontFamily:"inherit",letterSpacing:3,textTransform:"uppercase"}}>{modeRaces.length?"Begin \u2192":"Import a meet"}</button>:null}
+        {mode==="workout"?<button onClick={function(){if(woGroups.length>0){startWorkout();setScreen("race");}else if(modeRaces.length>0){setScreen("race");}}} disabled={!woGroups.length&&!modeRaces.length} style={{flex:1,padding:"13px",borderRadius:3,cursor:(woGroups.length||modeRaces.length)?"pointer":"not-allowed",background:(woGroups.length||modeRaces.length)?T.accent:T.card,color:(woGroups.length||modeRaces.length)?T.bg:T.muted,border:"1px solid "+((woGroups.length||modeRaces.length)?T.accent:T.border),fontSize:15,fontWeight:900,fontFamily:"inherit",letterSpacing:3,textTransform:"uppercase"}}>{modeRaces.length?"Resume Workout \u2192":woGroups.length?"Start Workout \u2192":"Create groups"}</button>:null}
+        {mode==="open"?(function(){var ok=modeRaces.length>0&&(modeRaces[0].runnerIds||[]).length>0;return <button onClick={function(){if(ok)setScreen("race");}} disabled={!ok} style={{flex:1,padding:"13px",borderRadius:3,cursor:ok?"pointer":"not-allowed",background:ok?T.accent:T.card,color:ok?T.bg:T.muted,border:"1px solid "+(ok?T.accent:T.border),fontSize:15,fontWeight:900,fontFamily:"inherit",letterSpacing:3,textTransform:"uppercase"}}>{ok?"Start Timer \u2192":"Select runners"}</button>;})():null}
       </div>
 
       {/* ── HISTORY ── */}
@@ -662,11 +755,19 @@ export default function SplitTimer(props){
               return(<div key={race.id||race.event+race.team} style={{padding:"8px 12px",borderBottom:"1px solid "+T.dim}}>
               <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}><span style={{fontSize:12,fontWeight:800,color:evClr}}>{race.event}</span>{race.team?<span style={{fontSize:10,fontWeight:700,color:TEAM_COLORS[race.team]||evClr}}>{race.team}</span>:null}{race.heat>1?<span style={{fontSize:9,color:T.muted}}>H{race.heat}</span>:null}{race.savedBy?<span style={{fontSize:8,padding:"1px 4px",borderRadius:2,background:race.savedBy==="asst"?"#3498DB18":"#27ae6018",color:race.savedBy==="asst"?"#3498DB":"#27ae60"}}>{race.savedBy==="asst"?"Asst":"Head"}</span>:null}<button onClick={function(){if(confirm("Delete this race?")){if(onDeleteHistory){var keep=raceResults.filter(function(r2){return r2.id!==race.id;});onDeleteHistory(keep);}}}} style={{marginLeft:"auto",background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:10,padding:0}}>x</button></div>
               {isRelay?(<div>
-                {runners.map(function(r,ri){var sp=(r.splits||[])[0];return(<div key={r.id||ri} style={{display:"flex",alignItems:"center",gap:6,padding:"2px 0"}}>
+                {runners.map(function(r,ri){
+                  var sps=r.splits||[];
+                  var lastSp=sps.length>0?sps[sps.length-1]:null;
+                  var legSumMs=sps.reduce(function(a,s){return a+(s.split||0);},0);
+                  var hasMulti=sps.length>1;
+                  return(<div key={r.id||ri} style={{display:"flex",alignItems:"center",gap:6,padding:"2px 0"}}>
                   <span style={{width:36,fontSize:10,fontWeight:700,color:evClr,textAlign:"center"}}>Leg {ri+1}</span>
                   <span style={{flex:1,fontSize:11,fontWeight:600,color:T.text}}>{r.name}</span>
-                  <span style={{fontSize:13,fontWeight:700,color:T.splitClr||T.text,fontFamily:"'Share Tech Mono',monospace",width:65,textAlign:"center"}}>{sp?fmtSplit(sp.split):"--"}</span>
-                  <span style={{fontSize:13,fontWeight:700,color:T.timeClr,fontFamily:"'Share Tech Mono',monospace",minWidth:65,textAlign:"right"}}>{sp?fmtTime(sp.total):"--"}</span>
+                  <span style={{fontSize:13,fontWeight:700,color:T.splitClr||T.text,fontFamily:"'Share Tech Mono',monospace",width:65,textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",lineHeight:1.1}} title={hasMulti?sps.map(function(s){return fmtSplit(s.split);}).join(" / "):""}>
+                    <span>{lastSp?fmtSplit(legSumMs):"--"}</span>
+                    {hasMulti?<span style={{fontSize:8,color:T.muted,opacity:0.7}}>{sps.map(function(s){return fmtSplit(s.split);}).join("/")}</span>:null}
+                  </span>
+                  <span style={{fontSize:13,fontWeight:700,color:T.timeClr,fontFamily:"'Share Tech Mono',monospace",minWidth:65,textAlign:"right"}}>{lastSp?fmtTime(lastSp.total):"--"}</span>
                 </div>);})}
                 <div style={{display:"flex",alignItems:"center",gap:6,padding:"4px 6px",marginTop:3,borderRadius:3,background:evClr+"15",border:"1px solid "+evClr+"55"}}>
                   <span style={{width:36,fontSize:10,fontWeight:900,color:evClr,textAlign:"center",letterSpacing:1}}>TOTAL</span>
@@ -701,6 +802,6 @@ export default function SplitTimer(props){
       </div>
     </div>
     <div style={{padding:"8px 10px"}}>
-      {races.map(function(race){return <RaceCard key={race.id} race={race} rosterMap={rosterMap} paces={fbPaces} onUpdateRace={updateRace} onSaveRace={saveOneRace} splitLabel={label} T={T} allAthletes={allAthletes} beepOn={beepOn}/>;})}</div>
+      {modeRaces.map(function(race){return <RaceCard key={race.id} race={race} rosterMap={rosterMap} paces={fbPaces} onUpdateRace={updateRace} onSaveRace={saveOneRace} splitLabel={label} T={T} allAthletes={allAthletes} beepOn={beepOn}/>;})}</div>
   </div>);
 }

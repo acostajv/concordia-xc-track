@@ -3123,23 +3123,28 @@ export default function App(){
                       <div style={{display:"flex",gap:4,padding:"4px 8px",marginBottom:4}}>
                         <span style={{width:36,fontSize:9,fontWeight:700,color:_tm}}>Leg</span>
                         <span style={{flex:1,fontSize:9,fontWeight:700,color:_tm}}>Runner</span>
-                        <span style={{width:75,fontSize:9,fontWeight:700,color:_tm,textAlign:"center"}}>800m Leg</span>
+                        <span style={{width:75,fontSize:9,fontWeight:700,color:_tm,textAlign:"center"}}>Leg Time</span>
                         <span style={{width:75,fontSize:9,fontWeight:700,color:_tm,textAlign:"right"}}>Cumulative</span>
                       </div>
                       {runners.map(function(r,ri){
-                        var sp=(r.splits||[])[0];
-                        var legTime=r.dnf?"DNF":sp?fmtSplit(sp.split):"--";
-                        var cumTime=r.dnf?"DNF":sp?fmtTime(sp.total):"--";
-                        var legPace=sp&&!r.dnf?fmtPace(sp.split,800):"";
+                        var sps=r.splits||[];
+                        var lastSp=sps.length>0?sps[sps.length-1]:null;
+                        /* Leg time = sum of all this runner's splits (handles multi-split legs like 400m or 200m splits in 4x800) */
+                        var legSumMs=sps.reduce(function(a,s){return a+(s.split||0);},0);
+                        var hasMulti=sps.length>1;
+                        var legTime=r.dnf?"DNF":lastSp?fmtSplit(legSumMs):"--";
+                        var cumTime=r.dnf?"DNF":lastSp?fmtTime(lastSp.total):"--";
+                        var legPace=lastSp&&!r.dnf?fmtPace(legSumMs,800):"";
                         var mkE=mkEditableFor(r);
                         return(<div key={r.id} style={{display:"flex",gap:4,alignItems:"center",padding:"5px 8px",marginBottom:2,borderRadius:6,background:r.dnf?"rgba(239,68,68,0.06)":"transparent",border:"1px solid "+(r.dnf?"#ef444444":C.bd)}}>
                           <span style={{width:36,fontSize:11,fontWeight:800,color:r.dnf?"#ef4444":evClr,textAlign:"center"}}>Leg {ri+1}</span>
                           <span style={{flex:1,fontSize:12,fontWeight:600,color:r.dnf?"#ef4444":_tp,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textDecoration:r.dnf?"line-through":"none"}}>{r.name}</span>
-                          <span style={{width:75,fontSize:12,fontWeight:700,color:r.dnf?"#ef4444":_tp,fontFamily:"monospace",textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",lineHeight:1.1}}>
-                            <span>{r.dnf?"DNF":(cm&&sp?mkE(legTime,sp.total,0)||legTime:legTime)}</span>
+                          <span style={{width:75,fontSize:12,fontWeight:700,color:r.dnf?"#ef4444":_tp,fontFamily:"monospace",textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",lineHeight:1.1}} title={hasMulti?"Splits: "+sps.map(function(s){return fmtSplit(s.split);}).join(" / "):""}>
+                            <span>{r.dnf?"DNF":(cm&&lastSp&&!hasMulti?mkE(legTime,lastSp.total,0)||legTime:legTime)}</span>
                             {rrShowPace&&legPace?<span style={{fontSize:8,color:_tm,opacity:0.7,fontWeight:600}}>{legPace}</span>:null}
+                            {hasMulti?<span style={{fontSize:8,color:_tm,opacity:0.7}}>{sps.map(function(s){return fmtSplit(s.split);}).join("/")}</span>:null}
                           </span>
-                          <span style={{width:75,fontSize:12,fontWeight:700,color:r.dnf?"#ef4444":_tm,fontFamily:"monospace",textAlign:"right"}}>{r.dnf?"DNF":(cm&&sp?mkE(cumTime,sp.total,-1)||cumTime:cumTime)}</span>
+                          <span style={{width:75,fontSize:12,fontWeight:700,color:r.dnf?"#ef4444":_tm,fontFamily:"monospace",textAlign:"right"}}>{r.dnf?"DNF":(cm&&lastSp?mkE(cumTime,lastSp.total,-1)||cumTime:cumTime)}</span>
                         </div>);
                       })}
                       {/* Team TOTAL row */}
