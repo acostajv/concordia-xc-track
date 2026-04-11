@@ -394,9 +394,9 @@ export default function App(){
     if(!pcAth||!pcRes)return;
     upR(roster.map(function(a){if(a.id!==pcAth)return a;
       return Object.assign({},a,{paces:{
-        thrSafe:davisPace(pcRes.cm10,"/mi"),thrMed:davisPace(pcRes.cm50,"/mi"),
-        cv:davisPace(pcRes.c50,"/mi"),
-        vo2Safe:davisPace(pcRes.cp90,"/mi"),vo2Med:davisPace(pcRes.cp50,"/mi")
+        thrSafe:davisPace(pcRes.cm10,"/mi"),thrMed:davisPace(pcRes.cm50,"/mi"),thrFast:davisPace(pcRes.cm90,"/mi"),
+        cv:davisPace(pcRes.c50,"/mi"),cvSlow:davisPace(pcRes.c10,"/mi"),cvFast:davisPace(pcRes.c90,"/mi"),
+        vo2Safe:davisPace(pcRes.cp90,"/mi"),vo2Med:davisPace(pcRes.cp50,"/mi"),vo2Fast:davisPace(pcRes.cp10,"/mi")
       }});
     }));
   }
@@ -890,7 +890,7 @@ export default function App(){
   function openRdModal(){var t=new Date();var dk=fd(t);setRdMod({dateKey:dk,dateLbl:FDAYS[(t.getDay()+6)%7]+", "+fs(t)});setRdStat("ready");setRdNote("");}
   function submitRd(){if(!rdMod||!myAth)return;addReadiness(rdMod.dateKey,myAth,rdStat,rdNote);setRdMod(null);}
   /* Inline calc for roster */
-  function rosterCalc(id,dist,minStr,secStr){var m=parseFloat(minStr)||0;var s=parseFloat(secStr)||0;var tot=m*60+s;if(tot<=0)return;var r=davisCalc(dist,tot);if(!r)return;upR(roster.map(function(a){if(a.id!==id)return a;return Object.assign({},a,{paces:{thrSafe:davisPace(r.cm10,"/mi"),thrMed:davisPace(r.cm50,"/mi"),cv:davisPace(r.c50,"/mi"),vo2Safe:davisPace(r.cp90,"/mi"),vo2Med:davisPace(r.cp50,"/mi")}});}));}
+  function rosterCalc(id,dist,minStr,secStr){var m=parseFloat(minStr)||0;var s=parseFloat(secStr)||0;var tot=m*60+s;if(tot<=0)return;var r=davisCalc(dist,tot);if(!r)return;upR(roster.map(function(a){if(a.id!==id)return a;return Object.assign({},a,{paces:{thrSafe:davisPace(r.cm10,"/mi"),thrMed:davisPace(r.cm50,"/mi"),thrFast:davisPace(r.cm90,"/mi"),cv:davisPace(r.c50,"/mi"),cvSlow:davisPace(r.c10,"/mi"),cvFast:davisPace(r.c90,"/mi"),vo2Safe:davisPace(r.cp90,"/mi"),vo2Med:davisPace(r.cp50,"/mi"),vo2Fast:davisPace(r.cp10,"/mi")}});}));}
   var PB_DISTS=["800","1600","3200","5k"];
   var PB_CLR={"800":"#F39C12","1600":"#D4A017","3200":"#2ECC71","5k":"#27AE60"};
   function doExport(){var b=new Blob([JSON.stringify({schedule:sch,roster:roster,meets:meets,announce:announce,templates:templates,schoolRecs:schoolRecs,wlog:wlog,customPresets:customPresets,routines:routines},null,2)],{type:"application/json"});var u=URL.createObjectURL(b);var a=document.createElement("a");a.href=u;a.download="training-data.json";a.click();URL.revokeObjectURL(u);}
@@ -1152,7 +1152,7 @@ export default function App(){
                   <span style={{color:C.gold,fontSize:10}}>{isEx?"[-]":"[+]"}</span>
                 </div>
               </div>
-              {hp?<div style={{marginTop:8}}><div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,color:_tm,fontFamily:"monospace",marginBottom:2}}>Training Paces</div><div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{[{l:"LT",v:a.paces.thrSafe,c:"#8E44AD"},{l:"CV",v:a.paces.cv,c:"#3498DB"},{l:"VO2",v:a.paces.vo2Safe,c:"#27AE60"}].map(function(b){return b.v?<span key={b.l} style={{fontSize:10,padding:"2px 5px",borderRadius:3,background:b.c+"18",color:b.c,fontFamily:"monospace",fontWeight:600}}>{b.l}:{b.v}</span>:null;})}</div></div>:null}
+              {hp?<div style={{marginTop:8}}><div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,color:_tm,fontFamily:"monospace",marginBottom:2}}>Training Paces</div><div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{[{l:"LT",safe:a.paces.thrSafe,med:a.paces.thrMed,range:a.paces.thrSafe&&a.paces.thrFast?a.paces.thrSafe+"\u2013"+a.paces.thrFast.replace("/mi",""):null,c:"#8E44AD"},{l:"CV",safe:null,med:a.paces.cv,range:a.paces.cvSlow&&a.paces.cvFast?a.paces.cvSlow+"\u2013"+a.paces.cvFast.replace("/mi",""):null,c:"#3498DB"},{l:"VO2",safe:a.paces.vo2Safe,med:a.paces.vo2Med,range:a.paces.vo2Safe&&a.paces.vo2Fast?a.paces.vo2Safe+"\u2013"+a.paces.vo2Fast.replace("/mi",""):null,c:"#27AE60"}].map(function(b){var main=b.safe||b.med;if(!main)return null;return(<span key={b.l} style={{fontSize:10,padding:"2px 5px",borderRadius:3,background:b.c+"18",color:b.c,fontFamily:"monospace",fontWeight:600}}>{b.l}: {b.range||main}</span>);})}</div></div>:null}
               {hasPBs||hasSBs?<div style={{marginTop:hp?4:8}}><div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,color:_tm,fontFamily:"monospace",marginBottom:2}}>Personal Bests</div><div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{PB_DISTS.filter(function(d){return(a.pbs&&a.pbs[d])||(a.sbs&&a.sbs[d]);}).map(function(d){var ec=PB_CLR[d]||"#D4A017";var val=a.pbs&&a.pbs[d]?a.pbs[d]:a.sbs[d];return <span key={d} style={{fontSize:10,padding:"2px 5px",borderRadius:3,background:ec+"15",border:"1px solid "+ec+"33",fontFamily:"monospace",fontWeight:700,display:"inline-flex",alignItems:"center",gap:2}}><span style={{background:ec,color:"#fff",fontSize:8,padding:"1px 3px",borderRadius:2,fontWeight:800}}>{d}</span><span style={{color:lt?"#222":_tp,fontWeight:800}}>{val}</span></span>;})}</div></div>:null}
             </div>
             {/* ── Expanded Card (at top for logged-in athlete) ── */}
@@ -1423,7 +1423,7 @@ export default function App(){
                 </div>
               </div>
               {/* Paces + PBs + SBs in one row */}
-              {hp?<div style={{marginTop:8}}><div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,color:_tm,fontFamily:"monospace",marginBottom:2}}>Training Paces</div><div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{[{l:"LT",v:a.paces.thrSafe,c:"#8E44AD"},{l:"CV",v:a.paces.cv,c:"#3498DB"},{l:"VO2",v:a.paces.vo2Safe,c:"#27AE60"}].map(function(b){return b.v?<span key={b.l} style={{fontSize:10,padding:"2px 5px",borderRadius:3,background:b.c+"18",color:b.c,fontFamily:"monospace",fontWeight:600}}>{b.l}:{b.v}</span>:null;})}</div></div>:null}
+              {hp?<div style={{marginTop:8}}><div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,color:_tm,fontFamily:"monospace",marginBottom:2}}>Training Paces</div><div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{[{l:"LT",safe:a.paces.thrSafe,med:a.paces.thrMed,range:a.paces.thrSafe&&a.paces.thrFast?a.paces.thrSafe+"\u2013"+a.paces.thrFast.replace("/mi",""):null,c:"#8E44AD"},{l:"CV",safe:null,med:a.paces.cv,range:a.paces.cvSlow&&a.paces.cvFast?a.paces.cvSlow+"\u2013"+a.paces.cvFast.replace("/mi",""):null,c:"#3498DB"},{l:"VO2",safe:a.paces.vo2Safe,med:a.paces.vo2Med,range:a.paces.vo2Safe&&a.paces.vo2Fast?a.paces.vo2Safe+"\u2013"+a.paces.vo2Fast.replace("/mi",""):null,c:"#27AE60"}].map(function(b){var main=b.safe||b.med;if(!main)return null;return(<span key={b.l} style={{fontSize:10,padding:"2px 5px",borderRadius:3,background:b.c+"18",color:b.c,fontFamily:"monospace",fontWeight:600}}>{b.l}: {b.range||main}</span>);})}</div></div>:null}
               {hasPBs||hasSBs?<div style={{marginTop:hp?4:8}}><div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,color:_tm,fontFamily:"monospace",marginBottom:2}}>Personal Bests</div><div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{PB_DISTS.filter(function(d){return(a.pbs&&a.pbs[d])||(a.sbs&&a.sbs[d]);}).map(function(d){var ec=PB_CLR[d]||"#D4A017";var val=a.pbs&&a.pbs[d]?a.pbs[d]:a.sbs[d];var isSB=!(a.pbs&&a.pbs[d])&&a.sbs&&a.sbs[d];return <span key={d} style={{fontSize:10,padding:"2px 5px",borderRadius:3,background:ec+"15",border:"1px solid "+ec+"33",fontFamily:"monospace",fontWeight:700,display:"inline-flex",alignItems:"center",gap:2}}><span style={{background:ec,color:"#fff",fontSize:8,padding:"1px 3px",borderRadius:2,fontWeight:800}}>{d}</span><span style={{color:lt?"#222":_tp,fontWeight:800}}>{val}</span>{isSB?<span style={{fontSize:7,color:ec}}>SB</span>:null}</span>;})}</div></div>:null}
             </div>
 
@@ -1770,10 +1770,16 @@ export default function App(){
                 {/* Training Paces */}
                 <div style={{fontSize:11,fontWeight:700,color:_tp,marginBottom:6}}>Training Paces</div>
                 <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
-                  {[{k:"thrSafe",l:"LT Safe",c:"#8E44AD"},{k:"thrMed",l:"LT Med",c:"#8E44AD"},{k:"cv",l:"CV",c:"#3498DB"},{k:"vo2Safe",l:"VO2 Safe",c:"#27AE60"},{k:"vo2Med",l:"VO2 Med",c:"#27AE60"}].map(function(p){
-                    return <div key={p.k} style={{flex:"1 1 85px",maxWidth:120,background:p.c+"0a",borderRadius:6,padding:"5px 7px",borderLeft:"3px solid "+p.c}}>
-                      <div style={{fontSize:9,fontWeight:700,color:p.c,fontFamily:"monospace"}}>{p.l}</div>
-                      <input value={(ea.paces&&ea.paces[p.k])||""} onChange={function(ev){savePF(ea.id,p.k,ev.target.value);}} placeholder="--" style={Object.assign({},IS,{marginTop:2,padding:"3px 6px",fontSize:12,fontWeight:700,textAlign:"center"})}/>
+                  {[{zone:"LT",c:"#8E44AD",keys:[{k:"thrSafe",l:"Safe"},{k:"thrMed",l:"Med"},{k:"thrFast",l:"Fast"}]},{zone:"CV",c:"#3498DB",keys:[{k:"cvSlow",l:"Slow"},{k:"cv",l:"Med"},{k:"cvFast",l:"Fast"}]},{zone:"VO2",c:"#27AE60",keys:[{k:"vo2Safe",l:"Safe"},{k:"vo2Med",l:"Med"},{k:"vo2Fast",l:"Fast"}]}].map(function(z){
+                    return <div key={z.zone} style={{flex:"1 1 130px",background:z.c+"0a",borderRadius:6,padding:"6px 8px",borderLeft:"3px solid "+z.c}}>
+                      <div style={{fontSize:10,fontWeight:700,color:z.c,fontFamily:"monospace",marginBottom:3}}>{z.zone}</div>
+                      <div style={{display:"flex",gap:4}}>
+                        {z.keys.map(function(p){return <div key={p.k} style={{flex:1,textAlign:"center"}}>
+                          <div style={{fontSize:8,fontWeight:600,color:_tm,fontFamily:"monospace"}}>{p.l}</div>
+                          <input value={(ea.paces&&ea.paces[p.k])||""} onChange={function(ev){savePF(ea.id,p.k,ev.target.value);}} placeholder="--" style={Object.assign({},IS,{marginTop:1,padding:"2px 3px",fontSize:11,fontWeight:700,textAlign:"center",width:"100%",boxSizing:"border-box"})}/>
+                        </div>;})}
+                      </div>
+                      {ea.paces&&ea.paces[z.keys[0].k]&&ea.paces[z.keys[2].k]?<div style={{fontSize:9,color:z.c,fontFamily:"monospace",textAlign:"center",marginTop:2,opacity:0.8}}>Range: {ea.paces[z.keys[0].k].replace("/mi","")}{"\u2013"}{ea.paces[z.keys[2].k].replace("/mi","")}/mi</div>:null}
                     </div>;
                   })}
                 </div>
@@ -1919,11 +1925,21 @@ export default function App(){
                 <div style={{marginTop:10}}>
                   <div style={{fontSize:11,color:_ts,marginBottom:6}}>Saving to <strong style={{color:_tp}}>{(roster.find(function(a){return a.id===pcAth;})||{}).name}</strong>:</div>
                   <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>
-                    <span style={{fontSize:10,padding:"3px 8px",borderRadius:4,background:"#8E44AD22",color:"#8E44AD",fontFamily:"monospace"}}>LT safe: {davisPace(pcRes.cm10,"/mi")}</span>
-                    <span style={{fontSize:10,padding:"3px 8px",borderRadius:4,background:"#8E44AD22",color:"#8E44AD",fontFamily:"monospace"}}>LT med: {davisPace(pcRes.cm50,"/mi")}</span>
-                    <span style={{fontSize:10,padding:"3px 8px",borderRadius:4,background:"#3498DB22",color:"#3498DB",fontFamily:"monospace"}}>CV: {davisPace(pcRes.c50,"/mi")}</span>
-                    <span style={{fontSize:10,padding:"3px 8px",borderRadius:4,background:"#27AE6022",color:"#27AE60",fontFamily:"monospace"}}>VO2 safe: {davisPace(pcRes.cp90,"/mi")}</span>
-                    <span style={{fontSize:10,padding:"3px 8px",borderRadius:4,background:"#27AE6022",color:"#27AE60",fontFamily:"monospace"}}>VO2 med: {davisPace(pcRes.cp50,"/mi")}</span>
+                    <div style={{padding:"4px 8px",borderRadius:4,background:"#8E44AD12",borderLeft:"3px solid #8E44AD"}}>
+                      <div style={{fontSize:9,fontWeight:700,color:"#8E44AD",fontFamily:"monospace"}}>LT</div>
+                      <div style={{fontSize:10,color:"#8E44AD",fontFamily:"monospace"}}>Safe: {davisPace(pcRes.cm10,"/mi")} | Med: {davisPace(pcRes.cm50,"/mi")}</div>
+                      <div style={{fontSize:9,color:"#8E44AD",fontFamily:"monospace",opacity:0.7}}>Range: {davisPace(pcRes.cm10,"/mi").replace("/mi","")}{"\u2013"}{davisPace(pcRes.cm90,"/mi")}</div>
+                    </div>
+                    <div style={{padding:"4px 8px",borderRadius:4,background:"#3498DB12",borderLeft:"3px solid #3498DB"}}>
+                      <div style={{fontSize:9,fontWeight:700,color:"#3498DB",fontFamily:"monospace"}}>CV</div>
+                      <div style={{fontSize:10,color:"#3498DB",fontFamily:"monospace"}}>Med: {davisPace(pcRes.c50,"/mi")}</div>
+                      <div style={{fontSize:9,color:"#3498DB",fontFamily:"monospace",opacity:0.7}}>Range: {davisPace(pcRes.c10,"/mi").replace("/mi","")}{"\u2013"}{davisPace(pcRes.c90,"/mi")}</div>
+                    </div>
+                    <div style={{padding:"4px 8px",borderRadius:4,background:"#27AE6012",borderLeft:"3px solid #27AE60"}}>
+                      <div style={{fontSize:9,fontWeight:700,color:"#27AE60",fontFamily:"monospace"}}>VO2max</div>
+                      <div style={{fontSize:10,color:"#27AE60",fontFamily:"monospace"}}>Safe: {davisPace(pcRes.cp90,"/mi")} | Med: {davisPace(pcRes.cp50,"/mi")}</div>
+                      <div style={{fontSize:9,color:"#27AE60",fontFamily:"monospace",opacity:0.7}}>Range: {davisPace(pcRes.cp90,"/mi").replace("/mi","")}{"\u2013"}{davisPace(pcRes.cp10,"/mi")}</div>
+                    </div>
                   </div>
                   <button onClick={pcSaveToAth} style={{padding:"10px 20px",borderRadius:8,background:"linear-gradient(135deg,"+C.green+","+C.greenLight+")",border:"none",color:C.white,fontWeight:700,fontSize:13,cursor:"pointer",width:"100%",boxShadow:"0 4px 16px rgba(27,94,32,0.3)"}}>Save Paces to {(roster.find(function(a){return a.id===pcAth;})||{}).name}</button>
                 </div>
