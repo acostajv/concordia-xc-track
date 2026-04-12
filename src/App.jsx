@@ -379,6 +379,10 @@ export default function App(){
   var _gSec=useState({early:true,mid:true,late:true,concepts:true});var gSec=_gSec[0];var setGSec=_gSec[1];
   function togGSec(k){var n=Object.assign({},gSec);n[k]=!n[k];setGSec(n);}
   var st10=useState(null);var meetExp=st10[0];var setMeetExp=st10[1];
+  var _ceN=useState("");var ceName=_ceN[0];var setCeName=_ceN[1];
+  var _ceR=useState(false);var ceRelay=_ceR[0];var setCeRelay=_ceR[1];
+  var _ceL=useState(4);var ceLegs=_ceL[0];var setCeLegs=_ceL[1];
+  var _ceD=useState("");var ceDist=_ceD[0];var setCeDist=_ceD[1];
   /* Pace calc state */
   var _pd=useState("5km");var pcDist=_pd[0];var setPcDist=_pd[1];
   var _pm=useState("");var pcMin=_pm[0];var setPcMin=_pm[1];
@@ -423,6 +427,10 @@ export default function App(){
     return pm+":"+(ps<10?"0":"")+ps+"/mi";
   }
   var EVTS=["4x800","800","1600","3200"];
+  function isRelayEvt(evName,meet){if(evName==="4x800")return true;var ce=(meet&&meet.customEvents||[]).find(function(c){return c.name===evName;});return ce?!!ce.relay:false;}
+  function getCustomEvt(evName,meet){return(meet&&meet.customEvents||[]).find(function(c){return c.name===evName;})||null;}
+  function getRelayLegs(evName,meet){if(evName==="4x800")return 4;var ce=getCustomEvt(evName,meet);return ce&&ce.relay?ce.legs||4:0;}
+  function getAllEvts(meet){var custom=(meet&&meet.customEvents||[]).map(function(c){return c.name;});return EVTS.concat(custom);}
   /* Parse a pace string like "6:30/mi" or "6:30" → seconds/mile */
   function parsePaceSec(str){if(!str)return null;var clean=String(str).replace(/\/mi$/i,"").trim();var parts=clean.split(":");if(parts.length!==2)return null;var m=parseInt(parts[0]);var s=parseInt(parts[1]);if(isNaN(m)||isNaN(s))return null;return m*60+s;}
   /* Score a runner for ability-based auto-split: lower = faster.
@@ -517,6 +525,21 @@ export default function App(){
         var ra=Object.assign({},ev.runnerAssign||{});ra[val.rid]=val.coach;ev.runnerAssign=ra;
       }
       lu[evtName]=ev;return Object.assign({},m,{lineup:lu});
+    }));
+  }
+  function addCustomEvent(meetId,evt){
+    upM(meets.map(function(m){if(m.id!==meetId)return m;
+      var ce=(m.customEvents||[]).slice();
+      if(ce.some(function(c){return c.name===evt.name;})||EVTS.indexOf(evt.name)>=0)return m;
+      ce.push({name:evt.name,relay:!!evt.relay,legs:evt.relay?Math.max(1,parseInt(evt.legs)||4):0,distanceM:Math.max(0,parseInt(evt.distanceM)||0)});
+      return Object.assign({},m,{customEvents:ce});
+    }));
+  }
+  function removeCustomEvent(meetId,evtName){
+    upM(meets.map(function(m){if(m.id!==meetId)return m;
+      var ce=(m.customEvents||[]).filter(function(c){return c.name!==evtName;});
+      var lu=Object.assign({},m.lineup||{});delete lu[evtName];
+      return Object.assign({},m,{customEvents:ce,lineup:lu});
     }));
   }
   var impRef=useRef(null);var csvRef=useRef(null);
@@ -2341,7 +2364,7 @@ export default function App(){
           <div style={{fontSize:10,color:_tm}}>Schedule from Concordia Academy calendar (as of 3/5/26). Click a meet to manage the race lineup.</div>
           <button onClick={exportResultsCSV} style={Object.assign({},hB,{color:C.greenLight,border:"1px solid "+C.greenLight+"44"})}>Export Results CSV</button>
         </div>
-        {sortedMeets.map(function(m){var tc=tC[m.type]||"#0D47A1";var isPast=m.date<today;var isEx=meetExp===m.id;var lu=m.lineup||{};var hasLineup=EVTS.some(function(ev){var e=lu[ev];return e&&(e.runners.length>0||e.approxTime);});return(<div key={m.id} style={{marginBottom:8,borderRadius:10,border:isEx?"1px solid "+tc+"55":"1px solid "+C.bd,background:isPast?"rgba(255,255,255,0.01)":"rgba(255,255,255,0.03)",borderLeft:"4px solid "+tc,opacity:isPast?0.5:1,overflow:"hidden"}}>
+        {sortedMeets.map(function(m){var tc=tC[m.type]||"#0D47A1";var isPast=m.date<today;var isEx=meetExp===m.id;var lu=m.lineup||{};var allEvts=getAllEvts(m);var hasLineup=allEvts.some(function(ev){var e=lu[ev];return e&&(e.runners.length>0||e.approxTime);});return(<div key={m.id} style={{marginBottom:8,borderRadius:10,border:isEx?"1px solid "+tc+"55":"1px solid "+C.bd,background:isPast?"rgba(255,255,255,0.01)":"rgba(255,255,255,0.03)",borderLeft:"4px solid "+tc,opacity:isPast?0.5:1,overflow:"hidden"}}>
           {/* Meet header - click to expand */}
           <div style={{padding:"10px 12px",cursor:"pointer",display:"flex",alignItems:"flex-start",gap:8}} onClick={function(){setMeetExp(isEx?null:m.id);}}>
             <div style={{flex:1}}>
@@ -2366,7 +2389,7 @@ export default function App(){
             {/* Coach coverage summary — per (event, team) compact format like 1600B / 800G */}
             {(function(){
               var headEntries=[];var asstEntries=[];var sharedEntries=[];
-              EVTS.forEach(function(en){
+              allEvts.forEach(function(en){
                 var ed=lu[en];if(!ed||!(ed.runners||[]).length)return;
                 ["boys","girls"].forEach(function(team){
                   /* Skip if no runners on this team */
@@ -2405,15 +2428,17 @@ export default function App(){
                 </div>:null}
               </div>);
             })()}
-            {EVTS.map(function(evName){
+            {allEvts.map(function(evName){
               var evData=lu[evName]||{runners:[],approxTime:""};
-              var evColor=evName==="800"?"#F39C12":evName==="1600"?"#D4A017":evName==="3200"?"#2ECC71":"#3498DB";
+              var isCustom=EVTS.indexOf(evName)<0;
+              var evColor=evName==="800"?"#F39C12":evName==="1600"?"#D4A017":evName==="3200"?"#2ECC71":evName==="4x800"?"#a855f7":"#3498DB";
               return(
                 <div key={evName} style={{padding:"10px",marginBottom:6,borderRadius:8,background:evColor+"0a",border:"1px solid "+evColor+"33"}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6,flexWrap:"wrap",gap:6}}>
                     <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                      <div style={{fontSize:12,fontWeight:700,color:evColor}}>{evName}</div>
-                      {evName!=="4x800"&&cm?<div style={{display:"flex",alignItems:"center",gap:4}}>
+                      <div style={{fontSize:12,fontWeight:700,color:evColor}}>{evName}{isCustom?<span style={{fontSize:9,color:_tm,fontWeight:500,marginLeft:4}}>{(function(){var ce=getCustomEvt(evName,m);if(!ce)return"";var parts=[];if(ce.relay)parts.push("relay, "+ce.legs+" legs");if(ce.distanceM)parts.push(ce.distanceM+"m");return parts.length?"("+parts.join(", ")+")":"";})()}</span>:null}</div>
+                      {isCustom&&cm?<button onClick={function(){if(confirm("Remove "+evName+" from this meet?"))removeCustomEvent(m.id,evName);}} style={{background:"rgba(239,68,68,0.1)",border:"none",color:"#ef4444",borderRadius:3,padding:"2px 6px",cursor:"pointer",fontSize:9}}>Remove</button>:null}
+                      {!isRelayEvt(evName,m)&&cm?<div style={{display:"flex",alignItems:"center",gap:4}}>
                         <span style={{fontSize:9,color:_tm}}>Heats:</span>
                         <select value={evData.heats||1} onChange={function(ev){upLineup(m.id,evName,"setHeats",ev.target.value);}} style={Object.assign({},IS,{width:44,padding:"2px 4px",fontSize:10})}>
                           {[1,2,3,4].map(function(h){return <option key={h} value={h}>{h}</option>;})}
@@ -2428,7 +2453,8 @@ export default function App(){
                   {[{label:"Boys",clr:C.greenLight,team:"boys"},{label:"Girls",clr:C.gold,team:"girls"}].map(function(grp){
                     var teamRunners=evData.runners.filter(function(rId){var a=roster.find(function(x){return x.id===rId;});return a&&a.team===grp.team;});
                     var available=roster.filter(function(a){return a.team===grp.team&&!evData.runners.some(function(r){return r===a.id;});});
-                    var numHeats=evName==="4x800"?1:Math.max(1,evData.heats||1);
+                    var evIsRelay=isRelayEvt(evName,m);var relayLegs=getRelayLegs(evName,m);
+                    var numHeats=evIsRelay?1:Math.max(1,evData.heats||1);
                     var heatAssign=evData.heatAssign||{};
                     var teamCoaches=getEventCoaches(evData,grp.team);
                     var tcHead=teamCoaches.length===1&&teamCoaches[0]==="head";
@@ -2455,7 +2481,7 @@ export default function App(){
                             var ath=roster.find(function(a){return a.id===rId;});if(!ath)return null;
                             var hasPaces=ath.paces&&ath.paces.vo2Safe;
                             var mRes=(m.results&&m.results[evName]&&m.results[evName][rId])||"";
-                            var isRelay=evName==="4x800";var legLabel=isRelay?"Leg "+(ri+1):"";
+                            var isRelay=evIsRelay;var legLabel=isRelay?"Leg "+(ri+1):"";
                             return(<div key={rId} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",marginBottom:3,borderRadius:4,background:grp.clr+"10",border:"1px solid "+grp.clr+"22"}}>
                               {isRelay?<span style={{fontSize:10,fontWeight:800,color:evColor,fontFamily:"monospace",minWidth:38}}>{legLabel}</span>:null}
                               <span style={{fontSize:11,fontWeight:600,color:grp.clr,minWidth:80}}>{ath.name}</span>
@@ -2481,11 +2507,11 @@ export default function App(){
                           })}
                         </div>);
                       })}
-                      {cm&&(evName!=="4x800"||teamRunners.length<4)?(<select onChange={function(ev){if(ev.target.value){upLineup(m.id,evName,"addRunner",ev.target.value);ev.target.value="";}} } style={Object.assign({},IS,{padding:"4px 8px",fontSize:11,marginTop:2})} value="">
-                        <option value="">{evName==="4x800"?"+ Leg "+(teamRunners.length+1)+" runner...":"+ Add "+grp.label.toLowerCase()+"..."}</option>
+                      {cm&&(!evIsRelay||teamRunners.length<relayLegs)?(<select onChange={function(ev){if(ev.target.value){upLineup(m.id,evName,"addRunner",ev.target.value);ev.target.value="";}} } style={Object.assign({},IS,{padding:"4px 8px",fontSize:11,marginTop:2})} value="">
+                        <option value="">{evIsRelay?"+ Leg "+(teamRunners.length+1)+" runner...":"+ Add "+grp.label.toLowerCase()+"..."}</option>
                         {available.map(function(a){return <option key={a.id} value={a.id}>{a.name}</option>;})}
                       </select>):null}
-                      {cm&&(evName!=="4x800"||teamRunners.length<4)?(<div style={{display:"flex",gap:4,marginTop:3}}>
+                      {cm&&(!evIsRelay||teamRunners.length<relayLegs)?(<div style={{display:"flex",gap:4,marginTop:3}}>
                         <input placeholder={"Add non-roster "+grp.label.toLowerCase().slice(0,-1)+"..."} onKeyDown={function(ev){
                           if(ev.key==="Enter"&&ev.target.value.trim()){
                             var nm=ev.target.value.trim();var guestId="guest_"+grp.team+"_"+Date.now();
@@ -2500,6 +2526,25 @@ export default function App(){
                 </div>
               );
             })}
+            {/* Add custom event form */}
+            {cm?<div style={{padding:"10px",marginTop:6,borderRadius:8,border:"1px dashed "+C.bd,background:lt?"#f8f9f6":"rgba(255,255,255,0.02)"}}>
+              <div style={{fontSize:11,fontWeight:700,color:_tp,marginBottom:6}}>+ Add Custom Event</div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+                <input value={ceName} onChange={function(ev){setCeName(ev.target.value);}} placeholder="Event name (e.g. 4x400, 400, 200)" style={Object.assign({},IS,{flex:"1 1 120px",padding:"5px 8px",fontSize:11})}/>
+                <label style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:_tm,cursor:"pointer"}}>
+                  <input type="checkbox" checked={ceRelay} onChange={function(){setCeRelay(!ceRelay);}}/> Relay
+                </label>
+                {ceRelay?<div style={{display:"flex",alignItems:"center",gap:3}}>
+                  <span style={{fontSize:9,color:_tm}}>Legs:</span>
+                  <input type="number" min="2" max="10" value={ceLegs} onChange={function(ev){setCeLegs(parseInt(ev.target.value)||4);}} style={Object.assign({},IS,{width:40,padding:"3px 5px",fontSize:11,textAlign:"center"})}/>
+                </div>:null}
+                <div style={{display:"flex",alignItems:"center",gap:3}}>
+                  <span style={{fontSize:9,color:_tm}}>Distance (m):</span>
+                  <input type="number" min="0" value={ceDist} onChange={function(ev){setCeDist(ev.target.value);}} placeholder="e.g. 1600" style={Object.assign({},IS,{width:70,padding:"3px 5px",fontSize:11,textAlign:"center"})}/>
+                </div>
+                <button onClick={function(){if(!ceName.trim())return;addCustomEvent(m.id,{name:ceName.trim(),relay:ceRelay,legs:ceLegs,distanceM:parseInt(ceDist)||0});setCeName("");setCeRelay(false);setCeLegs(4);setCeDist("");}} disabled={!ceName.trim()} style={{padding:"5px 12px",borderRadius:4,background:ceName.trim()?"#3498DB":"rgba(255,255,255,0.06)",border:"none",color:ceName.trim()?"#fff":_tm,fontSize:11,fontWeight:700,cursor:ceName.trim()?"pointer":"not-allowed",fontFamily:"inherit"}}>Add</button>
+              </div>
+            </div>:null}
           </div>):null}
         </div>);})}
         {cm?(<div style={{borderRadius:8,border:"1px solid "+C.bd,background:lt?"#fff":"rgba(255,255,255,0.03)",marginTop:12,overflow:"hidden"}}>
@@ -3290,7 +3335,7 @@ export default function App(){
               {meetGroup.races.map(function(race){
                 var evClr={"800":"#F39C12","1600":"#D4A017","3200":"#27ae60","4x800":"#a855f7"}[race.event]||"#4a9eff";
                 var tClr=race.team==="boys"?C.greenLight:C.gold;
-                var isRelay=race.event==="4x800";
+                var isRelay=race.event==="4x800"||!!race.relay;
                 /* Relay: preserve leg order. Standard: sort DNFs to bottom, then by finalTime. */
                 var runners=isRelay?(race.runners||[]).slice():(race.runners||[]).slice().sort(function(a,b){if(a.dnf&&!b.dnf)return 1;if(!a.dnf&&b.dnf)return -1;return(a.finalTime||999999)-(b.finalTime||999999);});
                 /* Max splits across all runners (for standard race header) */
@@ -3301,9 +3346,9 @@ export default function App(){
                 var relayDnf=isRelay&&runners.some(function(r){return r.dnf;});
                 /* Resolve split distance in meters: prefer saved label, else infer from event/numSplits */
                 var splitM=race.splitLabel?(SPLIT_M[race.splitLabel]||0):0;
-                if(!splitM&&maxSplits>0){var evM=SPLIT_M[race.event]||0;if(evM>0)splitM=Math.round(evM/maxSplits);}
+                if(!splitM&&maxSplits>0){var evM=SPLIT_M[race.event]||(race.distanceM||0);if(evM>0)splitM=Math.round(evM/maxSplits);}
                 /* Total race distance in meters (for the Final column pace) */
-                var raceM=SPLIT_M[race.event]||(splitM*maxSplits)||0;
+                var raceM=SPLIT_M[race.event]||(race.distanceM||0)||(splitM*maxSplits)||0;
                 var mkEditableFor=function(r){
                   var editKey=function(si){return race.id+"|"+r.id+"|"+si;};
                   return function(displayStr,totalMs,splitIndex){

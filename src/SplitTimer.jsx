@@ -14,7 +14,8 @@ var GROUP_COLORS=["#FF5722","#4a9eff","#ff7eb3","#27ae60","#f0a500","#a855f7","#
 var PACE_KEYS=[{k:"thrSafe",l:"LT Safe"},{k:"thrMed",l:"LT Med"},{k:"cv",l:"CV"},{k:"vo2Safe",l:"VO2 Safe"},{k:"vo2Med",l:"VO2 Med"}];
 var EVT_ORDER={"4x800":0,"800":1,"1600":2,"3200":3};
 
-function getSplitsToFinish(ev,sd){var rd=DIST_METERS[ev]||DIST_METERS[ev+"m"]||0;var s=DIST_METERS[sd]||0;if(!rd||!s||s>=rd)return 0;return Math.round(rd/s);}
+function getSplitsToFinish(ev,sd,distOverride){var rd=distOverride||DIST_METERS[ev]||DIST_METERS[ev+"m"]||0;var s=DIST_METERS[sd]||0;if(!rd||!s||s>=rd)return 0;return Math.round(rd/s);}
+function isRelayRace(race){return race.event==="4x800"||!!race.relay;}
 
 /* ── THEMES ────────────────────────────────────────────────────────────── */
 var THEMES={
@@ -257,9 +258,9 @@ function RaceCard(props){
   };
 
   var effectiveSplit=race.splitLabel||splitLabel;
-  var splitsToFinish=getSplitsToFinish(race.event,effectiveSplit);
+  var splitsToFinish=getSplitsToFinish(race.event,effectiveSplit,race.distanceM||0);
   var finishedMap=race.finished||{};
-  var isRelay=race.event==="4x800";
+  var isRelay=isRelayRace(race);
   /* For relays, how many splits each leg runner needs to take before that leg
      is "done". Defaults to 1 if the math doesn't divide evenly. */
   var legCount=(race.runnerIds||[]).length;
@@ -455,6 +456,13 @@ export default function SplitTimer(props){
   var _newGrpName=useState("");var newGrpName=_newGrpName[0];var setNewGrpName=_newGrpName[1];
   var _paceKey=useState("thrSafe");var paceKey=_paceKey[0];var setPaceKey=_paceKey[1];
   var _paceTol=useState(14);var paceTol=_paceTol[0];var setPaceTol=_paceTol[1];
+  var _ahName=useState("");var ahName=_ahName[0];var setAhName=_ahName[1];
+  var _ahRelay=useState(false);var ahRelay=_ahRelay[0];var setAhRelay=_ahRelay[1];
+  var _ahLegs=useState(4);var ahLegs=_ahLegs[0];var setAhLegs=_ahLegs[1];
+  var _ahDist=useState("");var ahDist=_ahDist[0];var setAhDist=_ahDist[1];
+  var _ahTeam=useState("boys");var ahTeam=_ahTeam[0];var setAhTeam=_ahTeam[1];
+  var _ahRunners=useState([]);var ahRunners=_ahRunners[0];var setAhRunners=_ahRunners[1];
+  var _ahOpen=useState(false);var ahOpen=_ahOpen[0];var setAhOpen=_ahOpen[1];
   var sessionDate=useRef(new Date().toISOString().slice(0,10)).current;
 
   useEffect(function(){var l=document.createElement("link");l.href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@400;600;700;800;900&display=swap";l.rel="stylesheet";document.head.appendChild(l);return function(){document.head.removeChild(l);};},[]);
@@ -474,7 +482,10 @@ export default function SplitTimer(props){
   /* Build result object from a race */
   var buildRaceResult=function(race){
     var runners=(race.runnerIds||[]).map(function(rid){var ath=rosterMap[String(rid)];var sp=(race.splits||{})[rid]||[];var ft=sp.length>0?sp[sp.length-1].total:race.elapsed||0;var isDnf=!!(race.dnf||{})[rid];return{id:rid,name:ath?ath.name:"Unknown",team:ath?ath.team:"",splits:sp,finalTime:ft,dnf:isDnf};});
-    return{meetId:race.meetId||"",meetName:race.meetName||"Session",meetDate:race.meetDate||sessionDate,event:race.event||race.label||label,team:race.team||"",heat:race.heat||0,runners:runners,elapsed:race.elapsed||0,type:mode,splitLabel:race.splitLabel||label,sortKey:(EVT_ORDER[race.event]!==undefined?EVT_ORDER[race.event]:9)*1000+(race.team==="boys"?0:100)+(race.heat||1)};
+    var result={meetId:race.meetId||"",meetName:race.meetName||"Session",meetDate:race.meetDate||sessionDate,event:race.event||race.label||label,team:race.team||"",heat:race.heat||0,runners:runners,elapsed:race.elapsed||0,type:mode,splitLabel:race.splitLabel||label,sortKey:(EVT_ORDER[race.event]!==undefined?EVT_ORDER[race.event]:9)*1000+(race.team==="boys"?0:100)+(race.heat||1)};
+    if(race.relay)result.relay=true;
+    if(race.distanceM)result.distanceM=race.distanceM;
+    return result;
   };
   var saveOneRace=function(race){
     if(race.saved)return;var result=buildRaceResult(race);
@@ -506,13 +517,17 @@ export default function SplitTimer(props){
     return ["head","asst"];
   };
   var importMeetEvents=function(meet){if(!meet||!meet.lineup)return;var athTeam={};allAthletes.forEach(function(a){athTeam[String(a.id)]=a.team;});var newRaces=[];var ts=Date.now();
+    var customEvts=meet.customEvents||[];
+    var ceMap={};customEvts.forEach(function(c){ceMap[c.name]=c;});
     Object.entries(meet.lineup).forEach(function(entry){var evtKey=entry[0];var evtData=entry[1];var allIds=(evtData.runners||[]).map(function(r){return String(r);});if(!allIds.length)return;
+      var ce=ceMap[evtKey];
+      var evtIsRelay=evtKey==="4x800"||(ce&&ce.relay);
+      var evtLegs=evtKey==="4x800"?4:(ce&&ce.relay?ce.legs||4:0);
+      var evtDistM=ce?ce.distanceM||0:0;
       var runnerAssign=evtData.runnerAssign||{};
-      var numHeats=evtKey==="4x800"?1:Math.max(1,evtData.heats||1);var heatAssign=evtData.heatAssign||{};
-      /* For 4x800 the split is always per-leg (800m); other events default to session label */
-      var defaultSplit=evtKey==="4x800"?"800m":label;
-      /* Process each (team, heat) combination independently so coach assignment
-         can vary per team within the same event. */
+      var numHeats=evtIsRelay?1:Math.max(1,evtData.heats||1);var heatAssign=evtData.heatAssign||{};
+      /* For relays the split is per-leg distance; other events default to session label */
+      var defaultSplit=evtIsRelay?(evtLegs>0&&evtDistM>0?Math.round(evtDistM/evtLegs)+"m":(evtKey==="4x800"?"800m":label)):label;
       ["boys","girls"].forEach(function(team){
         var teamCoaches=resolveTeamCoaches(evtData,team);
         if(teamCoaches.indexOf(cmRole)===-1)return;
@@ -525,7 +540,11 @@ export default function SplitTimer(props){
           if(!heatIds.length)continue;
           var heatLabel=numHeats>1?" H"+heatNum:"";
           var teamLabel=team==="boys"?"Boys":"Girls";
-          newRaces.push({id:"r_"+evtKey+"_"+team[0]+"_h"+heatNum+"_"+(ts++),event:evtKey,team:team,label:evtKey+" "+teamLabel+heatLabel,approxTime:evtData.approxTime||"",runnerIds:heatIds,splits:{},elapsed:0,status:"ready",finished:{},meetName:meet.name||"Meet",meetId:meet.id||"",meetDate:meet.date||"",heat:heatNum,splitLabel:defaultSplit,assignedCoaches:teamCoaches,shared:isShared,type:"meet"});
+          var raceObj={id:"r_"+evtKey+"_"+team[0]+"_h"+heatNum+"_"+(ts++),event:evtKey,team:team,label:evtKey+" "+teamLabel+heatLabel,approxTime:evtData.approxTime||"",runnerIds:heatIds,splits:{},elapsed:0,status:"ready",finished:{},meetName:meet.name||"Meet",meetId:meet.id||"",meetDate:meet.date||"",heat:heatNum,splitLabel:defaultSplit,assignedCoaches:teamCoaches,shared:isShared,type:"meet"};
+          if(evtIsRelay)raceObj.relay=true;
+          if(evtLegs)raceObj.legs=evtLegs;
+          if(evtDistM)raceObj.distanceM=evtDistM;
+          newRaces.push(raceObj);
         }
       });
     });
@@ -625,6 +644,56 @@ export default function SplitTimer(props){
               </div>
             </div>);})}
         </div>}
+        {/* Ad-hoc event creation */}
+        <div style={{marginTop:12,background:T.card,border:"1px solid "+T.border,borderLeft:"3px solid #a855f7",borderRadius:4,padding:"12px 14px"}}>
+          <div onClick={function(){setAhOpen(!ahOpen);}} style={{cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div style={{fontSize:13,fontWeight:800,color:T.text}}>+ Add Event Manually</div>
+            <span style={{fontSize:10,color:T.muted}}>{ahOpen?"[-]":"[+]"}</span>
+          </div>
+          {ahOpen?<div style={{marginTop:10}}>
+            <div style={{fontSize:10,color:T.muted,marginBottom:8}}>Add a race not in the imported lineup (e.g. 4x400, open 400).</div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8,alignItems:"center"}}>
+              <input value={ahName} onChange={function(e){setAhName(e.target.value);}} placeholder="Event name (e.g. 4x400)" style={{flex:"1 1 100px",background:T.timerBg,border:"1px solid "+T.border,color:T.text,padding:"6px 10px",borderRadius:3,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
+              <label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:T.muted,cursor:"pointer"}}>
+                <input type="checkbox" checked={ahRelay} onChange={function(){setAhRelay(!ahRelay);setAhRunners([]);}}/> Relay
+              </label>
+              {ahRelay?<div style={{display:"flex",alignItems:"center",gap:3}}>
+                <span style={{fontSize:10,color:T.muted}}>Legs:</span>
+                <input type="number" min="2" max="10" value={ahLegs} onChange={function(e){setAhLegs(parseInt(e.target.value)||4);setAhRunners([]);}} style={{width:40,background:T.timerBg,border:"1px solid "+T.border,color:T.text,padding:"3px 5px",borderRadius:3,fontSize:11,textAlign:"center",fontFamily:"inherit"}}/>
+              </div>:null}
+              <div style={{display:"flex",alignItems:"center",gap:3}}>
+                <span style={{fontSize:10,color:T.muted}}>Dist (m):</span>
+                <input type="number" min="0" value={ahDist} onChange={function(e){setAhDist(e.target.value);}} placeholder="e.g. 1600" style={{width:65,background:T.timerBg,border:"1px solid "+T.border,color:T.text,padding:"3px 5px",borderRadius:3,fontSize:11,textAlign:"center",fontFamily:"inherit"}}/>
+              </div>
+            </div>
+            <div style={{display:"flex",gap:6,marginBottom:8}}>
+              {[{k:"boys",l:"Boys",c:"#4a9eff"},{k:"girls",l:"Girls",c:"#ff7eb3"}].map(function(t){return <button key={t.k} onClick={function(){setAhTeam(t.k);setAhRunners([]);}} style={{padding:"4px 12px",borderRadius:3,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",background:ahTeam===t.k?t.c+"22":"transparent",color:ahTeam===t.k?t.c:T.muted,border:"1px solid "+(ahTeam===t.k?t.c:T.dim)}}>{t.l}</button>;})}
+            </div>
+            <div style={{marginBottom:8}}>
+              <div style={{fontSize:10,color:T.muted,marginBottom:4}}>Select runners{ahRelay?" (max "+ahLegs+" for relay)":""}:</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                {allAthletes.filter(function(a){return a.team===ahTeam;}).map(function(a){
+                  var isIn=ahRunners.includes(String(a.id));
+                  var atCap=ahRelay&&ahRunners.length>=ahLegs&&!isIn;
+                  return <button key={a.id} disabled={atCap} onClick={function(){
+                    if(isIn)setAhRunners(ahRunners.filter(function(x){return x!==String(a.id);}));
+                    else setAhRunners(ahRunners.concat([String(a.id)]));
+                  }} style={{padding:"3px 8px",borderRadius:3,fontSize:11,fontWeight:isIn?700:500,cursor:atCap?"not-allowed":"pointer",fontFamily:"inherit",background:isIn?(ahTeam==="boys"?"#4a9eff":"#ff7eb3")+"18":"transparent",border:"1px solid "+(isIn?(ahTeam==="boys"?"#4a9eff":"#ff7eb3")+"44":T.dim),color:atCap?T.dim:isIn?T.text:T.muted,opacity:atCap?0.4:1}}>{isIn?"\u2713 ":""}{a.name}</button>;
+                })}
+              </div>
+            </div>
+            <button disabled={!ahName.trim()||ahRunners.length===0} onClick={function(){
+              var distM=parseInt(ahDist)||0;
+              var legs=ahRelay?Math.max(1,ahLegs):0;
+              var splitDist=ahRelay&&legs>0&&distM>0?Math.round(distM/legs)+"m":label;
+              var raceObj={id:"ah_"+ahName.trim()+"_"+ahTeam+"_"+Date.now(),event:ahName.trim(),team:ahTeam,label:ahName.trim()+" "+(ahTeam==="boys"?"Boys":"Girls"),runnerIds:ahRunners.slice(),splits:{},elapsed:0,status:"ready",finished:{},meetName:importedMeetId||"Meet",meetDate:sessionDate,type:"meet",splitLabel:splitDist};
+              if(ahRelay){raceObj.relay=true;raceObj.legs=legs;}
+              if(distM)raceObj.distanceM=distM;
+              setRaces(function(prev){return prev.concat([raceObj]);});
+              setAhName("");setAhRelay(false);setAhLegs(4);setAhDist("");setAhRunners([]);
+            }} style={{padding:"8px 16px",borderRadius:4,background:ahName.trim()&&ahRunners.length>0?"#a855f7":"rgba(255,255,255,0.06)",border:"none",color:ahName.trim()&&ahRunners.length>0?"#fff":T.muted,fontSize:12,fontWeight:900,cursor:ahName.trim()&&ahRunners.length>0?"pointer":"not-allowed",fontFamily:"inherit",letterSpacing:1,textTransform:"uppercase"}}>Add Race Card</button>
+          </div>:null}
+        </div>
       </div>):null}
 
       {/* ── WORKOUT MODE ── */}
@@ -698,7 +767,7 @@ export default function SplitTimer(props){
           {isExp?<div style={{padding:"4px 10px 8px",borderTop:"1px solid "+T.border}}>
             {rRunners.map(function(ath,ai){return(<div key={ath.id} draggable onDragStart={function(e){e.dataTransfer.setData("text/plain",String(ai));e.dataTransfer.effectAllowed="move";}} onDragOver={function(e){e.preventDefault();e.dataTransfer.dropEffect="move";}} onDrop={function(e){e.preventDefault();var from=parseInt(e.dataTransfer.getData("text/plain"));if(!isNaN(from))previewMoveRunner(from,ai);}} style={{display:"flex",alignItems:"center",gap:6,padding:"3px 4px",marginBottom:2,borderRadius:3,background:T.timerBg,border:"1px solid "+T.border,cursor:"grab"}}>
               <span style={{fontSize:10,color:T.muted}}>{"\u2630"}</span>
-              {r.event==="4x800"?<span style={{fontSize:9,fontWeight:700,color:evClr,padding:"0 4px",borderRadius:2,background:evClr+"18"}}>Leg {ai+1}</span>:null}
+              {isRelayRace(r)?<span style={{fontSize:9,fontWeight:700,color:evClr,padding:"0 4px",borderRadius:2,background:evClr+"18"}}>Leg {ai+1}</span>:null}
               <span style={{fontSize:12,fontWeight:700,color:T.text,flex:1}}>{ath.name}</span>
               <span style={{fontSize:9,color:TEAM_COLORS[ath.team]||T.muted}}>{ath.team}</span>
               <button onClick={function(e){e.stopPropagation();previewRemoveRunner(ath.id);}} style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:12,padding:"0 2px",fontFamily:"inherit"}}>{"\u00D7"}</button>
@@ -757,7 +826,7 @@ export default function SplitTimer(props){
             </div>
             {sess.races.slice().sort(function(a,b){return(a.sortKey||0)-(b.sortKey||0);}).map(function(race){
               var evClr=EVENT_COLORS[race.event]||T.accent;
-              var isRelay=race.event==="4x800";
+              var isRelay=race.event==="4x800"||!!race.relay;
               /* Relay: preserve leg order. Standard: sort by finalTime. */
               var runners=isRelay?(race.runners||[]).slice():(race.runners||[]).slice().sort(function(a,b){return(a.finalTime||999999)-(b.finalTime||999999);});
               var maxSplits=runners.reduce(function(m,r){return Math.max(m,(r.splits||[]).length);},0);
