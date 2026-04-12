@@ -348,9 +348,15 @@ export default function App(){
   var _rrEditVal=useState("");var rrEditVal=_rrEditVal[0];var setRrEditVal=_rrEditVal[1];
   var _rrShowPace=useState(true);var rrShowPace=_rrShowPace[0];var setRrShowPace=_rrShowPace[1];
   var _raffleUsed=useState({});var raffleUsed=_raffleUsed[0];var setRaffleUsed=_raffleUsed[1];
+  var _raffleMonthlyUsed=useState({});var raffleMonthlyUsed=_raffleMonthlyUsed[0];var setRaffleMonthlyUsed=_raffleMonthlyUsed[1];
   var _raffleWinner=useState(null);var raffleWinner=_raffleWinner[0];var setRaffleWinner=_raffleWinner[1];
   var _raffleSpinning=useState(false);var raffleSpinning=_raffleSpinning[0];var setRaffleSpinning=_raffleSpinning[1];
   var _raffleHistory=useState([]);var raffleHistory=_raffleHistory[0];var setRaffleHistory=_raffleHistory[1];
+  var _raffleMode=useState("monthly");var raffleMode=_raffleMode[0];var setRaffleMode=_raffleMode[1];
+  var curMonthStr=(function(){var n=new Date();return n.getFullYear()+"-"+(n.getMonth()<9?"0":"")+(n.getMonth()+1);})();
+  var _raffleMonth=useState(curMonthStr);var raffleMonth=_raffleMonth[0];var setRaffleMonth=_raffleMonth[1];
+  var _raffleQueue=useState([]);var raffleQueue=_raffleQueue[0];var setRaffleQueue=_raffleQueue[1];
+  var _rewardsClaims=useState({});var rewardsClaims=_rewardsClaims[0];var setRewardsClaims=_rewardsClaims[1];
   var _dtl=useState(null);var detail=_dtl[0];var setDetail=_dtl[1]; /* athlete workout detail */
   var _myA=useState("");var myAth=_myA[0];var setMyAth=_myA[1]; /* My Paces athlete id */
   var _aph=useState({});var athPhotos=_aph[0];var setAthPhotos=_aph[1];
@@ -598,7 +604,8 @@ export default function App(){
       if(r[10])setGuideSections(r[10]);
       loadAthleteData("raceresults-v1").then(function(raw){if(raw){try{setRaceResults(JSON.parse(raw));}catch(e){}}});
       loadAthleteData("qa-v1").then(function(raw){if(raw){try{setQaData(JSON.parse(raw));}catch(e){}}});
-      loadAthleteData("raffle-v1").then(function(raw){if(raw){try{var rd=JSON.parse(raw);setRaffleUsed(rd.used||{});setRaffleHistory(rd.history||[]);}catch(e){}}});
+      loadAthleteData("raffle-v1").then(function(raw){if(raw){try{var rd=JSON.parse(raw);setRaffleUsed(rd.used||{});setRaffleMonthlyUsed(rd.monthlyUsed||{});setRaffleHistory(rd.history||[]);}catch(e){}}});
+      loadAthleteData("rewards-claims-v1").then(function(raw){if(raw){try{setRewardsClaims(JSON.parse(raw));}catch(e){}}});
       setLoaded(true);
     });
   },[]);
@@ -849,7 +856,8 @@ export default function App(){
       if(el)el.scrollIntoView({behavior:"smooth",block:"start"});
     },100);
   }
-  function saveRaffle(used,history){setRaffleUsed(used);setRaffleHistory(history);atomicUpdateAthleteData("raffle-v1",function(){return{used:used,history:history};});}
+  function saveRaffle(used,monthly,history){setRaffleUsed(used);setRaffleMonthlyUsed(monthly);setRaffleHistory(history);atomicUpdateAthleteData("raffle-v1",function(){return{used:used,monthlyUsed:monthly,history:history};});}
+  function saveRewardsClaims(claims){setRewardsClaims(claims);saveAthleteData("rewards-claims-v1",JSON.stringify(claims));}
   function upQA(q){setQaData(q);saveAthleteData("qa-v1",JSON.stringify(q));}
   function submitQuestion(){if(!qaInput.trim()||!myAth)return;var q=qaData.slice();q.push({id:"q"+Date.now(),athId:myAth,question:qaInput.trim(),ts:Date.now(),answer:"",answerTs:0});upQA(q);setQaInput("");}
   function answerQuestion(qid,answer){upQA(qaData.map(function(q){return q.id===qid?Object.assign({},q,{answer:answer,answerTs:Date.now()}):q;}));}
@@ -937,8 +945,9 @@ export default function App(){
       if(days>=6)badges++;
     }return badges;
   }
-  function getConsistency(athId,period){
-    /* period: "week"=current Mon-Sat, "lastweek"=previous Mon-Sat, "overall"=since APP_START */
+  function getConsistency(athId,period,monthStr){
+    /* period: "week"=current Mon-Sat, "lastweek"=previous Mon-Sat, "month"=specific month, "overall"=since APP_START
+       monthStr: "YYYY-MM" for month period (defaults to current month) */
     var now=new Date();var todayStr=fd(new Date());
     var start,end;
     if(period==="week"){
@@ -949,6 +958,12 @@ export default function App(){
       var dow=now.getDay();var monOff=dow===0?-6:1-dow;
       start=new Date(now);start.setDate(now.getDate()+monOff-7);start.setHours(0,0,0,0);
       end=new Date(start);end.setDate(start.getDate()+5);end.setHours(23,59,59,999);/* Sat */
+    }else if(period==="month"){
+      var ms=monthStr||(now.getFullYear()+"-"+(now.getMonth()<9?"0":"")+(now.getMonth()+1));
+      var mParts=ms.split("-");var mY=parseInt(mParts[0]);var mM=parseInt(mParts[1])-1;
+      start=new Date(mY,mM,1);start.setHours(0,0,0,0);
+      end=new Date(mY,mM+1,0);end.setHours(23,59,59,999);
+      if(end>now)end=new Date(now);end.setHours(23,59,59,999);
     }else{
       var sp2=APP_START.split("-");start=new Date(parseInt(sp2[0]),parseInt(sp2[1])-1,parseInt(sp2[2]));
       start.setHours(0,0,0,0);
@@ -958,7 +973,7 @@ export default function App(){
     var sp=APP_START.split("-");var appStart=new Date(parseInt(sp[0]),parseInt(sp[1])-1,parseInt(sp[2]));
     appStart.setHours(0,0,0,0);
     if(start<appStart)start=appStart;
-    var totalDays=0;var logDays=0;var checkinDays=0;var logEntries=0;var checkinEntries=0;
+    var totalDays=0;var logDays=0;var checkinDays=0;var logEntries=0;var checkinEntries=0;var bonusDays=0;
     var d=new Date(start);
     while(d<=end){
       var dow=d.getDay();
@@ -972,6 +987,7 @@ export default function App(){
         if(!isToday||(isToday&&(hasLog||hasCheckin))){totalDays++;}
         if(hasLog)logDays++;
         if(hasCheckin)checkinDays++;
+        if(hasLog&&hasCheckin)bonusDays++;
         logEntries+=dayLogs.length;
         checkinEntries+=dayCheckins.length;
       }
@@ -981,7 +997,7 @@ export default function App(){
       logPct:totalDays>0?Math.round(logDays/totalDays*100):0,
       checkinPct:totalDays>0?Math.round(checkinDays/totalDays*100):0,
       totalDays:totalDays,logDays:logDays,checkinDays:checkinDays,
-      logEntries:logEntries,checkinEntries:checkinEntries
+      logEntries:logEntries,checkinEntries:checkinEntries,bonusDays:bonusDays
     };
   }
   var BODY_AREAS=["Left Shin","Right Shin","Left Knee","Right Knee","Left Achilles","Right Achilles","Left Calf","Right Calf","Left Hamstring","Right Hamstring","Left Hip","Right Hip","Lower Back","Left Foot","Right Foot","Other"];
@@ -2515,7 +2531,7 @@ export default function App(){
           <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:8}}>
             <div style={{flex:"1 1 200px",padding:"12px 14px",borderRadius:10,background:C.gold+"12",border:"1px solid "+C.gold+"33"}}>
               <div style={{fontSize:12,fontWeight:700,color:C.gold,marginBottom:4}}>Every Run = Raffle Ticket</div>
-              <div style={{fontSize:12,color:_ts,lineHeight:1.5}}>Each workout you log earns a raffle ticket. Monthly drawings for smaller prizes. End-of-season drawing for a bigger prize. More logs = more chances.</div>
+              <div style={{fontSize:12,color:_ts,lineHeight:1.5}}>Each workout you log earns a raffle ticket. <span style={{fontWeight:700,color:"#27AE60"}}>Bonus:</span> log a workout AND check in on the same day for an extra ticket. Monthly drawings for smaller prizes. End-of-season drawing for a bigger prize.</div>
             </div>
             <div style={{flex:"1 1 200px",padding:"12px 14px",borderRadius:10,background:C.greenLight+"12",border:"1px solid "+C.greenLight+"33"}}>
               <div style={{fontSize:12,fontWeight:700,color:C.greenLight,marginBottom:4}}>Full Week = Snack + Sticker</div>
@@ -2523,6 +2539,60 @@ export default function App(){
             </div>
           </div>
         </div>
+
+        {/* ── Monthly Bake-Off Leader ── */}
+        {(function(){
+          var moLabel=["January","February","March","April","May","June","July","August","September","October","November","December"][new Date().getMonth()];
+          var eligible=roster.filter(function(a){return a.name!=="Mr. Acosta"&&a.name!=="Coach Acosta"&&!a.guest;});
+          var ranked=eligible.map(function(a){var mc=getConsistency(a.id,"month",curMonthStr);return{id:a.id,name:a.name,team:a.team,photo:a.photo,logPct:mc.logPct,checkinPct:mc.checkinPct};}).filter(function(a){return a.logPct>=80;}).sort(function(a,b){return b.logPct-a.logPct||b.checkinPct-a.checkinPct;});
+          var leader=ranked.length>0?ranked[0]:null;
+          return(<div style={{marginBottom:16,borderRadius:12,background:"linear-gradient(135deg,#D4A01712,#D4A01704)",border:"1px solid "+C.gold+"44",padding:"14px 16px"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+              <span style={{fontSize:16}}>{"\uD83E\uDDC1"}</span>
+              <div style={{fontSize:15,fontWeight:800,color:C.gold}}>{moLabel} Bake-Off</div>
+            </div>
+            {ranked.length>0?<div>
+              <div style={{fontSize:12,color:_tp,marginBottom:8}}>{ranked.length} runner{ranked.length!==1?"s":""} at 80%+ this month — they all earn baked goods!</div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:6}}>
+                {ranked.map(function(a,i){var tClr=a.team==="boys"?C.greenLight:C.gold;return(<div key={a.id} style={{display:"flex",alignItems:"center",gap:4,padding:"4px 10px",borderRadius:6,background:i===0?tClr+"18":"rgba(255,255,255,0.04)",border:"1px solid "+(i===0?tClr+"44":C.bd)}}>
+                  {a.photo?<img src={a.photo} style={{width:20,height:20,borderRadius:4,objectFit:"cover"}}/>:null}
+                  <span style={{fontSize:11,fontWeight:i===0?700:500,color:i===0?tClr:_tp}}>{a.name}</span>
+                  <span style={{fontSize:10,fontWeight:700,color:"#27AE60",fontFamily:"monospace"}}>{a.logPct}%</span>
+                </div>);})}
+              </div>
+              {leader?<div style={{fontSize:12,color:C.gold,fontWeight:600}}>Top logger: <span style={{fontWeight:800}}>{leader.name}</span> gets to pick what Mrs. Acosta bakes!</div>:null}
+            </div>:<div style={{fontSize:12,color:_tm}}>No runners at 80%+ yet this month. Keep logging!</div>}
+          </div>);
+        })()}
+
+        {/* ── Full Week Celebration ── */}
+        {(function(){
+          var now=new Date();var dow=now.getDay();var monOff=dow===0?-6:1-dow;
+          var lastMon=new Date(now);lastMon.setDate(now.getDate()+monOff-7);
+          var weekKey=fd(lastMon);
+          var eligible=roster.filter(function(a){return a.name!=="Mr. Acosta"&&a.name!=="Coach Acosta"&&!a.guest;});
+          var perfect=eligible.filter(function(a){
+            var c=getConsistency(a.id,"lastweek");return c.logDays>=6;
+          });
+          if(perfect.length===0)return null;
+          var claimedObj=rewardsClaims[weekKey]||{};
+          return(<div style={{marginBottom:16,borderRadius:12,background:"linear-gradient(135deg,#27AE6012,#27AE6004)",border:"1px solid #27AE6044",padding:"14px 16px"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+              <span style={{fontSize:16}}>{"\u2B50"}</span>
+              <div style={{fontSize:15,fontWeight:800,color:"#27AE60"}}>Perfect Week — Snack + Sticker Earned!</div>
+            </div>
+            <div style={{fontSize:12,color:_tp,marginBottom:8}}>These runners logged all 6 days last week (Mon–Sat). They earn a Runner Snack Store treat + sticker!</div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {perfect.map(function(a){var tClr=a.team==="boys"?C.greenLight:C.gold;var claimed=!!claimedObj[a.id];
+                return(<div key={a.id} style={{display:"flex",alignItems:"center",gap:6,padding:"6px 10px",borderRadius:6,background:claimed?"#27AE6012":"rgba(255,255,255,0.04)",border:"1px solid "+(claimed?"#27AE6044":C.bd)}}>
+                  <span style={{fontSize:12,fontWeight:600,color:claimed?_tm:tClr,textDecoration:claimed?"line-through":"none"}}>{a.name}</span>
+                  {cm?<button onClick={function(){var nc=Object.assign({},rewardsClaims);var wc=Object.assign({},nc[weekKey]||{});wc[a.id]=!claimed;nc[weekKey]=wc;saveRewardsClaims(nc);}} style={{padding:"2px 8px",borderRadius:3,fontSize:9,fontWeight:700,border:"1px solid "+(claimed?"#E74C3C44":"#27AE6044"),background:claimed?"#E74C3C12":"#27AE6012",color:claimed?"#E74C3C":"#27AE60",cursor:"pointer"}}>{claimed?"Unclaim":"Claimed"}</button>:
+                    <span style={{fontSize:9,color:claimed?"#27AE60":C.gold,fontWeight:700}}>{claimed?"\u2713 Claimed":"Unclaimed"}</span>}
+                </div>);
+              })}
+            </div>
+          </div>);
+        })()}
 
         {/* Consistency Leaderboard - multi-column */}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6,flexWrap:"wrap",gap:8}}>
@@ -2538,12 +2608,17 @@ export default function App(){
           <div style={{display:"flex",alignItems:"center",gap:4,marginLeft:8}}><span style={{fontSize:10,color:_tm}}>Numbers by name =</span><span style={{fontSize:9,color:"#E74C3C",fontWeight:700}}>total logs</span><span style={{fontSize:9,color:"#3498DB",fontWeight:700}}>total check-ins</span><span style={{fontSize:10,color:_tm}}>(all-time)</span></div>
         </div>
         {(function(){
+          var moNow=curMonthStr;
           var all=roster.filter(function(a){return a.name!=="Mr. Acosta"&&a.name!=="Coach Acosta"&&!a.guest;}).map(function(a){
             var c=getConsistency(a.id,rwPeriod);
             var overall=rwPeriod==="overall"?c:getConsistency(a.id,"overall");
+            var mc=getConsistency(a.id,"month",moNow);
             return{id:a.id,name:a.name,team:a.team,photo:a.photo,
               logPct:c.logPct,checkinPct:c.checkinPct,
               totalLogs:overall.logEntries,totalCheckins:overall.checkinEntries,
+              totalTickets:overall.logEntries+overall.bonusDays,
+              monthTickets:mc.logEntries+mc.bonusDays,
+              bonus:overall.bonusDays,
               sLog:getStreak(a.id,"log"),sCheckin:getStreak(a.id,"checkin"),
               badges:getWeekBadges(a.id)};
           }).sort(function(x,y){return y.logPct-x.logPct||y.checkinPct-x.checkinPct||y.sLog-x.sLog;});
@@ -2579,16 +2654,21 @@ export default function App(){
                           <div style={{height:6,borderRadius:3,background:lt?"#eee":"rgba(255,255,255,0.06)",overflow:"hidden"}}>
                             <div style={{height:"100%",borderRadius:3,width:Math.max(col.pct,2)+"%",background:col.clr,transition:"width 0.3s"}}/>
                           </div>
-                          {col.streak>=2?<div style={{fontSize:9,color:col.clr,fontWeight:700,marginTop:2}}>{"\uD83D\uDD25"}{col.streak}d</div>:null}
+                          {col.streak>=2?<div style={{fontSize:9,color:col.clr,fontWeight:700,marginTop:2,display:"flex",alignItems:"center",gap:3}}>{"\uD83D\uDD25"}{col.streak}d{col.streak>=20?<span style={{fontSize:8,padding:"0 3px",borderRadius:2,background:"#9B59B622",color:"#9B59B6",fontWeight:800}}>LEGEND</span>:col.streak>=15?<span style={{fontSize:8,padding:"0 3px",borderRadius:2,background:"#E74C3C22",color:"#E74C3C",fontWeight:800}}>ELITE</span>:col.streak>=10?<span style={{fontSize:8,padding:"0 3px",borderRadius:2,background:C.gold+"22",color:C.gold,fontWeight:800}}>FIRE</span>:col.streak>=5?<span style={{fontSize:8,padding:"0 3px",borderRadius:2,background:"#27AE6022",color:"#27AE60",fontWeight:800}}>SOLID</span>:null}</div>:null}
                         </div>);
                       })}
                     </div>
                     {/* Season totals */}
-                    <div style={{display:"flex",gap:8,marginTop:6,paddingTop:5,borderTop:"1px solid "+C.bd}}>
+                    <div style={{display:"flex",gap:8,marginTop:6,paddingTop:5,borderTop:"1px solid "+C.bd,flexWrap:"wrap"}}>
                       <div style={{display:"flex",alignItems:"center",gap:3}}>
                         <span style={{fontSize:9,color:C.gold}}>{"\uD83C\uDFAB"}</span>
-                        <span style={{fontSize:10,fontWeight:700,color:"#E74C3C",fontFamily:"monospace"}}>{a.totalLogs}</span>
-                        <span style={{fontSize:9,color:_tm}}>raffle tickets</span>
+                        <span style={{fontSize:10,fontWeight:700,color:"#E74C3C",fontFamily:"monospace"}}>{a.totalTickets}</span>
+                        <span style={{fontSize:9,color:_tm}}>season tickets</span>
+                        {a.bonus>0?<span style={{fontSize:8,color:"#27AE60",fontWeight:700}}>(+{a.bonus} bonus)</span>:null}
+                      </div>
+                      <div style={{display:"flex",alignItems:"center",gap:3}}>
+                        <span style={{fontSize:10,fontWeight:700,color:C.gold,fontFamily:"monospace"}}>{a.monthTickets}</span>
+                        <span style={{fontSize:9,color:_tm}}>this month</span>
                       </div>
                       <div style={{display:"flex",alignItems:"center",gap:3}}>
                         <span style={{fontSize:10,fontWeight:700,color:"#3498DB",fontFamily:"monospace"}}>{a.totalCheckins}</span>
@@ -2605,42 +2685,50 @@ export default function App(){
         {/* ── Raffle Ticket Log ── */}
         <div style={{marginTop:20}}>
           <div style={{fontSize:18,fontWeight:800,color:C.gold,marginBottom:8}}>{"\uD83C\uDFAB"} Raffle Ticket Log</div>
-          <div style={{fontSize:12,color:_tm,marginBottom:12}}>Each workout log = 1 raffle ticket. Check-ins used as tiebreaker for monthly baked goods reward.</div>
+          <div style={{fontSize:12,color:_tm,marginBottom:12}}>Each workout log = 1 ticket. Log + check-in on the same day = bonus ticket. Tickets shown for current month and season total.</div>
           {(function(){
+            var mo=curMonthStr;
+            var moLabel=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][parseInt(mo.split("-")[1])-1];
             var all=roster.filter(function(a){return a.name!=="Mr. Acosta"&&a.name!=="Coach Acosta"&&!a.guest;}).map(function(a){
               var ov=getConsistency(a.id,"overall");
-              return{id:a.id,name:a.name,team:a.team,logs:ov.logEntries,checkins:ov.checkinEntries};
-            }).sort(function(x,y){return y.logs-x.logs||y.checkins-x.checkins;});
-            var teamTotals={boys:{logs:0,checkins:0,count:0},girls:{logs:0,checkins:0,count:0}};
-            all.forEach(function(a){var t=teamTotals[a.team]||teamTotals.boys;t.logs+=a.logs;t.checkins+=a.checkins;t.count++;});
+              var mc=getConsistency(a.id,"month",mo);
+              return{id:a.id,name:a.name,team:a.team,logs:ov.logEntries,bonus:ov.bonusDays,total:ov.logEntries+ov.bonusDays,checkins:ov.checkinEntries,monthLogs:mc.logEntries,monthBonus:mc.bonusDays,monthTotal:mc.logEntries+mc.bonusDays};
+            }).sort(function(x,y){return y.total-x.total||y.checkins-x.checkins;});
+            var teamTotals={boys:{logs:0,bonus:0,total:0,checkins:0,monthTotal:0},girls:{logs:0,bonus:0,total:0,checkins:0,monthTotal:0}};
+            all.forEach(function(a){var t=teamTotals[a.team]||teamTotals.boys;t.logs+=a.logs;t.bonus+=a.bonus;t.total+=a.total;t.checkins+=a.checkins;t.monthTotal+=a.monthTotal;});
             return(<div>
               <div style={{display:"flex",gap:10,marginBottom:14,flexWrap:"wrap"}}>
-                {[{label:"Boys",t:teamTotals.boys,clr:C.greenLight},{label:"Girls",t:teamTotals.girls,clr:C.gold}].map(function(grp){return(<div key={grp.label} style={{flex:1,minWidth:180,padding:"12px 14px",borderRadius:10,background:grp.clr+"10",border:"1px solid "+grp.clr+"33"}}>
+                {[{label:"Boys",t:teamTotals.boys,clr:C.greenLight},{label:"Girls",t:teamTotals.girls,clr:C.gold}].map(function(grp){return(<div key={grp.label} style={{flex:1,minWidth:200,padding:"12px 14px",borderRadius:10,background:grp.clr+"10",border:"1px solid "+grp.clr+"33"}}>
                   <div style={{fontSize:12,fontWeight:700,color:grp.clr,marginBottom:6}}>{grp.label} Team Totals</div>
-                  <div style={{display:"flex",gap:12}}>
-                    <div><div style={{fontSize:22,fontWeight:900,color:"#E74C3C",fontFamily:"monospace"}}>{grp.t.logs}</div><div style={{fontSize:9,color:_tm}}>raffle tickets</div></div>
+                  <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+                    <div><div style={{fontSize:22,fontWeight:900,color:"#E74C3C",fontFamily:"monospace"}}>{grp.t.total}</div><div style={{fontSize:9,color:_tm}}>season tickets <span style={{color:C.gold}}>({grp.t.bonus} bonus)</span></div></div>
+                    <div><div style={{fontSize:22,fontWeight:900,color:C.gold,fontFamily:"monospace"}}>{grp.t.monthTotal}</div><div style={{fontSize:9,color:_tm}}>{moLabel} tickets</div></div>
                     <div><div style={{fontSize:22,fontWeight:900,color:"#3498DB",fontFamily:"monospace"}}>{grp.t.checkins}</div><div style={{fontSize:9,color:_tm}}>check-ins</div></div>
                   </div>
                 </div>);})}
               </div>
               <div style={{borderRadius:10,border:"1px solid "+C.bd,overflow:"hidden"}}>
                 <div style={{display:"flex",padding:"8px 12px",background:lt?"#f5f6f2":"rgba(255,255,255,0.04)",borderBottom:"1px solid "+C.bd}}>
-                  <span style={{width:30,fontSize:9,fontWeight:700,color:_tm}}>#</span>
+                  <span style={{width:26,fontSize:9,fontWeight:700,color:_tm}}>#</span>
                   <span style={{flex:1,fontSize:9,fontWeight:700,color:_tm}}>Runner</span>
-                  <span style={{width:80,fontSize:9,fontWeight:700,color:"#E74C3C",textAlign:"center"}}>Workout Logs</span>
-                  <span style={{width:80,fontSize:9,fontWeight:700,color:"#3498DB",textAlign:"center"}}>Check-ins</span>
+                  <span style={{width:55,fontSize:9,fontWeight:700,color:C.gold,textAlign:"center"}}>{moLabel}</span>
+                  <span style={{width:55,fontSize:9,fontWeight:700,color:"#E74C3C",textAlign:"center"}}>Season</span>
+                  <span style={{width:40,fontSize:9,fontWeight:700,color:"#27AE60",textAlign:"center"}}>Bonus</span>
+                  <span style={{width:55,fontSize:9,fontWeight:700,color:"#3498DB",textAlign:"center"}}>Check-ins</span>
                 </div>
                 {all.map(function(a,i){
                   var isFirst=i===0;
                   var tClr=a.team==="boys"?C.greenLight:C.gold;
                   return(<div key={a.id} style={{display:"flex",alignItems:"center",padding:"6px 12px",borderBottom:"1px solid "+C.bd,background:isFirst?tClr+"08":"transparent"}}>
-                    <span style={{width:30,fontSize:11,fontWeight:700,color:isFirst?tClr:_tm}}>{i+1}</span>
+                    <span style={{width:26,fontSize:11,fontWeight:700,color:isFirst?tClr:_tm}}>{i+1}</span>
                     <div style={{flex:1,display:"flex",alignItems:"center",gap:6}}>
                       <span style={{fontSize:12,fontWeight:isFirst?700:500,color:isFirst?tClr:_tp}}>{a.name}</span>
                       <span style={{fontSize:9,color:tClr,fontWeight:600}}>{a.team==="boys"?"B":"G"}</span>
                     </div>
-                    <span style={{width:80,textAlign:"center",fontSize:13,fontWeight:800,color:"#E74C3C",fontFamily:"monospace"}}>{a.logs}</span>
-                    <span style={{width:80,textAlign:"center",fontSize:13,fontWeight:800,color:"#3498DB",fontFamily:"monospace"}}>{a.checkins}</span>
+                    <span style={{width:55,textAlign:"center",fontSize:13,fontWeight:800,color:C.gold,fontFamily:"monospace"}}>{a.monthTotal}</span>
+                    <span style={{width:55,textAlign:"center",fontSize:13,fontWeight:800,color:"#E74C3C",fontFamily:"monospace"}}>{a.total}</span>
+                    <span style={{width:40,textAlign:"center",fontSize:11,fontWeight:700,color:"#27AE60",fontFamily:"monospace"}}>{a.bonus>0?"+"+a.bonus:""}</span>
+                    <span style={{width:55,textAlign:"center",fontSize:13,fontWeight:800,color:"#3498DB",fontFamily:"monospace"}}>{a.checkins}</span>
                   </div>);
                 })}
               </div>
@@ -2650,39 +2738,102 @@ export default function App(){
 
         {/* -- Prize Drawing -- */}
         {cm?<div style={{marginTop:20}}>
-          <div style={{fontSize:18,fontWeight:800,color:"#E74C3C",marginBottom:8}}>Prize Drawing</div>
-          <div style={{fontSize:12,color:_tm,marginBottom:12}}>Weighted random draw. More workout logs = more chances. Each draw removes one entry.</div>
+          <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:8,flexWrap:"wrap"}}>
+            <div style={{fontSize:18,fontWeight:800,color:"#E74C3C"}}>Prize Drawing</div>
+            <div style={{display:"flex",borderRadius:6,overflow:"hidden",border:"1px solid "+C.bd}}>
+              {[{k:"monthly",l:"Monthly"},{k:"season",l:"Season"}].map(function(m){return <button key={m.k} onClick={function(){setRaffleMode(m.k);setRaffleWinner(null);setRaffleQueue([]);}} style={{padding:"5px 14px",fontSize:11,fontWeight:600,border:"none",cursor:"pointer",background:raffleMode===m.k?"#E74C3C22":"transparent",color:raffleMode===m.k?"#E74C3C":_tm}}>{m.l}</button>;})}
+            </div>
+            {raffleMode==="monthly"?(function(){
+              var months=[];var sp=APP_START.split("-");var sY=parseInt(sp[0]);var sM=parseInt(sp[1]);
+              var nw=new Date();var eY=nw.getFullYear();var eM=nw.getMonth()+1;
+              for(var y=sY;y<=eY;y++){var m1=y===sY?sM:1;var m2=y===eY?eM:12;for(var mm=m1;mm<=m2;mm++){var mk=y+"-"+(mm<10?"0":"")+mm;var ml=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][mm-1]+" "+y;months.push({k:mk,l:ml});}}
+              return <select value={raffleMonth} onChange={function(e){setRaffleMonth(e.target.value);setRaffleWinner(null);setRaffleQueue([]);}} style={{padding:"4px 8px",fontSize:11,borderRadius:4,border:"1px solid "+C.bd,background:lt?"#fff":"#1a1a1a",color:_tp}}>{months.map(function(m){return <option key={m.k} value={m.k}>{m.l}</option>;})}</select>;
+            })():null}
+          </div>
+          <div style={{fontSize:12,color:_tm,marginBottom:12}}>{raffleMode==="monthly"?"Monthly drawing — only tickets earned in the selected month. Wins reduce both monthly and season pools.":"Season drawing — all tickets since "+APP_START+". Each draw removes one entry."}</div>
           {(function(){
+            var eligible=roster.filter(function(a){return a.name!=="Mr. Acosta"&&a.name!=="Coach Acosta"&&!a.guest;});
             var pool=[];
-            roster.filter(function(a){return a.name!=="Mr. Acosta"&&a.name!=="Coach Acosta"&&!a.guest;}).forEach(function(a){
-              var ov=getConsistency(a.id,"overall");var totalEntries=ov.logEntries;var used=(raffleUsed[a.id]||0);var remaining=Math.max(0,totalEntries-used);
+            var rosterEntries=eligible.map(function(a){
+              var ov=getConsistency(a.id,"overall");
+              var mo=getConsistency(a.id,"month",raffleMonth);
+              var seasonTotal=ov.logEntries+ov.bonusDays;
+              var monthTotal=mo.logEntries+mo.bonusDays;
+              var seasonUsed=raffleUsed[a.id]||0;
+              var muObj=raffleMonthlyUsed[raffleMonth]||{};var monthUsed=muObj[a.id]||0;
+              var total,used,remaining;
+              if(raffleMode==="monthly"){total=monthTotal;used=monthUsed;remaining=Math.max(0,monthTotal-monthUsed);}
+              else{total=seasonTotal;used=seasonUsed;remaining=Math.max(0,seasonTotal-seasonUsed);}
               if(remaining>0){for(var i=0;i<remaining;i++)pool.push({id:a.id,name:a.name,team:a.team});}
-            });
-            var rosterEntries=roster.filter(function(a){return a.name!=="Mr. Acosta"&&a.name!=="Coach Acosta"&&!a.guest;}).map(function(a){
-              var ov=getConsistency(a.id,"overall");var used=(raffleUsed[a.id]||0);
-              return{id:a.id,name:a.name,team:a.team,total:ov.logEntries,used:used,remaining:Math.max(0,ov.logEntries-used)};
+              return{id:a.id,name:a.name,team:a.team,total:total,used:used,remaining:remaining,monthTickets:monthTotal,seasonTickets:seasonTotal,monthUsed:monthUsed,seasonUsed:seasonUsed};
             }).sort(function(a,b){return b.remaining-a.remaining;});
-            var doSpin=function(){if(pool.length===0)return;setRaffleSpinning(true);setRaffleWinner(null);var spins=0;var maxSpins=20;
-              var interval=setInterval(function(){var rand=pool[Math.floor(Math.random()*pool.length)];setRaffleWinner({name:rand.name,team:rand.team,id:rand.id,preview:true});spins++;
-                if(spins>=maxSpins){clearInterval(interval);var winner=pool[Math.floor(Math.random()*pool.length)];setRaffleWinner({name:winner.name,team:winner.team,id:winner.id,preview:false});setRaffleSpinning(false);}
-              },100);};
+            var doSpin=function(){if(pool.length===0)return;setRaffleSpinning(true);setRaffleWinner(null);
+              var names=[];var seen={};pool.forEach(function(p){if(!seen[p.id]){seen[p.id]=true;names.push(p);}});
+              var step=0;var totalSteps=30;var baseDelay=50;
+              var tick=function(){
+                step++;var rand=names[Math.floor(Math.random()*names.length)];
+                if(step<totalSteps){setRaffleWinner({name:rand.name,team:rand.team,id:rand.id,preview:true,step:step,total:totalSteps});
+                  var delay=baseDelay+Math.pow(step/totalSteps,2)*400;
+                  setTimeout(tick,delay);
+                }else{var winner=pool[Math.floor(Math.random()*pool.length)];setRaffleWinner({name:winner.name,team:winner.team,id:winner.id,preview:false});setRaffleSpinning(false);}
+              };tick();};
+            var confirmWinner=function(winner){
+              var nu=Object.assign({},raffleUsed);nu[winner.id]=(nu[winner.id]||0)+1;
+              var nm=Object.assign({},raffleMonthlyUsed);
+              var month=raffleMode==="monthly"?raffleMonth:curMonthStr;
+              if(raffleMode==="monthly"){var mo=Object.assign({},nm[month]||{});mo[winner.id]=(mo[winner.id]||0)+1;nm[month]=mo;}
+              var nh=raffleHistory.slice();nh.unshift({name:winner.name,team:winner.team,id:winner.id,ts:Date.now(),month:month,type:raffleMode});
+              saveRaffle(nu,nm,nh);
+            };
+            var drawCount=raffleQueue.length>0?0:1;
             return(<div>
-              <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
-                <button onClick={doSpin} disabled={pool.length===0||raffleSpinning} style={{padding:"14px 28px",borderRadius:10,background:pool.length>0&&!raffleSpinning?"linear-gradient(135deg,#E74C3C,#C0392B)":"rgba(255,255,255,0.06)",border:"none",color:pool.length>0?"#fff":_tm,fontWeight:900,fontSize:16,cursor:pool.length>0&&!raffleSpinning?"pointer":"not-allowed",fontFamily:"inherit",letterSpacing:2,textTransform:"uppercase"}}>{raffleSpinning?"Drawing...":"Draw Winner"}</button>
+              <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16,flexWrap:"wrap"}}>
+                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                  <span style={{fontSize:11,color:_tm}}>Draw</span>
+                  <select value={drawCount} onChange={function(e){var n=parseInt(e.target.value);if(n>1){var q=[];var tempPool=pool.slice();for(var i=0;i<n&&tempPool.length>0;i++){var w=tempPool[Math.floor(Math.random()*tempPool.length)];q.push({id:w.id,name:w.name,team:w.team});tempPool=tempPool.filter(function(p){return p!==w;});}setRaffleQueue(q);setRaffleWinner(null);}else{setRaffleQueue([]);}}} style={{padding:"4px 6px",fontSize:12,borderRadius:4,border:"1px solid "+C.bd,background:lt?"#fff":"#1a1a1a",color:_tp}}>
+                    {[1,2,3,5].map(function(n){return <option key={n} value={n}>{n}</option>;})}
+                  </select>
+                  <span style={{fontSize:11,color:_tm}}>winner{drawCount!==1?"s":""}</span>
+                </div>
+                {raffleQueue.length===0?<button onClick={doSpin} disabled={pool.length===0||raffleSpinning} style={{padding:"12px 24px",borderRadius:10,background:pool.length>0&&!raffleSpinning?"linear-gradient(135deg,#E74C3C,#C0392B)":"rgba(255,255,255,0.06)",border:"none",color:pool.length>0?"#fff":_tm,fontWeight:900,fontSize:14,cursor:pool.length>0&&!raffleSpinning?"pointer":"not-allowed",fontFamily:"inherit",letterSpacing:2,textTransform:"uppercase"}}>{raffleSpinning?"Drawing...":"Draw Winner"}</button>:null}
                 <div><div style={{fontSize:24,fontWeight:900,color:"#E74C3C",fontFamily:"monospace"}}>{pool.length}</div><div style={{fontSize:9,color:_tm}}>entries in pool</div></div>
               </div>
-              {raffleWinner?<div style={{padding:"20px",borderRadius:14,background:raffleWinner.preview?"rgba(255,255,255,0.04)":"linear-gradient(135deg,rgba(231,76,60,0.07),rgba(192,57,43,0.03))",border:"2px solid "+(raffleWinner.preview?C.bd:"#E74C3C44"),marginBottom:16,textAlign:"center"}}>
-                <div style={{fontSize:raffleWinner.preview?18:28,fontWeight:900,color:raffleWinner.preview?_tm:(raffleWinner.team==="boys"?C.greenLight:C.gold)}}>{raffleWinner.name}</div>
-                {!raffleWinner.preview?<div>
+              {/* Batch draw queue */}
+              {raffleQueue.length>0?<div style={{padding:"14px",borderRadius:10,background:"linear-gradient(135deg,rgba(231,76,60,0.06),rgba(192,57,43,0.02))",border:"1px solid #E74C3C33",marginBottom:16}}>
+                <div style={{fontSize:12,fontWeight:700,color:"#E74C3C",marginBottom:8}}>Batch Draw — {raffleQueue.length} winner{raffleQueue.length!==1?"s":""}</div>
+                {raffleQueue.map(function(w,wi){var tClr=w.team==="boys"?C.greenLight:C.gold;var isConfirmed=w.confirmed;
+                  return(<div key={wi} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",marginBottom:4,borderRadius:6,background:isConfirmed?"#27ae6012":"rgba(255,255,255,0.04)",border:"1px solid "+(isConfirmed?"#27ae6044":C.bd)}}>
+                    <span style={{width:22,fontSize:12,fontWeight:800,color:tClr}}>{wi+1}</span>
+                    <span style={{flex:1,fontSize:13,fontWeight:700,color:tClr}}>{w.name}</span>
+                    {isConfirmed?<span style={{fontSize:10,color:"#27ae60",fontWeight:700}}>Confirmed</span>:<div style={{display:"flex",gap:4}}>
+                      <button onClick={function(){confirmWinner(w);var nq=raffleQueue.slice();nq[wi]=Object.assign({},w,{confirmed:true});setRaffleQueue(nq);}} style={{padding:"4px 12px",borderRadius:4,background:"#27ae6022",border:"1px solid #27ae6044",color:"#27ae60",fontSize:10,fontWeight:700,cursor:"pointer"}}>Confirm</button>
+                      <button onClick={function(){var nq=raffleQueue.slice();nq.splice(wi,1);setRaffleQueue(nq);}} style={{padding:"4px 8px",borderRadius:4,background:"rgba(239,68,68,0.1)",border:"1px solid #ef444444",color:"#ef4444",fontSize:10,cursor:"pointer"}}>Skip</button>
+                    </div>}
+                  </div>);
+                })}
+                <button onClick={function(){setRaffleQueue([]);}} style={{marginTop:6,padding:"4px 12px",borderRadius:4,background:"rgba(255,255,255,0.06)",border:"1px solid "+C.bd,color:_tm,fontSize:10,cursor:"pointer"}}>Clear Queue</button>
+              </div>:null}
+              {/* Single draw result */}
+              {raffleWinner&&raffleQueue.length===0?<div style={{padding:"20px",borderRadius:14,background:raffleWinner.preview?"rgba(255,255,255,0.04)":"linear-gradient(135deg,rgba(231,76,60,0.07),rgba(192,57,43,0.03))",border:"2px solid "+(raffleWinner.preview?C.bd:"#E74C3C44"),marginBottom:16,textAlign:"center",overflow:"hidden",position:"relative"}}>
+                {raffleWinner.preview?<div style={{position:"relative",height:40,overflow:"hidden"}}>
+                  <div style={{position:"absolute",width:"100%",animation:"none",transform:"translateY("+(-10+Math.sin((raffleWinner.step||0)*0.5)*10)+"px)",transition:"transform 0.08s ease-out"}}>
+                    <div style={{fontSize:22,fontWeight:900,color:_tm,opacity:0.4+0.6*((raffleWinner.step||0)/(raffleWinner.total||30))}}>{raffleWinner.name}</div>
+                  </div>
+                </div>:<div>
+                  <div style={{fontSize:28,fontWeight:900,color:raffleWinner.team==="boys"?C.greenLight:C.gold}}>{raffleWinner.name}</div>
                   <div style={{fontSize:12,color:_tm,marginTop:6,marginBottom:12}}>Winner!</div>
                   <div style={{display:"flex",gap:8,justifyContent:"center"}}>
-                    <button onClick={function(){var nu=Object.assign({},raffleUsed);nu[raffleWinner.id]=(nu[raffleWinner.id]||0)+1;var nh=raffleHistory.slice();nh.unshift({name:raffleWinner.name,team:raffleWinner.team,id:raffleWinner.id,ts:Date.now()});saveRaffle(nu,nh);setRaffleWinner(null);}} style={{padding:"8px 20px",borderRadius:8,background:"linear-gradient(135deg,#27AE60,#2ECC71)",border:"none",color:"#fff",fontWeight:700,fontSize:13,cursor:"pointer"}}>Confirm Winner</button>
+                    <button onClick={function(){confirmWinner(raffleWinner);setRaffleWinner(null);}} style={{padding:"8px 20px",borderRadius:8,background:"linear-gradient(135deg,#27AE60,#2ECC71)",border:"none",color:"#fff",fontWeight:700,fontSize:13,cursor:"pointer"}}>Confirm Winner</button>
                     <button onClick={function(){setRaffleWinner(null);}} style={{padding:"8px 16px",borderRadius:8,background:"rgba(255,255,255,0.06)",border:"1px solid "+C.bd,color:_ts,fontSize:12,cursor:"pointer"}}>Redraw</button>
-                  </div></div>:null}
+                  </div>
+                </div>}
               </div>:null}
               <div style={{borderRadius:10,border:"1px solid "+C.bd,overflow:"hidden",marginBottom:12}}>
                 <div style={{display:"flex",padding:"6px 12px",background:lt?"#f5f6f2":"rgba(255,255,255,0.04)",borderBottom:"1px solid "+C.bd}}>
-                  <span style={{flex:1,fontSize:9,fontWeight:700,color:_tm}}>Runner</span><span style={{width:55,fontSize:9,fontWeight:700,color:_tm,textAlign:"center"}}>Total</span><span style={{width:55,fontSize:9,fontWeight:700,color:_tm,textAlign:"center"}}>Drawn</span><span style={{width:65,fontSize:9,fontWeight:700,color:"#E74C3C",textAlign:"center"}}>Remaining</span>
+                  <span style={{flex:1,fontSize:9,fontWeight:700,color:_tm}}>Runner</span>
+                  <span style={{width:55,fontSize:9,fontWeight:700,color:_tm,textAlign:"center"}}>{raffleMode==="monthly"?"Month":"Season"}</span>
+                  <span style={{width:55,fontSize:9,fontWeight:700,color:_tm,textAlign:"center"}}>Drawn</span>
+                  <span style={{width:65,fontSize:9,fontWeight:700,color:"#E74C3C",textAlign:"center"}}>Remaining</span>
                 </div>
                 {rosterEntries.map(function(a){var tClr=a.team==="boys"?C.greenLight:C.gold;return(<div key={a.id} style={{display:"flex",alignItems:"center",padding:"4px 12px",borderBottom:"1px solid "+C.bd}}>
                   <div style={{flex:1,display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:11,fontWeight:a.remaining>0?600:400,color:a.remaining>0?_tp:_tm}}>{a.name}</span><span style={{fontSize:8,color:tClr}}>{a.team==="boys"?"B":"G"}</span></div>
@@ -2694,11 +2845,18 @@ export default function App(){
               {raffleHistory.length>0?<div>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
                   <div style={{fontSize:12,fontWeight:700,color:_tp}}>Drawing History ({raffleHistory.length})</div>
-                  <button onClick={function(){if(confirm("Reset all drawings? This restores all raffle entries.")){saveRaffle({},[]); }}} style={{background:"rgba(239,68,68,0.1)",border:"none",color:"#ef4444",borderRadius:4,padding:"3px 8px",cursor:"pointer",fontSize:10}}>Reset All</button>
+                  <button onClick={function(){if(confirm("Reset all drawings? This restores all raffle entries.")){saveRaffle({},{},[]); }}} style={{background:"rgba(239,68,68,0.1)",border:"none",color:"#ef4444",borderRadius:4,padding:"3px 8px",cursor:"pointer",fontSize:10}}>Reset All</button>
                 </div>
-                {raffleHistory.map(function(h,hi){var tClr=h.team==="boys"?C.greenLight:C.gold;var d=new Date(h.ts);var dLbl=(d.getMonth()+1)+"/"+d.getDate();return(<div key={hi} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 8px",marginBottom:2,borderRadius:4,background:tClr+"08",border:"1px solid "+tClr+"22"}}>
-                  <span style={{fontSize:11,fontWeight:700,color:tClr}}>{h.name}</span><span style={{fontSize:9,color:_tm}}>{dLbl}</span>
-                  <button onClick={function(){if(confirm("Undo draw? Entry restored to "+h.name+".")){var nu=Object.assign({},raffleUsed);nu[h.id]=Math.max(0,(nu[h.id]||0)-1);if(nu[h.id]===0)delete nu[h.id];var nh=raffleHistory.slice();nh.splice(hi,1);saveRaffle(nu,nh);}}} style={{marginLeft:"auto",background:"none",border:"none",color:_tm,cursor:"pointer",fontSize:9}}>undo</button>
+                {raffleHistory.map(function(h,hi){var tClr=h.team==="boys"?C.greenLight:C.gold;var d=new Date(h.ts);var dLbl=(d.getMonth()+1)+"/"+d.getDate();var typeLabel=h.type==="monthly"?"Monthly":"Season";var typeBg=h.type==="monthly"?C.gold+"22":"#E74C3C22";var typeClr=h.type==="monthly"?C.gold:"#E74C3C";
+                  return(<div key={hi} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 8px",marginBottom:2,borderRadius:4,background:tClr+"08",border:"1px solid "+tClr+"22"}}>
+                  <span style={{fontSize:11,fontWeight:700,color:tClr}}>{h.name}</span>
+                  <span style={{fontSize:8,padding:"1px 5px",borderRadius:2,background:typeBg,color:typeClr,fontWeight:700}}>{typeLabel}</span>
+                  <span style={{fontSize:9,color:_tm}}>{dLbl}</span>
+                  <button onClick={function(){if(confirm("Undo draw? Entry restored to "+h.name+".")){
+                    var nu=Object.assign({},raffleUsed);nu[h.id]=Math.max(0,(nu[h.id]||0)-1);if(nu[h.id]===0)delete nu[h.id];
+                    var nm=Object.assign({},raffleMonthlyUsed);
+                    if(h.type==="monthly"&&h.month){var mo=Object.assign({},nm[h.month]||{});mo[h.id]=Math.max(0,(mo[h.id]||0)-1);if(mo[h.id]===0)delete mo[h.id];nm[h.month]=mo;}
+                    var nh=raffleHistory.slice();nh.splice(hi,1);saveRaffle(nu,nm,nh);}}} style={{marginLeft:"auto",background:"none",border:"none",color:_tm,cursor:"pointer",fontSize:9}}>undo</button>
                 </div>);})}
               </div>:null}
             </div>);
