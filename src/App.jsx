@@ -938,19 +938,23 @@ export default function App(){
     /* mode: "both"=checkin+log, "log"=log only, "checkin"=checkin only */
     if(!mode)mode="both";
     var streak=0;var d=new Date();d.setDate(d.getDate()-1);
+    var checked=0;
     for(var i=0;i<365;i++){
+      var dow=d.getDay();
+      if(dow===0){d.setDate(d.getDate()-1);continue;}
       var dk=fd(d);if(dk<APP_START)break;
       var entries=wlog[dk]||[];
       var hasLog=entries.some(function(e){return e.athId===athId&&e.type!=="readiness";});
       var hasCheckin=entries.some(function(e){return e.athId===athId&&e.type==="readiness";});
       var ok=mode==="both"?(hasLog&&hasCheckin):mode==="log"?hasLog:hasCheckin;
-      if(ok)streak++;else if(i===0){
+      if(ok)streak++;else if(checked===0){
         var td=fd(new Date());var te=wlog[td]||[];
         var tl=te.some(function(e){return e.athId===athId&&e.type!=="readiness";});
         var tc=te.some(function(e){return e.athId===athId&&e.type==="readiness";});
         var tok=mode==="both"?(tl&&tc):mode==="log"?tl:tc;
         if(tok)streak++;else break;
       }else break;
+      checked++;
       d.setDate(d.getDate()-1);
     }return streak;
   }
