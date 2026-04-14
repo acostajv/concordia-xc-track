@@ -819,6 +819,7 @@ export default function App(){
     all.sort(function(a,b){return b.ts-a.ts;});
     return all;
   }
+  function dismissComments(){var now=Date.now();setCoachSeen(now);saveAthleteData("coachseen",JSON.stringify(now));}
   function upGuide(g){setGuideSections(g);sv1(GDK,g);}
   function upRR(results){setRaceResults(results);atomicUpdateAthleteData("raceresults-v1",function(){return results;});}
   function parseTimeToMs(str){
@@ -829,30 +830,54 @@ export default function App(){
     else if(parts.length===1){var rest=str.split(".");var sec=parseInt(rest[0])||0;var cs=rest[1]?parseInt(rest[1].padEnd(2,"0").slice(0,2)):0;return sec*1000+cs*10;}
     return null;
   }
-  function updateRaceResult(raceId,runnerId,splitIdx,newMs){
-    /* splitIdx=-1 means editing final time directly */
+  function updateRaceResult(raceId,runnerId,splitIdx,newMs,mode){
+    /* mode: "duration" (newMs is a split/leg duration) or "cumulative" (newMs is race-time at that split).
+       splitIdx=-1 targets the last split (the Final/Cumulative cell). splitIdx>=0 targets that split.
+       For relays, leg 1's baseline is the prior leg's finalTime; later legs cascade by the delta so
+       their recorded durations are preserved while their cumulatives shift. */
     var updated=raceResults.map(function(race){
       if(race.id!==raceId)return race;
-      var newRunners=(race.runners||[]).map(function(r){
-        if(r.id!==runnerId)return r;
-        var sp=(r.splits||[]).slice();
-        if(splitIdx===-1){
-          /* Editing final time: update the last split total and recalc its split delta */
-          if(sp.length>0){sp[sp.length-1]=Object.assign({},sp[sp.length-1],{total:newMs,split:sp.length>1?newMs-sp[sp.length-2].total:newMs});}
-          return Object.assign({},r,{splits:sp,finalTime:newMs});
-        } else if(splitIdx>=0&&splitIdx<sp.length){
-          /* Editing a specific split: update its total, recalc deltas for this and next */
-          var prevTotal=splitIdx>0?sp[splitIdx-1].total:0;
-          sp[splitIdx]=Object.assign({},sp[splitIdx],{total:newMs,split:newMs-prevTotal});
-          /* Recalc the next split's delta if it exists */
-          if(splitIdx+1<sp.length){sp[splitIdx+1]=Object.assign({},sp[splitIdx+1],{split:sp[splitIdx+1].total-newMs});}
-          /* If this is the last split, update finalTime too */
-          var ft=sp[sp.length-1].total;
-          return Object.assign({},r,{splits:sp,finalTime:ft});
+      var isRelay=race.event==="4x800"||!!race.relay;
+      var runners=(race.runners||[]).slice();
+      var rIdx=runners.findIndex(function(x){return x.id===runnerId;});
+      if(rIdx<0)return race;
+      var r=runners[rIdx];
+      var sp=(r.splits||[]).slice();
+      if(sp.length===0)return race;
+      var tIdx=splitIdx===-1?sp.length-1:splitIdx;
+      if(tIdx<0||tIdx>=sp.length)return race;
+      /* Baseline = cumulative race-time at the start of this split. For a relay leg's first split,
+         the baseline is the previous leg's finalTime; otherwise it's the previous in-runner split's total. */
+      var baseline;
+      if(isRelay&&tIdx===0){
+        var prev=rIdx>0?runners[rIdx-1]:null;
+        baseline=prev&&prev.finalTime?prev.finalTime:0;
+      } else {
+        baseline=tIdx>0?sp[tIdx-1].total:0;
+      }
+      var oldTotal=sp[tIdx].total;
+      var newTotal,newSplit;
+      if(mode==="duration"){newSplit=newMs;newTotal=baseline+newMs;}
+      else{newTotal=newMs;newSplit=newMs-baseline;}
+      sp[tIdx]=Object.assign({},sp[tIdx],{total:newTotal,split:newSplit});
+      var delta=newTotal-oldTotal;
+      /* Shift subsequent in-runner splits by delta (their durations stay, cumulatives move) */
+      for(var k=tIdx+1;k<sp.length;k++){
+        sp[k]=Object.assign({},sp[k],{total:sp[k].total+delta});
+      }
+      var finalTime=sp[sp.length-1].total;
+      runners[rIdx]=Object.assign({},r,{splits:sp,finalTime:finalTime});
+      /* Relay: cascade the same delta into later legs so the baton timeline stays consistent */
+      if(isRelay&&delta!==0){
+        for(var j=rIdx+1;j<runners.length;j++){
+          var nr=runners[j];
+          if(!nr||nr.dnf)continue;
+          var nsp=(nr.splits||[]).map(function(s){return Object.assign({},s,{total:(s.total||0)+delta});});
+          var nft=nsp.length>0?nsp[nsp.length-1].total:nr.finalTime;
+          runners[j]=Object.assign({},nr,{splits:nsp,finalTime:nft});
         }
-        return r;
-      });
-      return Object.assign({},race,{runners:newRunners});
+      }
+      return Object.assign({},race,{runners:runners});
     });
     upRR(updated);
   }
@@ -3350,19 +3375,19 @@ export default function App(){
                 var relayDnf=isRelay&&runners.some(function(r){return r.dnf;});
                 /* Resolve split distance in meters: prefer saved label, else infer from event/numSplits */
                 var splitM=race.splitLabel?(SPLIT_M[race.splitLabel]||0):0;
-                if(!splitM&&maxSplits>0){var evM=SPLIT_M[race.event]||(race.distanceM||0);if(evM>0)splitM=Math.round(evM/maxSplits);}
+                if(!splitM&&maxSplits>0){var evM=SPLIT_M[race.event]||(race.distanceM||0);if(evM>0&&evM%maxSplits===0)splitM=evM/maxSplits;}
                 /* Total race distance in meters (for the Final column pace) */
                 var raceM=SPLIT_M[race.event]||(race.distanceM||0)||(splitM*maxSplits)||0;
                 var mkEditableFor=function(r){
-                  var editKey=function(si){return race.id+"|"+r.id+"|"+si;};
-                  return function(displayStr,totalMs,splitIndex){
-                    var ek=editKey(splitIndex);
+                  var editKey=function(si,md){return race.id+"|"+r.id+"|"+si+"|"+md;};
+                  return function(displayStr,editMs,splitIndex,md){
+                    var ek=editKey(splitIndex,md);
                     if(rrEdit===ek){return(<input value={rrEditVal} onChange={function(e){setRrEditVal(e.target.value);}}
-                      onBlur={function(){var ms=parseTimeToMs(rrEditVal);if(ms!==null&&ms!==totalMs){updateRaceResult(race.id,r.id,splitIndex,ms);}setRrEdit(null);}}
+                      onBlur={function(){var ms=parseTimeToMs(rrEditVal);if(ms!==null&&ms!==editMs){updateRaceResult(race.id,r.id,splitIndex,ms,md);}setRrEdit(null);}}
                       onKeyDown={function(e){if(e.key==="Enter"){e.target.blur();}if(e.key==="Escape"){setRrEdit(null);}}}
                       autoFocus style={{width:splitIndex===-1?70:60,fontSize:splitIndex===-1?13:11,fontFamily:"monospace",fontWeight:700,textAlign:splitIndex===-1?"right":"center",background:lt?"#fff8e0":"#1a1a0a",color:lt?"#333":"#ffd700",border:"1px solid #f0a50066",borderRadius:3,padding:"1px 3px",outline:"none"}}/>);}
                     if(!cm)return null;
-                    return(<span onClick={function(){setRrEdit(ek);setRrEditVal(fmtTime(totalMs));}} style={{cursor:"pointer",borderBottom:"1px dashed "+(lt?"#ccc":"#333")}} title="Click to edit">{displayStr}</span>);
+                    return(<span onClick={function(){setRrEdit(ek);setRrEditVal(md==="duration"?fmtSplit(editMs):fmtTime(editMs));}} style={{cursor:"pointer",borderBottom:"1px dashed "+(lt?"#ccc":"#333")}} title="Click to edit">{displayStr}</span>);
                   };
                 };
                 return(<div key={race.id||race.event+race.team} style={{marginBottom:10,borderRadius:10,border:"1px solid "+C.bd,borderLeft:"3px solid "+evClr,background:lt?"#fff":"rgba(255,255,255,0.02)",overflow:"hidden"}}>
@@ -3397,11 +3422,11 @@ export default function App(){
                           <span style={{width:36,fontSize:11,fontWeight:800,color:r.dnf?"#ef4444":evClr,textAlign:"center"}}>Leg {ri+1}</span>
                           <span style={{flex:1,fontSize:12,fontWeight:600,color:r.dnf?"#ef4444":_tp,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textDecoration:r.dnf?"line-through":"none"}}>{r.name}</span>
                           <span style={{width:75,fontSize:12,fontWeight:700,color:r.dnf?"#ef4444":_tp,fontFamily:"monospace",textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",lineHeight:1.1}} title={hasMulti?"Splits: "+sps.map(function(s){return fmtSplit(s.split);}).join(" / "):""}>
-                            <span>{r.dnf?"DNF":(cm&&lastSp&&!hasMulti?mkE(legTime,lastSp.total,0)||legTime:legTime)}</span>
+                            <span>{r.dnf?"DNF":(cm&&lastSp&&!hasMulti?mkE(legTime,legSumMs,0,"duration")||legTime:legTime)}</span>
                             {rrShowPace&&legPace?<span style={{fontSize:8,color:_tm,opacity:0.7,fontWeight:600}}>{legPace}</span>:null}
                             {hasMulti?<span style={{fontSize:8,color:_tm,opacity:0.7}}>{sps.map(function(s){return fmtSplit(s.split);}).join("/")}</span>:null}
                           </span>
-                          <span style={{width:75,fontSize:12,fontWeight:700,color:r.dnf?"#ef4444":_tm,fontFamily:"monospace",textAlign:"right"}}>{r.dnf?"DNF":(cm&&lastSp?mkE(cumTime,lastSp.total,-1)||cumTime:cumTime)}</span>
+                          <span style={{width:75,fontSize:12,fontWeight:700,color:r.dnf?"#ef4444":_tm,fontFamily:"monospace",textAlign:"right"}}>{r.dnf?"DNF":(cm&&lastSp?mkE(cumTime,lastSp.total,-1,"cumulative")||cumTime:cumTime)}</span>
                         </div>);
                       })}
                       {/* Team TOTAL row */}
@@ -3424,6 +3449,7 @@ export default function App(){
                           return <span key={si} style={{width:65,fontSize:9,fontWeight:700,color:_tm,textAlign:"center"}}>{distLabel}</span>;
                         }):null}
                         <span style={{width:75,fontSize:9,fontWeight:700,color:_tm,textAlign:"right"}}>{raceM>0?fmtDistLabel(raceM)+" Final":"Final"}</span>
+                        <span style={{width:56,fontSize:9,fontWeight:700,color:_tm,textAlign:"right"}}>{"PB\u0394"}</span>
                       </div>
                       {runners.map(function(r,ri){
                         var fmtFinal=r.finalTime?fmtTime(r.finalTime):"--";
@@ -3447,14 +3473,14 @@ export default function App(){
                           <span style={{width:24,fontSize:12,fontWeight:800,color:r.dnf?"#ef4444":isFirst?evClr:_tm,textAlign:"center"}}>{r.dnf?"\u2014":ri+1}</span>
                           <span style={{flex:1,fontSize:12,fontWeight:isFirst?700:500,color:r.dnf?"#ef4444":isFirst?evClr:_tp,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textDecoration:r.dnf?"line-through":"none"}}>{r.name}</span>
                           {maxSplits>0?Array.from({length:maxSplits},function(_,si){var s=sps[si];var splitPace=s&&splitM>0&&!r.dnf?fmtPace(s.split,splitM):"";return <span key={si} style={{width:65,fontSize:11,fontFamily:"monospace",color:r.dnf?"#ef4444":_tm,textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",lineHeight:1.1}}>
-                            <span>{s?(cm?mkE(fmtSplit(s.split),s.total,si)||fmtSplit(s.split):fmtSplit(s.split)):""}</span>
+                            <span>{s?(cm?mkE(fmtSplit(s.split),s.split,si,"duration")||fmtSplit(s.split):fmtSplit(s.split)):""}</span>
                             {rrShowPace&&splitPace?<span style={{fontSize:8,color:_tm,opacity:0.7}}>{splitPace}</span>:null}
                           </span>;}):null}
                           <span style={{width:75,fontSize:13,fontWeight:800,color:r.dnf?"#ef4444":isFirst?evClr:_tp,fontFamily:"monospace",textAlign:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",lineHeight:1.1}}>
-                            <span>{r.dnf?"DNF":cm&&r.finalTime?mkE(fmtFinal,r.finalTime,-1)||fmtFinal:fmtFinal}</span>
+                            <span>{r.dnf?"DNF":cm&&r.finalTime?mkE(fmtFinal,r.finalTime,-1,"cumulative")||fmtFinal:fmtFinal}</span>
                             {rrShowPace&&avgPace?<span style={{fontSize:8,color:_tm,opacity:0.7,fontWeight:600}}>{avgPace}</span>:null}
                           </span>
-                          {pbDeltaText?<span title={"PB: "+pbStr} style={{minWidth:48,fontSize:10,fontWeight:800,fontFamily:"monospace",textAlign:"right",padding:"2px 5px",borderRadius:3,background:pbDeltaPositive?"#27ae6022":"#ef444422",color:pbDeltaPositive?"#27ae60":"#ef4444",border:"1px solid "+(pbDeltaPositive?"#27ae6044":"#ef444444")}}>{pbDeltaText}</span>:null}
+                          <span style={{width:56,display:"flex",justifyContent:"flex-end",alignItems:"center"}}>{pbDeltaText?<span title={"PB: "+pbStr} style={{fontSize:10,fontWeight:800,fontFamily:"monospace",textAlign:"right",padding:"2px 5px",borderRadius:3,background:pbDeltaPositive?"#27ae6022":"#ef444422",color:pbDeltaPositive?"#27ae60":"#ef4444",border:"1px solid "+(pbDeltaPositive?"#27ae6044":"#ef444444")}}>{pbDeltaText}</span>:null}</span>
                         </div>);
                       })}
                     </div>)}
