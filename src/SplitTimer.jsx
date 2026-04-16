@@ -41,13 +41,16 @@ function RaceCard(props){
   var _e=useState(race.elapsed||0);var elapsed=_e[0];var setElapsed=_e[1];
   var _f=useState({});var flashMap=_f[0];var setFlashMap=_f[1];
   var startRef=useRef(null);var pausedRef=useRef(race.elapsed||0);var rafRef=useRef(null);var elapsedRef=useRef(race.elapsed||0);
+  var resyncRef=useRef(null);
   var _drag=useState(null);var dragIdx=_drag[0];var setDragIdx=_drag[1];
   var _showAdd=useState(false);var showAdd=_showAdd[0];var setShowAdd=_showAdd[1];
   var _actionFor=useState(null);var actionFor=_actionFor[0];var setActionFor=_actionFor[1];
   var _manEntry=useState({rid:null,value:""});var manualEntry=_manEntry[0];var setManualEntry=_manEntry[1];
   var _confirm=useState(null);var confirmModal=_confirm[0];var setConfirmModal=_confirm[1];
+  var _wakeFail=useState(false);var wakeLockFailed=_wakeFail[0];var setWakeLockFailed=_wakeFail[1];
   var longPressRef=useRef({timer:null,fired:false});
   var wakeLockRef=useRef(null);
+  var freshElapsed=function(){return startRef.current!==null?performance.now()-startRef.current+pausedRef.current:elapsedRef.current;};
   var audioCtxRef=useRef(null);
   var playBeep=function(){
     if(!beepOn)return;
@@ -64,19 +67,19 @@ function RaceCard(props){
     }catch(e){}
   };
 
-  var tick=useCallback(function(){var now=Date.now()-startRef.current+pausedRef.current;elapsedRef.current=now;setElapsed(now);rafRef.current=requestAnimationFrame(tick);},[]);
-  var startTimer=function(){startRef.current=Date.now();setIsRunning(true);rafRef.current=requestAnimationFrame(tick);};
+  var tick=useCallback(function(){var now=performance.now()-startRef.current+pausedRef.current;elapsedRef.current=now;setElapsed(now);rafRef.current=requestAnimationFrame(tick);},[]);
+  var startTimer=function(){startRef.current=performance.now();setIsRunning(true);rafRef.current=requestAnimationFrame(tick);};
   var pauseTimer=function(){
     /* STOP just pauses the timer cleanly. It does NOT auto-record any splits.
        Use the runner buttons to record splits, or "Finish" to mass-finish a race. */
     cancelAnimationFrame(rafRef.current);
-    var now=elapsedRef.current;
-    pausedRef.current=now;
-    setIsRunning(false);
+    var now=freshElapsed();
+    startRef.current=null;elapsedRef.current=now;pausedRef.current=now;
+    setElapsed(now);setIsRunning(false);
     onUpdateRace(race.id,{elapsed:now,status:"paused"});
   };
   var finishRace=function(){
-    cancelAnimationFrame(rafRef.current);var now=elapsedRef.current;pausedRef.current=now;setIsRunning(false);
+    cancelAnimationFrame(rafRef.current);var now=freshElapsed();startRef.current=null;elapsedRef.current=now;pausedRef.current=now;setElapsed(now);setIsRunning(false);
     var ns=Object.assign({},race.splits||{});var nf=Object.assign({},race.finished||{});
     if(isRelay){
       if(activeLeg>=0&&activeLeg<(race.runnerIds||[]).length){
@@ -97,25 +100,30 @@ function RaceCard(props){
     }
     onUpdateRace(race.id,{status:"done",elapsed:now,splits:ns,finished:nf});
   };
-  var resetRace=function(){cancelAnimationFrame(rafRef.current);setIsRunning(false);setElapsed(0);elapsedRef.current=0;pausedRef.current=0;onUpdateRace(race.id,{elapsed:0,splits:{},status:"ready",finished:{}});};
+  var resetRace=function(){cancelAnimationFrame(rafRef.current);startRef.current=null;setIsRunning(false);setElapsed(0);elapsedRef.current=0;pausedRef.current=0;onUpdateRace(race.id,{elapsed:0,splits:{},status:"ready",finished:{}});};
   useEffect(function(){return function(){cancelAnimationFrame(rafRef.current);};},[]);
 
   /* Wake lock — keep the screen on while a race is actively running */
   useEffect(function(){
-    if(typeof navigator==="undefined"||!navigator.wakeLock)return;
+    if(typeof navigator==="undefined"||!navigator.wakeLock){if(isRunning)setWakeLockFailed(true);return;}
     var releaseLock=function(){if(wakeLockRef.current){wakeLockRef.current.release().catch(function(){});wakeLockRef.current=null;}};
     var acquire=function(){
       if(!isRunning||wakeLockRef.current)return;
       navigator.wakeLock.request("screen").then(function(s){
-        wakeLockRef.current=s;
+        wakeLockRef.current=s;setWakeLockFailed(false);
         s.addEventListener("release",function(){if(wakeLockRef.current===s)wakeLockRef.current=null;});
-      }).catch(function(){});
+      }).catch(function(){setWakeLockFailed(true);});
     };
     if(isRunning)acquire();else releaseLock();
-    /* Re-acquire on tab visibility change (Wake Lock auto-releases on hide) */
     var onVis=function(){if(document.visibilityState==="visible"&&isRunning)acquire();};
     document.addEventListener("visibilitychange",onVis);
     return function(){document.removeEventListener("visibilitychange",onVis);releaseLock();};
+  },[isRunning]);
+  /* Auto-resync: keep elapsedRef fresh even when rAF is throttled (backgrounded tab, screen off) */
+  useEffect(function(){
+    if(!isRunning){if(resyncRef.current){clearInterval(resyncRef.current);resyncRef.current=null;}return;}
+    resyncRef.current=setInterval(function(){if(startRef.current!==null){elapsedRef.current=performance.now()-startRef.current+pausedRef.current;}},2000);
+    return function(){if(resyncRef.current){clearInterval(resyncRef.current);resyncRef.current=null;}};
   },[isRunning]);
 
   var isReady=race.status==="ready"&&!isRunning&&elapsed===0;
@@ -177,7 +185,7 @@ function RaceCard(props){
     var newElapsed=Math.max(elapsedRef.current,ms);
     if(newElapsed>elapsedRef.current){elapsedRef.current=newElapsed;pausedRef.current=newElapsed;setElapsed(newElapsed);}
     var allDone=(race.runnerIds||[]).every(function(r){return nf[r];});
-    if(allDone){cancelAnimationFrame(rafRef.current);setIsRunning(false);onUpdateRace(race.id,{splits:ns,status:"done",elapsed:newElapsed,finished:nf});}
+    if(allDone){cancelAnimationFrame(rafRef.current);startRef.current=null;setIsRunning(false);onUpdateRace(race.id,{splits:ns,status:"done",elapsed:newElapsed,finished:nf});}
     else{onUpdateRace(race.id,{splits:ns,status:isRunning?"running":"paused",elapsed:newElapsed,finished:nf});}
   };
   var undoSplit=function(rid){
@@ -208,7 +216,7 @@ function RaceCard(props){
     var perRunner=isRelay?splitsPerLeg:splitsToFinish;
     if(perRunner>0&&ns[rid].length>=perRunner)nf[rid]=true;
     var allDone=(race.runnerIds||[]).every(function(r){return nf[r];});
-    if(allDone){cancelAnimationFrame(rafRef.current);pausedRef.current=elapsedRef.current;setIsRunning(false);onUpdateRace(race.id,{splits:ns,finished:nf,status:"done",elapsed:elapsedRef.current});}
+    if(allDone){var doneNow=freshElapsed();cancelAnimationFrame(rafRef.current);startRef.current=null;elapsedRef.current=doneNow;pausedRef.current=doneNow;setElapsed(doneNow);setIsRunning(false);onUpdateRace(race.id,{splits:ns,finished:nf,status:"done",elapsed:doneNow});}
     else{onUpdateRace(race.id,{splits:ns,finished:nf,status:isRunning?"running":(race.status==="ready"?"ready":"paused")});}
     if(typeof navigator!=="undefined"&&typeof navigator.vibrate==="function"){try{navigator.vibrate([20,40,20]);}catch(e){}}
   };
@@ -216,7 +224,7 @@ function RaceCard(props){
     /* Closes out a runner who's finished but hasn't reached splitsToFinish.
        Appends a final split bringing them to current elapsed, then marks finished. */
     if(finishedMap[rid])return;
-    var now=elapsedRef.current;
+    var now=freshElapsed();
     if(now===0&&!isRunning&&!race.elapsed)return;
     var prev=(race.splits||{})[rid]||[];
     var lastTotal=0;
@@ -227,7 +235,7 @@ function RaceCard(props){
     else{ns[rid]=prev;}
     var nf=Object.assign({},finishedMap);nf[rid]=true;
     var allDone=(race.runnerIds||[]).every(function(r){return nf[r];});
-    if(allDone){cancelAnimationFrame(rafRef.current);pausedRef.current=now;setIsRunning(false);onUpdateRace(race.id,{splits:ns,finished:nf,status:"done",elapsed:now});}
+    if(allDone){cancelAnimationFrame(rafRef.current);startRef.current=null;pausedRef.current=now;setIsRunning(false);onUpdateRace(race.id,{splits:ns,finished:nf,status:"done",elapsed:now});}
     else{onUpdateRace(race.id,{splits:ns,finished:nf,status:isRunning?"running":"paused"});}
   };
   var toggleDnf=function(rid){
@@ -247,8 +255,8 @@ function RaceCard(props){
       var allDone=(race.runnerIds||[]).every(function(r){return nf[r];});
       if(allDone){
         cancelAnimationFrame(rafRef.current);
-        var now=elapsedRef.current;
-        pausedRef.current=now;
+        var now=freshElapsed();
+        startRef.current=null;elapsedRef.current=now;pausedRef.current=now;setElapsed(now);
         setIsRunning(false);
         onUpdateRace(race.id,{dnf:dnfMap,finished:nf,status:"done",elapsed:now});
       } else {
@@ -272,7 +280,7 @@ function RaceCard(props){
       if(!finishedMap[race.runnerIds[li]]){activeLeg=li;break;}
     }
   }
-  var recordSplit=function(rid){var now=elapsedRef.current;if(now===0&&!isRunning)return;if(finishedMap[rid])return;
+  var recordSplit=function(rid){var now=freshElapsed();if(now===0&&!isRunning)return;if(finishedMap[rid])return;
     if(isRelay){
       /* Relay: only the active leg runner is tappable. Each tap appends a split.
          The runner is only marked finished after they accumulate splitsPerLeg splits. */
@@ -290,14 +298,14 @@ function RaceCard(props){
       var nf=Object.assign({},finishedMap);
       if(ns[rid].length>=splitsPerLeg)nf[rid]=true;
       var done1=(race.runnerIds||[]).every(function(r){return nf[r];});
-      if(done1){cancelAnimationFrame(rafRef.current);pausedRef.current=now;setIsRunning(false);onUpdateRace(race.id,{splits:ns,status:"done",elapsed:now,finished:nf});}
+      if(done1){cancelAnimationFrame(rafRef.current);startRef.current=null;pausedRef.current=now;setIsRunning(false);onUpdateRace(race.id,{splits:ns,status:"done",elapsed:now,finished:nf});}
       else{onUpdateRace(race.id,{splits:ns,status:"running",finished:nf});}
     } else {
       var prev=(race.splits||{})[rid]||[];var last=prev.length>0?prev[prev.length-1].total:0;
       var ns=Object.assign({},race.splits||{});ns[rid]=prev.concat([{split:now-last,total:now}]);
       var nf=Object.assign({},finishedMap);if(splitsToFinish>0&&ns[rid].length>=splitsToFinish)nf[rid]=true;
       var done2=(race.runnerIds||[]).every(function(r){return nf[r];});
-      if(done2){cancelAnimationFrame(rafRef.current);pausedRef.current=now;setIsRunning(false);onUpdateRace(race.id,{splits:ns,status:"done",elapsed:now,finished:nf});}
+      if(done2){cancelAnimationFrame(rafRef.current);startRef.current=null;pausedRef.current=now;setIsRunning(false);onUpdateRace(race.id,{splits:ns,status:"done",elapsed:now,finished:nf});}
       else{onUpdateRace(race.id,{splits:ns,status:"running",finished:nf});}
     }
     setFlashMap(function(p){var n=Object.assign({},p);n[rid]=true;return n;});setTimeout(function(){setFlashMap(function(p){var n=Object.assign({},p);n[rid]=false;return n;});},350);
@@ -332,6 +340,9 @@ function RaceCard(props){
         {hasSplits&&!isDone?<button onClick={finishRace} style={{padding:"3px 8px",background:"#27ae6022",color:"#5ddb6a",border:"1px solid #27ae6044",borderRadius:3,cursor:"pointer",fontSize:10,fontWeight:700,fontFamily:"inherit"}}>Finish</button>:null}
       </div>
     </div>
+    {isRunning&&wakeLockFailed?<div style={{padding:"3px 12px",background:"#f0a50022",borderBottom:"1px solid #f0a50044",display:"flex",alignItems:"center",gap:6}}>
+      <span style={{fontSize:10,fontWeight:700,color:"#f0a500"}}>Screen lock not prevented — keep your phone awake during the race</span>
+    </div>:null}
     <div style={{padding:"6px 12px",background:T.timerBg,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:42,zIndex:5,borderTop:"1px solid "+T.border,borderBottom:"1px solid "+T.border}}>
       <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:isRunning?52:36,color:isRunning?T.text:elapsed>0?evClr:T.muted,letterSpacing:2,lineHeight:1}}>{fmtTime(elapsed)}</div>
       <div style={{display:"flex",gap:5}}>
