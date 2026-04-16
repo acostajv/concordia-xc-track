@@ -842,7 +842,7 @@ export default function App(){
     else if(parts.length===1){var rest=str.split(".");var sec=parseInt(rest[0])||0;var cs=rest[1]?parseInt(rest[1].padEnd(2,"0").slice(0,2)):0;return sec*1000+cs*10;}
     return null;
   }
-  function updateRaceResult(raceId,runnerId,splitIdx,newMs,mode){
+  function updateRaceResult(raceId,runnerIdx,splitIdx,newMs,mode){
     /* mode: "duration" (newMs is a split/leg duration) or "cumulative" (newMs is race-time at that split).
        splitIdx=-1 targets the last split (the Final/Cumulative cell). splitIdx>=0 targets that split.
        For relays, leg 1's baseline is the prior leg's finalTime; later legs cascade by the delta so
@@ -851,7 +851,7 @@ export default function App(){
       if(race.id!==raceId)return race;
       var isRelay=race.event==="4x800"||!!race.relay;
       var runners=(race.runners||[]).slice();
-      var rIdx=runners.findIndex(function(x){return x.id===runnerId;});
+      var rIdx=runnerIdx;
       if(rIdx<0)return race;
       var r=runners[rIdx];
       var sp=(r.splits||[]).slice();
@@ -3390,12 +3390,12 @@ export default function App(){
                 if(!splitM&&maxSplits>0){var evM=SPLIT_M[race.event]||(race.distanceM||0);if(evM>0&&evM%maxSplits===0)splitM=evM/maxSplits;}
                 /* Total race distance in meters (for the Final column pace) */
                 var raceM=SPLIT_M[race.event]||(race.distanceM||0)||(splitM*maxSplits)||0;
-                var mkEditableFor=function(r){
-                  var editKey=function(si,md){return race.id+"|"+r.id+"|"+si+"|"+md;};
+                var mkEditableFor=function(r,ri){
+                  var editKey=function(si,md){return race.id+"|"+ri+"|"+si+"|"+md;};
                   return function(displayStr,editMs,splitIndex,md){
                     var ek=editKey(splitIndex,md);
                     if(rrEdit===ek){return(<input value={rrEditVal} onChange={function(e){setRrEditVal(e.target.value);}}
-                      onBlur={function(){var ms=parseTimeToMs(rrEditVal);if(ms!==null&&ms!==editMs){updateRaceResult(race.id,r.id,splitIndex,ms,md);}setRrEdit(null);}}
+                      onBlur={function(){var ms=parseTimeToMs(rrEditVal);if(ms!==null&&ms!==editMs){updateRaceResult(race.id,ri,splitIndex,ms,md);}setRrEdit(null);}}
                       onKeyDown={function(e){if(e.key==="Enter"){e.target.blur();}if(e.key==="Escape"){setRrEdit(null);}}}
                       autoFocus style={{width:splitIndex===-1?70:60,fontSize:splitIndex===-1?13:11,fontFamily:"monospace",fontWeight:700,textAlign:splitIndex===-1?"right":"center",background:lt?"#fff8e0":"#1a1a0a",color:lt?"#333":"#ffd700",border:"1px solid #f0a50066",borderRadius:3,padding:"1px 3px",outline:"none"}}/>);}
                     if(!cm)return null;
@@ -3446,7 +3446,7 @@ export default function App(){
                         var legTime=r.dnf?"DNF":lastSp?fmtSplit(legSumMs):"--";
                         var cumTime=r.dnf?"DNF":lastSp?fmtTime(lastSp.total):"--";
                         var legPace=lastSp&&!r.dnf?fmtPace(legSumMs,800):"";
-                        var mkE=mkEditableFor(r);
+                        var mkE=mkEditableFor(r,ri);
                         return(<div key={r.id} style={{display:"flex",gap:4,alignItems:"center",padding:"5px 8px",marginBottom:2,borderRadius:6,background:r.dnf?"rgba(239,68,68,0.06)":"transparent",border:"1px solid "+(r.dnf?"#ef444444":C.bd)}}>
                           <span style={{width:36,fontSize:11,fontWeight:800,color:r.dnf?"#ef4444":evClr,textAlign:"center"}}>Leg {ri+1}</span>
                           {mkNameCell(r,{flex:1,fontSize:12,fontWeight:600,color:r.dnf?"#ef4444":_tp,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textDecoration:r.dnf?"line-through":"none"},ri)}
@@ -3483,7 +3483,7 @@ export default function App(){
                       {runners.map(function(r,ri){
                         var fmtFinal=r.finalTime?fmtTime(r.finalTime):"--";
                         var isFirst=ri===0&&!r.dnf;
-                        var mkE=mkEditableFor(r);
+                        var mkE=mkEditableFor(r,ri);
                         var sps=r.splits||[];
                         var avgPace=r.dnf||!r.finalTime||raceM<=0?"":fmtPace(r.finalTime,raceM);
                         /* PB delta lookup */
