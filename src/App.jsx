@@ -821,11 +821,11 @@ export default function App(){
     return all;
   }
   function dismissComments(){var now=Date.now();setCoachSeen(now);saveAthleteData("coachseen",JSON.stringify(now));}
-  function updateRaceRunner(raceId,oldRunnerId,newAth){
+  function updateRaceRunner(raceId,runnerIdx,newAth){
     var updated=raceResults.map(function(race){
       if(race.id!==raceId)return race;
-      var runners=(race.runners||[]).map(function(r){
-        if(r.id!==oldRunnerId)return r;
+      var runners=(race.runners||[]).map(function(r,ri){
+        if(ri!==runnerIdx)return r;
         return Object.assign({},r,{id:newAth.id,name:newAth.name,team:newAth.team||r.team});
       });
       return Object.assign({},race,{runners:runners});
@@ -3402,13 +3402,13 @@ export default function App(){
                     return(<span onClick={function(){setRrEdit(ek);setRrEditVal(md==="duration"?fmtSplit(editMs):fmtTime(editMs));}} style={{cursor:"pointer",borderBottom:"1px dashed "+(lt?"#ccc":"#333")}} title="Click to edit">{displayStr}</span>);
                   };
                 };
-                var mkNameCell=function(r,nameStyle){
-                  var nk=race.id+"|"+r.id+"|name";
+                var mkNameCell=function(r,nameStyle,ri){
+                  var nk=race.id+"|"+ri+"|name";
                   if(rrNameEdit===nk){
                     var inRoster=roster.some(function(a){return a.id===r.id;});
                     var sortedRoster=roster.slice().sort(function(a,b){return(a.name||"").localeCompare(b.name||"");});
                     return(<select value={r.id} autoFocus
-                      onChange={function(e){var nid=e.target.value;if(nid&&nid!==r.id){var ath=roster.find(function(a){return a.id===nid;});if(ath)updateRaceRunner(race.id,r.id,ath);}setRrNameEdit(null);}}
+                      onChange={function(e){var nid=e.target.value;if(nid&&nid!==r.id){var ath=roster.find(function(a){return a.id===nid;});if(ath)updateRaceRunner(race.id,ri,ath);}setRrNameEdit(null);}}
                       onBlur={function(){setRrNameEdit(null);}}
                       onKeyDown={function(e){if(e.key==="Escape")setRrNameEdit(null);}}
                       style={Object.assign({},nameStyle,{background:lt?"#fff8e0":"#1a1a0a",color:lt?"#333":"#ffd700",border:"1px solid #f0a50066",borderRadius:3,padding:"1px 4px",outline:"none",cursor:"pointer",fontFamily:"inherit"})}>
@@ -3449,7 +3449,7 @@ export default function App(){
                         var mkE=mkEditableFor(r);
                         return(<div key={r.id} style={{display:"flex",gap:4,alignItems:"center",padding:"5px 8px",marginBottom:2,borderRadius:6,background:r.dnf?"rgba(239,68,68,0.06)":"transparent",border:"1px solid "+(r.dnf?"#ef444444":C.bd)}}>
                           <span style={{width:36,fontSize:11,fontWeight:800,color:r.dnf?"#ef4444":evClr,textAlign:"center"}}>Leg {ri+1}</span>
-                          {mkNameCell(r,{flex:1,fontSize:12,fontWeight:600,color:r.dnf?"#ef4444":_tp,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textDecoration:r.dnf?"line-through":"none"})}
+                          {mkNameCell(r,{flex:1,fontSize:12,fontWeight:600,color:r.dnf?"#ef4444":_tp,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textDecoration:r.dnf?"line-through":"none"},ri)}
                           <span style={{width:75,fontSize:12,fontWeight:700,color:r.dnf?"#ef4444":_tp,fontFamily:"monospace",textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",lineHeight:1.1}} title={hasMulti?"Splits: "+sps.map(function(s){return fmtSplit(s.split);}).join(" / "):""}>
                             <span>{r.dnf?"DNF":(cm&&lastSp&&!hasMulti?mkE(legTime,legSumMs,0,"duration")||legTime:legTime)}</span>
                             {rrShowPace&&legPace?<span style={{fontSize:8,color:_tm,opacity:0.7,fontWeight:600}}>{legPace}</span>:null}
@@ -3500,7 +3500,7 @@ export default function App(){
                         }
                         return(<div key={r.id} style={{display:"flex",gap:4,alignItems:"center",padding:"5px 8px",marginBottom:2,borderRadius:6,background:r.dnf?"rgba(239,68,68,0.06)":isFirst?evClr+"12":"transparent",border:r.dnf?"1px solid #ef444444":isFirst?"1px solid "+evClr+"33":"1px solid "+C.bd}}>
                           <span style={{width:24,fontSize:12,fontWeight:800,color:r.dnf?"#ef4444":isFirst?evClr:_tm,textAlign:"center"}}>{r.dnf?"\u2014":ri+1}</span>
-                          {mkNameCell(r,{flex:1,fontSize:12,fontWeight:isFirst?700:500,color:r.dnf?"#ef4444":isFirst?evClr:_tp,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textDecoration:r.dnf?"line-through":"none"})}
+                          {mkNameCell(r,{flex:1,fontSize:12,fontWeight:isFirst?700:500,color:r.dnf?"#ef4444":isFirst?evClr:_tp,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textDecoration:r.dnf?"line-through":"none"},ri)}
                           {maxSplits>0?Array.from({length:maxSplits},function(_,si){var s=sps[si];var splitPace=s&&splitM>0&&!r.dnf?fmtPace(s.split,splitM):"";return <span key={si} style={{width:65,fontSize:11,fontFamily:"monospace",color:r.dnf?"#ef4444":_tm,textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",lineHeight:1.1}}>
                             <span>{s?(cm?mkE(fmtSplit(s.split),s.split,si,"duration")||fmtSplit(s.split):fmtSplit(s.split)):""}</span>
                             {rrShowPace&&splitPace?<span style={{fontSize:8,color:_tm,opacity:0.7}}>{splitPace}</span>:null}
