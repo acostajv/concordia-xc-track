@@ -706,9 +706,8 @@ export default function App(){
   function pinLogin(){var match=roster.find(function(a){return a.pin&&a.pin===pinEntry;});if(match){saveMyAth(match.id);setPinEntry("");setPinErr("");setMyShow(false);}else{setPinErr("Invalid PIN. Try again or ask your coach.");}}
   function saveTemplate(wo){var nm=prompt("Template name:");if(!nm)return;var t=templates.slice();t.push(Object.assign({},wo,{_tplName:nm,_tplId:"t"+Date.now()}));upTpl(t);}
   function deleteTemplate(id){upTpl(templates.filter(function(t){return t._tplId!==id;}));}
-  function saveMeetResult(meetId,evtName,athId,time){
-    upM(meets.map(function(m){if(m.id!==meetId)return m;var res=Object.assign({},m.results||{});var ev=Object.assign({},res[evtName]||{});ev[athId]=time;res[evtName]=ev;return Object.assign({},m,{results:res});}));
-  }
+
+
   function parsePace(s){if(!s)return null;var clean=s.replace(/\/mi$/,"").trim();var parts=clean.split(":");if(parts.length!==2)return null;var m=parseInt(parts[0]);var sc=parseInt(parts[1]);if(isNaN(m)||isNaN(sc))return null;return m*60+sc;}
   function fmtSec(s){var m=Math.floor(s/60);var sc=Math.round(s%60);return m+":"+(sc<10?"0":"")+sc;}
   function groupByPace(athletes,paceKey,tolerance){
@@ -1080,18 +1079,17 @@ export default function App(){
   var PB_CLR={"800":"#F39C12","1600":"#D4A017","3200":"#2ECC71","5k":"#27AE60"};
   function doExport(){var b=new Blob([JSON.stringify({schedule:sch,roster:roster,meets:meets,announce:announce,templates:templates,schoolRecs:schoolRecs,wlog:wlog,customPresets:customPresets,routines:routines},null,2)],{type:"application/json"});var u=URL.createObjectURL(b);var a=document.createElement("a");a.href=u;a.download="training-data.json";a.click();URL.revokeObjectURL(u);}
   function exportResultsCSV(){
-    var rows=[["Meet","Date","Location","Event","Athlete","Team","Grade","Events","Result","Threshold (Safe)","CV Pace","VO2max (Safe)"]];
+    var rows=[["Meet","Date","Location","Event","Athlete","Team","Grade","Events","Threshold (Safe)","CV Pace","VO2max (Safe)"]];
     var sm=meets.slice().sort(function(a,b){return a.date<b.date?-1:1;});
     sm.forEach(function(m){
-      var lu=m.lineup||{};var res=m.results||{};
+      var lu=m.lineup||{};
       EVTS.forEach(function(evName){
         var evD=lu[evName];if(!evD||!evD.runners||evD.runners.length===0)return;
         evD.runners.forEach(function(rId){
           var ath=roster.find(function(a){return a.id===rId;});
           if(!ath)return;
-          var result=(res[evName]&&res[evName][rId])||"";
           var p=ath.paces||{};
-          rows.push(['"'+m.name+'"',m.date,'"'+(m.location||"")+'"',evName,'"'+ath.name+'"',ath.team,ath.grade||"",'"'+(ath.events||"")+'"',result,p.thrSafe||"",p.cv||"",p.vo2Safe||""]);
+          rows.push(['"'+m.name+'"',m.date,'"'+(m.location||"")+'"',evName,'"'+ath.name+'"',ath.team,ath.grade||"",'"'+(ath.events||"")+'"',p.thrSafe||"",p.cv||"",p.vo2Safe||""]);
         });
       });
     });
@@ -2521,7 +2519,8 @@ export default function App(){
                           {heatRunners.map(function(rId,ri){
                             var ath=roster.find(function(a){return a.id===rId;});if(!ath)return null;
                             var hasPaces=ath.paces&&ath.paces.vo2Safe;
-                            var mRes=(m.results&&m.results[evName]&&m.results[evName][rId])||"";
+
+
                             var isRelay=evIsRelay;var legLabel=isRelay?"Leg "+(ri+1):"";
                             return(<div key={rId} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",marginBottom:3,borderRadius:4,background:grp.clr+"10",border:"1px solid "+grp.clr+"22"}}>
                               {isRelay?<span style={{fontSize:10,fontWeight:800,color:evColor,fontFamily:"monospace",minWidth:38}}>{legLabel}</span>:null}
@@ -2541,7 +2540,7 @@ export default function App(){
                                 var clr=assigned==="head"?C.greenLight:"#3498DB";
                                 return <button onClick={canEdit?function(){upLineup(m.id,evName,"setRunnerCoach",{rid:rId,coach:assigned==="head"?"asst":"head"});}:undefined} disabled={!canEdit} title={canEdit?"Click to toggle coach":""+assigned} style={{padding:"1px 5px",borderRadius:3,fontSize:9,fontWeight:800,fontFamily:"monospace",background:clr+"22",color:clr,border:"1px solid "+clr+"66",cursor:canEdit?"pointer":"default",letterSpacing:0.5}}>{assigned==="head"?"H":"A"}</button>;
                               })()}
-                              <input value={mRes} readOnly={!cm} onChange={function(ev){if(cm)saveMeetResult(m.id,evName,rId,ev.target.value);}} placeholder={cm?"Result":"--"} style={Object.assign({},IS,{width:80,padding:"3px 6px",fontSize:11,textAlign:"center",background:mRes?"rgba(27,174,96,0.1)":"rgba(255,255,255,0.04)"})}/>
+
                               {cm&&isRelay&&ri>0?<button onClick={function(){var runners=evData.runners.slice();var teamIds=runners.filter(function(r){var a2=roster.find(function(x){return x.id===r;});return a2&&a2.team===grp.team;});var globalIdx=runners.indexOf(rId);var prevTeamId=teamIds[teamIds.indexOf(rId)-1];var prevGlobalIdx=runners.indexOf(prevTeamId);if(globalIdx>=0&&prevGlobalIdx>=0){runners[globalIdx]=prevTeamId;runners[prevGlobalIdx]=rId;upLineup(m.id,evName,"reorder",runners);}}} style={{background:"none",border:"none",color:_tm,cursor:"pointer",fontSize:10,padding:"0 2px"}}>{"^"}</button>:null}
                               {cm?<button onClick={function(){upLineup(m.id,evName,"removeRunner",rId);}} style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:10,padding:"0 2px"}}>x</button>:null}
                             </div>);
