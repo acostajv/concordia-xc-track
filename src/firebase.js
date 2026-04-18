@@ -78,7 +78,7 @@ export async function atomicUpdateAthleteData(key, updateFn, maxRetries = 3) {
         const snap = await transaction.get(docRef);
         const current = snap.exists() ? snap.data().value : null;
         let parsed = null;
-        try { parsed = current ? JSON.parse(current) : null; } catch (e) { parsed = null; }
+        try { parsed = current ? JSON.parse(current) : null; } catch { parsed = null; }
         const updated = updateFn(parsed);
         transaction.set(docRef, { value: JSON.stringify(updated) });
       });
@@ -96,3 +96,32 @@ export async function atomicUpdateAthleteData(key, updateFn, maxRetries = 3) {
 }
 
 export const IS_COACH_BUILD = !!COACH_TOKEN;
+
+// Timer sessions — in-progress race timing data, keyed per coach/role/date.
+// Allows resuming on another device if the current one dies mid-meet.
+export async function saveTimerSession(key, value) {
+  if (!COACH_TOKEN) return false;
+  try {
+    await setDoc(doc(db, 'timerSessions', key), {
+      value,
+      coachToken: COACH_TOKEN,
+      updatedAt: Date.now(),
+    });
+    return true;
+  } catch (e) {
+    console.error('Timer session save error:', e);
+    return false;
+  }
+}
+
+export async function loadTimerSession(key) {
+  try {
+    const snap = await getDoc(doc(db, 'timerSessions', key));
+    if (!snap.exists()) return null;
+    const data = snap.data();
+    return { value: data.value, updatedAt: data.updatedAt || 0 };
+  } catch (e) {
+    console.error('Timer session load error:', e);
+    return null;
+  }
+}

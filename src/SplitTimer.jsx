@@ -1,897 +1,1165 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import { loadData } from "./firebase.js";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { loadData, saveTimerSession, loadTimerSession, IS_COACH_BUILD } from "./firebase.js";
+import RaceCard from "./RaceCard";
+import {
+  fmtTime,
+  fmtSplit,
+  STORAGE_KEY,
+  PRESET_DISTANCES,
+  EVENT_COLORS,
+  TEAM_COLORS,
+  GROUP_COLORS,
+  PACE_KEYS,
+  EVT_ORDER,
+  THEMES,
+  isRelayRace,
+} from "./splitTimerUtils";
 
-var pad=function(n){return String(n).padStart(2,"0");};
-var fmtTime=function(ms){if(ms<0)ms=0;return pad(Math.floor(ms/60000))+":"+pad(Math.floor((ms%60000)/1000))+"."+pad(Math.floor((ms%1000)/10));};
-var fmtSplit=function(ms){if(ms<0)ms=0;return ms<60000?Math.floor(ms/1000)+"."+pad(Math.floor((ms%1000)/10)):fmtTime(ms);};
+export default function SplitTimer(props) {
+  const {
+    onRaceFinish,
+    onDeleteHistory,
+    meets: parentMeets = [],
+    roster: parentRoster = [],
+    raceResults = [],
+    cmRole = "head",
+    navigateToResultsMeet,
+  } = props;
 
-var STORAGE_KEY="beacon_split_v6";
-var PRESET_DISTANCES=["200m","400m","800m","1200m","1600m","Half Mile","1 Mile","3K","5K"];
-var DIST_METERS={"200m":200,"400m":400,"800m":800,"1200m":1200,"1600m":1600,"3200m":3200,"Half Mile":805,"1 Mile":1609,"Quarter Mile":402,"3K":3000,"5K":5000,"4x800":3200,"800":800,"1600":1600,"3200":3200};
-var EVENT_COLORS={"800":"#F39C12","1600":"#D4A017","3200":"#27ae60","4x800":"#a855f7"};
-var TEAM_COLORS={boys:"#4a9eff",girls:"#ff7eb3"};
-var GROUP_COLORS=["#FF5722","#4a9eff","#ff7eb3","#27ae60","#f0a500","#a855f7","#14b8a6","#f43f5e","#fb923c","#84cc16"];
-var PACE_KEYS=[{k:"thrSafe",l:"LT Safe"},{k:"thrMed",l:"LT Med"},{k:"cv",l:"CV"},{k:"vo2Safe",l:"VO2 Safe"},{k:"vo2Med",l:"VO2 Med"}];
-var EVT_ORDER={"4x800":0,"800":1,"1600":2,"3200":3};
-
-function getSplitsToFinish(ev,sd,distOverride){var rd=distOverride||DIST_METERS[ev]||DIST_METERS[ev+"m"]||0;var s=DIST_METERS[sd]||0;if(!rd||!s||s>=rd)return 0;return Math.round(rd/s);}
-function isRelayRace(race){return race.event==="4x800"||!!race.relay;}
-
-/* ── THEMES ────────────────────────────────────────────────────────────── */
-var THEMES={
-  dark:{name:"Dark",bg:"#07090e",card:"#0b0f18",border:"#1a2233",text:"#ffffff",muted:"#6a7a90",dim:"#1a2233",timerBg:"#050709",accent:"#FF5722",splitClr:"#7aff8a",timeClr:"#b0c4d8",oldSplit:"#90b8dd"},
-  midnight:{name:"Midnight",bg:"#0a0e1a",card:"#0f1526",border:"#1e2d50",text:"#f0f2ff",muted:"#7888b8",dim:"#1e2d50",timerBg:"#080c16",accent:"#7B68EE",splitClr:"#99ccff",timeClr:"#b0bbdd",oldSplit:"#a0b8ee"},
-  forest:{name:"Forest",bg:"#0a100e",card:"#0e1a14",border:"#1e3828",text:"#f0fff0",muted:"#5a9a68",dim:"#1e3828",timerBg:"#080e0c",accent:"#66BB6A",splitClr:"#b9f6ca",timeClr:"#90c8a0",oldSplit:"#a0d8b0"},
-  ember:{name:"Ember",bg:"#1a0a0a",card:"#221010",border:"#3a1818",text:"#ffe8e0",muted:"#9a6060",dim:"#3a1818",timerBg:"#140808",accent:"#ff6b35",splitClr:"#ffab91",timeClr:"#d0a090",oldSplit:"#c09080"},
-  ocean:{name:"Ocean",bg:"#0a1520",card:"#0e1c2c",border:"#1a3050",text:"#e0f0ff",muted:"#5588aa",dim:"#1a3050",timerBg:"#081420",accent:"#00bcd4",splitClr:"#80deea",timeClr:"#90b8d0",oldSplit:"#a0c8e0"},
-  slate:{name:"Slate",bg:"#1e293b",card:"#273449",border:"#3d5060",text:"#f1f5f9",muted:"#8a9eb8",dim:"#3d5060",timerBg:"#1a2435",accent:"#f97316",splitClr:"#fdd835",timeClr:"#b0c4d8",oldSplit:"#c0d0e0"},
-  light:{name:"Light",bg:"#f5f6f2",card:"#ffffff",border:"#bbb",text:"#111",muted:"#555",dim:"#e0e0e0",timerBg:"#eaeaea",accent:"#d84315",splitClr:"#1b5e20",timeClr:"#333",oldSplit:"#444"},
-  outdoor:{name:"Outdoor",bg:"#ffffff",card:"#f8f8f4",border:"#999",text:"#000000",muted:"#444",dim:"#ddd",timerBg:"#f0f0ec",accent:"#d32f2f",splitClr:"#1a6b1a",timeClr:"#222",oldSplit:"#333"},
-  cream:{name:"Cream",bg:"#fdf8f0",card:"#fff9f2",border:"#d4c4aa",text:"#2a2018",muted:"#8a7a60",dim:"#e8dcc8",timerBg:"#f4eee4",accent:"#c75000",splitClr:"#2e7d32",timeClr:"#4a3a28",oldSplit:"#5a4a38"},
-  overcast:{name:"Overcast",bg:"#e8eaee",card:"#f0f2f5",border:"#b0b8c4",text:"#1a1e28",muted:"#6a7488",dim:"#d0d4dc",timerBg:"#dde0e6",accent:"#1565c0",splitClr:"#1b5e20",timeClr:"#2a3040",oldSplit:"#3a4050"},
-  track:{name:"Track",bg:"#c23b22",card:"#d44a30",border:"#a03020",text:"#ffffff",muted:"#ffccbb",dim:"#a03020",timerBg:"#b03020",accent:"#ffffff",splitClr:"#ffff00",timeClr:"#ffe0d0",oldSplit:"#ffd0c0"},
-};
-
-function PacePill(p){if(!p.value)return null;return(<span style={{display:"inline-flex",alignItems:"center",gap:2,padding:"1px 5px",borderRadius:2,background:p.color+"14",border:"1px solid "+p.color+"35"}}><span style={{color:p.color,fontWeight:800,fontSize:9,letterSpacing:0.5}}>{p.label}</span><span style={{color:"#ccc",fontFamily:"'Share Tech Mono',monospace",fontSize:11,fontWeight:600}}>{p.value}</span></span>);}
-
-/* ── RACE CARD ─────────────────────────────────────────────────────────── */
-function RaceCard(props){
-  var race=props.race,rosterMap=props.rosterMap,paces=props.paces,onUpdateRace=props.onUpdateRace,onSaveRace=props.onSaveRace,splitLabel=props.splitLabel||"400m",T=props.T,allAthletes=props.allAthletes||[],beepOn=!!props.beepOn;
-  var _r=useState(false);var isRunning=_r[0];var setIsRunning=_r[1];
-  var _e=useState(race.elapsed||0);var elapsed=_e[0];var setElapsed=_e[1];
-  var _f=useState({});var flashMap=_f[0];var setFlashMap=_f[1];
-  var startRef=useRef(null);var pausedRef=useRef(race.elapsed||0);var rafRef=useRef(null);var elapsedRef=useRef(race.elapsed||0);
-  var resyncRef=useRef(null);
-  var _drag=useState(null);var dragIdx=_drag[0];var setDragIdx=_drag[1];
-  var _showAdd=useState(false);var showAdd=_showAdd[0];var setShowAdd=_showAdd[1];
-  var _actionFor=useState(null);var actionFor=_actionFor[0];var setActionFor=_actionFor[1];
-  var _manEntry=useState({rid:null,value:""});var manualEntry=_manEntry[0];var setManualEntry=_manEntry[1];
-  var _confirm=useState(null);var confirmModal=_confirm[0];var setConfirmModal=_confirm[1];
-  var _wakeFail=useState(false);var wakeLockFailed=_wakeFail[0];var setWakeLockFailed=_wakeFail[1];
-  var longPressRef=useRef({timer:null,fired:false});
-  var wakeLockRef=useRef(null);
-  var freshElapsed=function(){return startRef.current!==null?performance.now()-startRef.current+pausedRef.current:elapsedRef.current;};
-  var audioCtxRef=useRef(null);
-  var playBeep=function(){
-    if(!beepOn)return;
-    try{
-      if(!audioCtxRef.current){var Ctor=window.AudioContext||window.webkitAudioContext;if(!Ctor)return;audioCtxRef.current=new Ctor();}
-      var ctx=audioCtxRef.current;
-      if(ctx.state==="suspended")ctx.resume();
-      var osc=ctx.createOscillator();var gain=ctx.createGain();
-      osc.connect(gain);gain.connect(ctx.destination);
-      osc.frequency.value=880;osc.type="sine";
-      gain.gain.setValueAtTime(0.15,ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.08);
-      osc.start();osc.stop(ctx.currentTime+0.09);
-    }catch(e){}
+  const [screen, setScreen] = useState("setup");
+  const [mode, setMode] = useState("meet");
+  const [theme, setThemeState] = useState(localStorage.getItem("beacon_theme") || "dark");
+  const setTheme = (t) => {
+    setThemeState(t);
+    localStorage.setItem("beacon_theme", t);
   };
-
-  var tick=useCallback(function(){var now=performance.now()-startRef.current+pausedRef.current;elapsedRef.current=now;setElapsed(now);rafRef.current=requestAnimationFrame(tick);},[]);
-  var startTimer=function(){startRef.current=performance.now();setIsRunning(true);rafRef.current=requestAnimationFrame(tick);};
-  var pauseTimer=function(){
-    /* STOP just pauses the timer cleanly. It does NOT auto-record any splits.
-       Use the runner buttons to record splits, or "Finish" to mass-finish a race. */
-    cancelAnimationFrame(rafRef.current);
-    var now=freshElapsed();
-    startRef.current=null;elapsedRef.current=now;pausedRef.current=now;
-    setElapsed(now);setIsRunning(false);
-    onUpdateRace(race.id,{elapsed:now,status:"paused"});
+  const [beepOn, setBeepState] = useState(localStorage.getItem("beacon_beep") === "1");
+  const setBeep = (v) => {
+    setBeepState(v);
+    localStorage.setItem("beacon_beep", v ? "1" : "0");
   };
-  var finishRace=function(){
-    cancelAnimationFrame(rafRef.current);var now=freshElapsed();startRef.current=null;elapsedRef.current=now;pausedRef.current=now;setElapsed(now);setIsRunning(false);
-    var ns=Object.assign({},race.splits||{});var nf=Object.assign({},race.finished||{});
-    if(isRelay){
-      if(activeLeg>=0&&activeLeg<(race.runnerIds||[]).length){
-        var rid=race.runnerIds[activeLeg];
-        if(!nf[rid]){
-          var prev=ns[rid]||[];
-          /* lastTotal: runner's own previous split if any, else previous leg's last total */
-          var lastTotal=0;
-          if(prev.length>0){lastTotal=prev[prev.length-1].total;}
-          else if(activeLeg>0){var prevRid=race.runnerIds[activeLeg-1];var prevSp=ns[prevRid]||[];if(prevSp.length>0)lastTotal=prevSp[prevSp.length-1].total;}
-          if(now>lastTotal+500){ns[rid]=prev.concat([{split:now-lastTotal,total:now}]);}
+  const T = useMemo(() => THEMES[theme] || THEMES.dark, [theme]);
+  const [allAthletes, setAllAthletes] = useState([]);
+  const [races, setRaces] = useState([]);
+  const [splitLabel, setSplitLabel] = useState("400m");
+  const [customLabel, setCustomLabel] = useState("");
+  const [woName, setWoName] = useState("");
+  const [fbPaces, setFbPaces] = useState({});
+  const [fbStatus, setFbStatus] = useState("connecting");
+  const [importedMeetId, setImportedMeetId] = useState(null);
+  const [histOpen, setHistOpen] = useState(false);
+  const [expandedRace, setExpandedRace] = useState(null);
+  const [woGroups, setWoGroups] = useState([]);
+  const [newGrpName, setNewGrpName] = useState("");
+  const [paceKey, setPaceKey] = useState("thrSafe");
+  const [paceTol, setPaceTol] = useState(14);
+  const [ahName, setAhName] = useState("");
+  const [ahRelay, setAhRelay] = useState(false);
+  const [ahLegs, setAhLegs] = useState(4);
+  const [ahDist, setAhDist] = useState("");
+  const [ahTeam, setAhTeam] = useState("boys");
+  const [ahRunners, setAhRunners] = useState([]);
+  const [ahOpen, setAhOpen] = useState(false);
+  const sessionDate = useRef(new Date().toISOString().slice(0, 10)).current;
+
+  useEffect(() => {
+    const l = document.createElement("link");
+    l.href = "https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@400;600;700;800;900&display=swap";
+    l.rel = "stylesheet";
+    document.head.appendChild(l);
+    return () => document.head.removeChild(l);
+  }, []);
+
+  useEffect(() => {
+    if (parentRoster.length > 0) {
+      const clean = parentRoster
+        .filter((a) => a.name && !a.name.toLowerCase().includes("coach"))
+        .map((a) => ({ id: String(a.id), name: a.name, team: a.team || "boys" }));
+      setAllAthletes(clean);
+      const pm = {};
+      parentRoster.forEach((a) => {
+        if (a.name && a.paces) pm[a.name] = a.paces;
+      });
+      setFbPaces(pm);
+      setFbStatus("ok");
+    } else {
+      loadData("roster-v3")
+        .then((val) => {
+          const raw = val ? JSON.parse(val) : null;
+          if (!Array.isArray(raw)) {
+            setFbStatus("offline");
+            return;
+          }
+          const pm = {};
+          raw.forEach((a) => {
+            if (a.name && a.paces) pm[a.name] = a.paces;
+          });
+          setFbPaces(pm);
+          setFbStatus("ok");
+          setAllAthletes(
+            raw
+              .filter((a) => a.name && !a.name.toLowerCase().includes("coach"))
+              .map((a) => ({ id: String(a.id), name: a.name, team: a.team || "boys" }))
+          );
+        })
+        .catch(() => setFbStatus("offline"));
+    }
+  }, [parentRoster]);
+
+  /* Cloud sync: key by coach role + session date so a dead phone can be
+     recovered on another device. Local always wins on boot; remote is only
+     consulted when local is empty. */
+  const cloudKey = cmRole + "_" + sessionDate;
+  const [cloudStatus, setCloudStatus] = useState("idle");
+  const cloudWriteRef = useRef(null);
+  const cloudRestoreTriedRef = useRef(false);
+
+  const applySnapshot = useCallback((d) => {
+    if (!d || !d.races || !d.races.length) return false;
+    setRaces(d.races);
+    if (d.splitLabel) setSplitLabel(d.splitLabel);
+    if (d.customLabel) setCustomLabel(d.customLabel);
+    if (d.mode) setMode(d.mode);
+    if (d.importedMeetId) setImportedMeetId(d.importedMeetId);
+    setScreen("race");
+    return true;
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const tryLocalThenCloud = async () => {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const d = JSON.parse(saved);
+          if (applySnapshot(d)) return;
         }
+      } catch {
+        /* ignore corrupt storage */
       }
-      /* Mark all remaining as finished */
-      (race.runnerIds||[]).forEach(function(rid){nf[rid]=true;});
-    } else {
-      (race.runnerIds||[]).forEach(function(rid){if(nf[rid])return;var sp=ns[rid]||[];if(sp.length>0){var last=sp[sp.length-1].total;if(now>last+500){ns[rid]=sp.concat([{split:now-last,total:now}]);}}nf[rid]=true;});
-    }
-    onUpdateRace(race.id,{status:"done",elapsed:now,splits:ns,finished:nf});
-  };
-  var resetRace=function(){cancelAnimationFrame(rafRef.current);startRef.current=null;setIsRunning(false);setElapsed(0);elapsedRef.current=0;pausedRef.current=0;onUpdateRace(race.id,{elapsed:0,splits:{},status:"ready",finished:{}});};
-  useEffect(function(){return function(){cancelAnimationFrame(rafRef.current);};},[]);
-
-  /* Wake lock — keep the screen on while a race is actively running */
-  useEffect(function(){
-    if(typeof navigator==="undefined"||!navigator.wakeLock){if(isRunning)setWakeLockFailed(true);return;}
-    var releaseLock=function(){if(wakeLockRef.current){wakeLockRef.current.release().catch(function(){});wakeLockRef.current=null;}};
-    var acquire=function(){
-      if(!isRunning||wakeLockRef.current)return;
-      navigator.wakeLock.request("screen").then(function(s){
-        wakeLockRef.current=s;setWakeLockFailed(false);
-        s.addEventListener("release",function(){if(wakeLockRef.current===s)wakeLockRef.current=null;});
-      }).catch(function(){setWakeLockFailed(true);});
-    };
-    if(isRunning)acquire();else releaseLock();
-    var onVis=function(){if(document.visibilityState==="visible"&&isRunning)acquire();};
-    document.addEventListener("visibilitychange",onVis);
-    return function(){document.removeEventListener("visibilitychange",onVis);releaseLock();};
-  },[isRunning]);
-  /* Auto-resync: keep elapsedRef fresh even when rAF is throttled (backgrounded tab, screen off) */
-  useEffect(function(){
-    if(!isRunning){if(resyncRef.current){clearInterval(resyncRef.current);resyncRef.current=null;}return;}
-    resyncRef.current=setInterval(function(){if(startRef.current!==null){elapsedRef.current=performance.now()-startRef.current+pausedRef.current;}},2000);
-    return function(){if(resyncRef.current){clearInterval(resyncRef.current);resyncRef.current=null;}};
-  },[isRunning]);
-
-  var isReady=race.status==="ready"&&!isRunning&&elapsed===0;
-  var moveRunner=function(fromIdx,toIdx){
-    if(fromIdx===toIdx)return;
-    var ids=(race.runnerIds||[]).slice();var item=ids.splice(fromIdx,1)[0];ids.splice(toIdx,0,item);
-    onUpdateRace(race.id,{runnerIds:ids});
-  };
-  var removeRunner=function(rid){
-    var ids=(race.runnerIds||[]).filter(function(r){return r!==rid;});
-    var ns=Object.assign({},race.splits||{});delete ns[rid];
-    var nf=Object.assign({},race.finished||{});delete nf[rid];
-    onUpdateRace(race.id,{runnerIds:ids,splits:ns,finished:nf});
-  };
-  var addRunner=function(rid){
-    if((race.runnerIds||[]).includes(rid))return;
-    onUpdateRace(race.id,{runnerIds:(race.runnerIds||[]).concat([rid])});
-  };
-  var pressStart=function(rid){
-    longPressRef.current.fired=false;
-    if(longPressRef.current.timer)clearTimeout(longPressRef.current.timer);
-    longPressRef.current.timer=setTimeout(function(){
-      longPressRef.current.fired=true;
-      longPressRef.current.timer=null;
-      setActionFor(rid);
-      if(typeof navigator!=="undefined"&&typeof navigator.vibrate==="function"){try{navigator.vibrate(40);}catch(e){}}
-    },500);
-  };
-  var pressEnd=function(){
-    if(longPressRef.current.timer){clearTimeout(longPressRef.current.timer);longPressRef.current.timer=null;}
-  };
-  var parseTimeStr=function(str){
-    /* Accepts "1:23.45", "1:23", "83.45", or "83" */
-    str=(str||"").trim();if(!str)return null;
-    var parts=str.split(":");
-    if(parts.length===2){var mm=parseInt(parts[0]);var rest=parts[1].split(".");var ss=parseInt(rest[0])||0;var cs=rest[1]?parseInt((rest[1]+"00").slice(0,2)):0;if(isNaN(mm))return null;return mm*60000+ss*1000+cs*10;}
-    if(parts.length===1){var rest2=str.split(".");var sec=parseInt(rest2[0])||0;var cs2=rest2[1]?parseInt((rest2[1]+"00").slice(0,2)):0;return sec*1000+cs2*10;}
-    return null;
-  };
-  var submitManualEntry=function(rid,str){
-    var ms=parseTimeStr(str);if(ms===null||ms<=0)return;
-    var ns=Object.assign({},race.splits||{});
-    var nf=Object.assign({},race.finished||{});
-    if(isRelay){
-      var legIdx=(race.runnerIds||[]).indexOf(rid);
-      var legStart=0;
-      if(legIdx>0){var prevRid=race.runnerIds[legIdx-1];var prevSp=ns[prevRid]||[];if(prevSp.length>0)legStart=prevSp[prevSp.length-1].total;}
-      if(ms<=legStart)return;
-      ns[rid]=[{split:ms-legStart,total:ms}];
-      nf[rid]=true;
-    } else {
-      var prev=ns[rid]||[];
-      var lastTotal=prev.length>0?prev[prev.length-1].total:0;
-      if(ms<=lastTotal)return;/* Must be after the previous split */
-      ns[rid]=prev.concat([{split:ms-lastTotal,total:ms}]);
-      if(splitsToFinish>0&&ns[rid].length>=splitsToFinish)nf[rid]=true;
-    }
-    /* If this push exceeds elapsed, bump elapsed up to match */
-    var newElapsed=Math.max(elapsedRef.current,ms);
-    if(newElapsed>elapsedRef.current){elapsedRef.current=newElapsed;pausedRef.current=newElapsed;setElapsed(newElapsed);}
-    var allDone=(race.runnerIds||[]).every(function(r){return nf[r];});
-    if(allDone){cancelAnimationFrame(rafRef.current);startRef.current=null;setIsRunning(false);onUpdateRace(race.id,{splits:ns,status:"done",elapsed:newElapsed,finished:nf});}
-    else{onUpdateRace(race.id,{splits:ns,status:isRunning?"running":"paused",elapsed:newElapsed,finished:nf});}
-  };
-  var undoSplit=function(rid){
-    var sp=(race.splits||{})[rid]||[];
-    if(sp.length===0)return;
-    var ns=Object.assign({},race.splits||{});
-    ns[rid]=sp.slice(0,-1);
-    var nf=Object.assign({},race.finished||{});
-    delete nf[rid];/* un-finish them */
-    var dnfMap=Object.assign({},race.dnf||{});
-    delete dnfMap[rid];/* un-DNF if they were DNF */
-    var wasDone=race.status==="done";
-    if(wasDone){cancelAnimationFrame(rafRef.current);setIsRunning(false);}
-    onUpdateRace(race.id,{splits:ns,finished:nf,dnf:dnfMap,status:wasDone?"paused":race.status});
-  };
-  var markMissedSplit=function(rid){
-    /* Inserts a placeholder split so the runner advances toward auto-finish.
-       The placeholder has split:0, total=previousTotal, and missed:true.
-       Coach fills in the real value later in the Race Results tab. */
-    if(finishedMap[rid])return;
-    var prev=(race.splits||{})[rid]||[];
-    var lastTotal=0;
-    if(prev.length>0){lastTotal=prev[prev.length-1].total;}
-    else if(isRelay){var legIdx=(race.runnerIds||[]).indexOf(rid);if(legIdx>0){var prevRid=race.runnerIds[legIdx-1];var prevSp=(race.splits||{})[prevRid]||[];if(prevSp.length>0)lastTotal=prevSp[prevSp.length-1].total;}}
-    var ns=Object.assign({},race.splits||{});
-    ns[rid]=prev.concat([{split:0,total:lastTotal,missed:true}]);
-    var nf=Object.assign({},finishedMap);
-    var perRunner=isRelay?splitsPerLeg:splitsToFinish;
-    if(perRunner>0&&ns[rid].length>=perRunner)nf[rid]=true;
-    var allDone=(race.runnerIds||[]).every(function(r){return nf[r];});
-    if(allDone){var doneNow=freshElapsed();cancelAnimationFrame(rafRef.current);startRef.current=null;elapsedRef.current=doneNow;pausedRef.current=doneNow;setElapsed(doneNow);setIsRunning(false);onUpdateRace(race.id,{splits:ns,finished:nf,status:"done",elapsed:doneNow});}
-    else{onUpdateRace(race.id,{splits:ns,finished:nf,status:isRunning?"running":(race.status==="ready"?"ready":"paused")});}
-    if(typeof navigator!=="undefined"&&typeof navigator.vibrate==="function"){try{navigator.vibrate([20,40,20]);}catch(e){}}
-  };
-  var markRunnerDone=function(rid){
-    /* Closes out a runner who's finished but hasn't reached splitsToFinish.
-       Appends a final split bringing them to current elapsed, then marks finished. */
-    if(finishedMap[rid])return;
-    var now=freshElapsed();
-    if(now===0&&!isRunning&&!race.elapsed)return;
-    var prev=(race.splits||{})[rid]||[];
-    var lastTotal=0;
-    if(prev.length>0){lastTotal=prev[prev.length-1].total;}
-    else if(isRelay){var legIdx=(race.runnerIds||[]).indexOf(rid);if(legIdx>0){var prevRid=race.runnerIds[legIdx-1];var prevSp=(race.splits||{})[prevRid]||[];if(prevSp.length>0)lastTotal=prevSp[prevSp.length-1].total;}}
-    var ns=Object.assign({},race.splits||{});
-    if(now>lastTotal+100){ns[rid]=prev.concat([{split:now-lastTotal,total:now}]);}
-    else{ns[rid]=prev;}
-    var nf=Object.assign({},finishedMap);nf[rid]=true;
-    var allDone=(race.runnerIds||[]).every(function(r){return nf[r];});
-    if(allDone){cancelAnimationFrame(rafRef.current);startRef.current=null;pausedRef.current=now;setIsRunning(false);onUpdateRace(race.id,{splits:ns,finished:nf,status:"done",elapsed:now});}
-    else{onUpdateRace(race.id,{splits:ns,finished:nf,status:isRunning?"running":"paused"});}
-  };
-  var toggleDnf=function(rid){
-    var dnfMap=Object.assign({},race.dnf||{});
-    var nf=Object.assign({},race.finished||{});
-    if(dnfMap[rid]){
-      /* Un-DNF: clear flag and un-finish */
-      delete dnfMap[rid];
-      delete nf[rid];
-      var wasDone=race.status==="done";
-      if(wasDone){cancelAnimationFrame(rafRef.current);setIsRunning(false);}
-      onUpdateRace(race.id,{dnf:dnfMap,finished:nf,status:wasDone?"paused":race.status});
-    } else {
-      /* Mark DNF: add flag and mark finished so race can complete */
-      dnfMap[rid]=true;
-      nf[rid]=true;
-      var allDone=(race.runnerIds||[]).every(function(r){return nf[r];});
-      if(allDone){
-        cancelAnimationFrame(rafRef.current);
-        var now=freshElapsed();
-        startRef.current=null;elapsedRef.current=now;pausedRef.current=now;setElapsed(now);
-        setIsRunning(false);
-        onUpdateRace(race.id,{dnf:dnfMap,finished:nf,status:"done",elapsed:now});
+      if (!IS_COACH_BUILD || cloudRestoreTriedRef.current) return;
+      cloudRestoreTriedRef.current = true;
+      setCloudStatus("syncing");
+      const remote = await loadTimerSession(cloudKey);
+      if (cancelled) return;
+      if (remote && remote.value) {
+        try {
+          const d = JSON.parse(remote.value);
+          if (applySnapshot(d)) setCloudStatus("restored");
+          else setCloudStatus("idle");
+        } catch {
+          setCloudStatus("idle");
+        }
       } else {
-        onUpdateRace(race.id,{dnf:dnfMap,finished:nf});
+        setCloudStatus("idle");
       }
+    };
+    tryLocalThenCloud();
+    return () => {
+      cancelled = true;
+    };
+  }, [applySnapshot, cloudKey]);
+
+  useEffect(() => {
+    if (!races.length) return;
+    const payload = JSON.stringify({ races, splitLabel, customLabel, mode, importedMeetId, savedAt: Date.now() });
+    try {
+      localStorage.setItem(STORAGE_KEY, payload);
+    } catch {
+      /* ignore storage errors */
     }
+    /* Debounce cloud writes to 3s so rapid tap sequences don't burn quota. */
+    if (!IS_COACH_BUILD) return;
+    if (cloudWriteRef.current) clearTimeout(cloudWriteRef.current);
+    cloudWriteRef.current = setTimeout(async () => {
+      setCloudStatus("syncing");
+      const ok = await saveTimerSession(cloudKey, payload);
+      setCloudStatus(ok ? "synced" : "offline");
+    }, 3000);
+    return () => {
+      if (cloudWriteRef.current) clearTimeout(cloudWriteRef.current);
+    };
+  }, [races, splitLabel, customLabel, mode, importedMeetId, cloudKey]);
+
+  const rosterMap = useMemo(() => {
+    const m = {};
+    allAthletes.forEach((a) => {
+      m[String(a.id)] = a;
+    });
+    return m;
+  }, [allAthletes]);
+
+  const label = customLabel.trim() || splitLabel;
+  const boys = useMemo(() => allAthletes.filter((a) => a.team === "boys"), [allAthletes]);
+  const girls = useMemo(() => allAthletes.filter((a) => a.team === "girls"), [allAthletes]);
+
+  const updateRace = useCallback((raceId, updates) => {
+    setRaces((prev) => prev.map((r) => (r.id === raceId ? { ...r, ...updates } : r)));
+  }, []);
+
+  const buildRaceResult = useCallback(
+    (race) => {
+      const runners = (race.runnerIds || []).map((rid) => {
+        const ath = rosterMap[String(rid)];
+        const sp = (race.splits || {})[rid] || [];
+        const ft = sp.length > 0 ? sp[sp.length - 1].total : race.elapsed || 0;
+        const isDnf = !!(race.dnf || {})[rid];
+        return { id: rid, name: ath ? ath.name : "Unknown", team: ath ? ath.team : "", splits: sp, finalTime: ft, dnf: isDnf };
+      });
+      const result = {
+        meetId: race.meetId || "",
+        meetName: race.meetName || "Session",
+        meetDate: race.meetDate || sessionDate,
+        event: race.event || race.label || label,
+        team: race.team || "",
+        heat: race.heat || 0,
+        runners,
+        elapsed: race.elapsed || 0,
+        type: mode,
+        splitLabel: race.splitLabel || label,
+        sortKey:
+          (EVT_ORDER[race.event] !== undefined ? EVT_ORDER[race.event] : 9) * 1000 +
+          (race.team === "boys" ? 0 : 100) +
+          (race.heat || 1),
+      };
+      if (race.relay) result.relay = true;
+      if (race.distanceM) result.distanceM = race.distanceM;
+      return result;
+    },
+    [rosterMap, sessionDate, label, mode]
+  );
+
+  const saveOneRace = useCallback(
+    (race) => {
+      if (race.saved) return;
+      const result = buildRaceResult(race);
+      if (onRaceFinish) onRaceFinish(result);
+      updateRace(race.id, { saved: true });
+    },
+    [buildRaceResult, onRaceFinish, updateRace]
+  );
+
+  const matchesMode = useCallback(
+    (r) => {
+      const rType = r.type || (r.meetId ? "meet" : null);
+      return rType === mode;
+    },
+    [mode]
+  );
+
+  const saveAllUnsaved = () => {
+    const unsaved = races.filter(
+      (r) => matchesMode(r) && r.status === "done" && !r.saved && Object.keys(r.splits || {}).length > 0
+    );
+    unsaved.sort((a, b) => (buildRaceResult(a).sortKey || 0) - (buildRaceResult(b).sortKey || 0));
+    unsaved.forEach((race) => {
+      const result = buildRaceResult(race);
+      if (onRaceFinish) onRaceFinish(result);
+    });
+    setRaces((prev) =>
+      prev.map((r) =>
+        matchesMode(r) && r.status === "done" && !r.saved && Object.keys(r.splits || {}).length > 0
+          ? { ...r, saved: true }
+          : r
+      )
+    );
   };
 
-  var effectiveSplit=race.splitLabel||splitLabel;
-  var splitsToFinish=getSplitsToFinish(race.event,effectiveSplit,race.distanceM||0);
-  var finishedMap=race.finished||{};
-  var isRelay=isRelayRace(race);
-  /* For relays, how many splits each leg runner needs to take before that leg
-     is "done". Defaults to 1 if the math doesn't divide evenly. */
-  var legCount=(race.runnerIds||[]).length;
-  var splitsPerLeg=isRelay&&legCount>0&&splitsToFinish>0?Math.max(1,Math.round(splitsToFinish/legCount)):1;
-  /* For relay: figure out which leg is active */
-  var activeLeg=-1;
-  if(isRelay){
-    for(var li=0;li<(race.runnerIds||[]).length;li++){
-      if(!finishedMap[race.runnerIds[li]]){activeLeg=li;break;}
-    }
-  }
-  var recordSplit=function(rid){var now=freshElapsed();if(now===0&&!isRunning)return;if(finishedMap[rid])return;
-    if(isRelay){
-      /* Relay: only the active leg runner is tappable. Each tap appends a split.
-         The runner is only marked finished after they accumulate splitsPerLeg splits. */
-      var legIdx=(race.runnerIds||[]).indexOf(rid);
-      if(legIdx!==activeLeg)return;
-      var prev=(race.splits||{})[rid]||[];
-      /* Compute the start time for this new split:
-         - If runner already has splits (mid-leg taps), use their own previous total
-         - Otherwise (first tap of this leg), use previous leg runner's last total */
-      var legStart=0;
-      if(prev.length>0){legStart=prev[prev.length-1].total;}
-      else if(legIdx>0){var prevRid=race.runnerIds[legIdx-1];var prevSp=(race.splits||{})[prevRid]||[];if(prevSp.length>0)legStart=prevSp[prevSp.length-1].total;}
-      var ns=Object.assign({},race.splits||{});
-      ns[rid]=prev.concat([{split:now-legStart,total:now}]);
-      var nf=Object.assign({},finishedMap);
-      if(ns[rid].length>=splitsPerLeg)nf[rid]=true;
-      var done1=(race.runnerIds||[]).every(function(r){return nf[r];});
-      if(done1){cancelAnimationFrame(rafRef.current);startRef.current=null;pausedRef.current=now;setIsRunning(false);onUpdateRace(race.id,{splits:ns,status:"done",elapsed:now,finished:nf});}
-      else{onUpdateRace(race.id,{splits:ns,status:"running",finished:nf});}
-    } else {
-      var prev=(race.splits||{})[rid]||[];var last=prev.length>0?prev[prev.length-1].total:0;
-      var ns=Object.assign({},race.splits||{});ns[rid]=prev.concat([{split:now-last,total:now}]);
-      var nf=Object.assign({},finishedMap);if(splitsToFinish>0&&ns[rid].length>=splitsToFinish)nf[rid]=true;
-      var done2=(race.runnerIds||[]).every(function(r){return nf[r];});
-      if(done2){cancelAnimationFrame(rafRef.current);startRef.current=null;pausedRef.current=now;setIsRunning(false);onUpdateRace(race.id,{splits:ns,status:"done",elapsed:now,finished:nf});}
-      else{onUpdateRace(race.id,{splits:ns,status:"running",finished:nf});}
-    }
-    setFlashMap(function(p){var n=Object.assign({},p);n[rid]=true;return n;});setTimeout(function(){setFlashMap(function(p){var n=Object.assign({},p);n[rid]=false;return n;});},350);
-    /* Haptic + audio confirmation so the coach knows the tap registered without looking */
-    if(typeof navigator!=="undefined"&&typeof navigator.vibrate==="function"){try{navigator.vibrate(50);}catch(e){}}
-    playBeep();
-  };
-
-  var runners=(race.runnerIds||[]).map(function(rid){return rosterMap[rid]||rosterMap[String(rid)];}).filter(Boolean);
-  var hasSplits=runners.some(function(a){return((race.splits||{})[a.id]||[]).length>0;});
-  var evClr=EVENT_COLORS[race.event]||race.color||T.accent;
-  var teamClr=TEAM_COLORS[race.team]||evClr;
-  var isDone=race.status==="done";
-  var finCount=Object.keys(finishedMap).length;
-
-  return(<div style={{borderRadius:6,border:"1px solid "+(isRunning?evClr+"66":T.border),background:isRunning?T.card:T.card,borderLeft:"3px solid "+evClr,marginBottom:8}}>
-    <div style={{padding:"10px 12px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-      <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-        <div style={{fontSize:15,fontWeight:800,color:evClr}}>{race.label||race.event}</div>
-        {race.team?<span style={{fontSize:11,fontWeight:700,color:teamClr,padding:"1px 8px",borderRadius:3,background:teamClr+"18",textTransform:"uppercase",letterSpacing:1}}>{race.team}</span>:null}
-        <span style={{fontSize:10,color:T.muted}}>{runners.length} runners</span>
-        {race.shared?<span title="Shared race — only your assigned runners are shown" style={{fontSize:9,fontWeight:800,padding:"2px 6px",borderRadius:3,background:"#f0a50022",color:"#f0a500",border:"1px solid #f0a50066",letterSpacing:0.5}}>SHARED</span>:race.assignedCoaches&&race.assignedCoaches.length===1?<span title="Solo race — only you" style={{fontSize:9,fontWeight:800,padding:"2px 6px",borderRadius:3,background:"#27ae6022",color:"#5ddb6a",border:"1px solid #27ae6066",letterSpacing:0.5}}>YOURS</span>:null}
-        {isReady?<select value={effectiveSplit} onChange={function(e){onUpdateRace(race.id,{splitLabel:e.target.value});}} style={{background:T.timerBg,border:"1px solid "+T.border,color:T.text,padding:"2px 6px",borderRadius:3,fontFamily:"inherit",fontSize:10}} title="Split distance">
-          {["200m","400m","800m","1200m","1600m","Half Mile","1 Mile","3K","5K"].map(function(d){return <option key={d} value={d}>{d}</option>;})}
-        </select>:<span style={{fontSize:9,color:T.muted,fontFamily:"'Share Tech Mono',monospace",padding:"1px 5px",border:"1px solid "+T.border,borderRadius:3}}>{effectiveSplit}</span>}
-        {splitsToFinish>0?<span style={{fontSize:9,color:T.muted,fontFamily:"'Share Tech Mono',monospace"}}>{splitsToFinish} splits=done</span>:null}
-      </div>
-      <div style={{display:"flex",gap:4,alignItems:"center"}}>
-        {finCount>0&&!isDone?<span style={{fontSize:10,padding:"2px 8px",borderRadius:3,background:"#27ae6022",color:"#5ddb6a",fontWeight:700}}>{finCount}/{runners.length}</span>:null}
-        {isDone&&!race.saved?<button onClick={function(){if(onSaveRace)onSaveRace(race);}} style={{padding:"3px 8px",background:"#3498DB22",color:"#3498DB",border:"1px solid #3498DB44",borderRadius:3,cursor:"pointer",fontSize:10,fontWeight:700,fontFamily:"inherit"}}>Save</button>:null}
-        {race.saved?<span style={{fontSize:10,padding:"2px 8px",borderRadius:3,background:"#27ae6022",color:"#5ddb6a",fontWeight:700}}>Saved</span>:isDone?<span style={{fontSize:10,padding:"2px 8px",borderRadius:3,background:"#27ae6022",color:"#5ddb6a",fontWeight:700}}>Done</span>:null}
-        {hasSplits&&!isDone?<button onClick={finishRace} style={{padding:"3px 8px",background:"#27ae6022",color:"#5ddb6a",border:"1px solid #27ae6044",borderRadius:3,cursor:"pointer",fontSize:10,fontWeight:700,fontFamily:"inherit"}}>Finish</button>:null}
-      </div>
-    </div>
-    {isRunning&&wakeLockFailed?<div style={{padding:"3px 12px",background:"#f0a50022",borderBottom:"1px solid #f0a50044",display:"flex",alignItems:"center",gap:6}}>
-      <span style={{fontSize:10,fontWeight:700,color:"#f0a500"}}>Screen lock not prevented — keep your phone awake during the race</span>
-    </div>:null}
-    <div style={{padding:"6px 12px",background:T.timerBg,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:42,zIndex:5,borderTop:"1px solid "+T.border,borderBottom:"1px solid "+T.border}}>
-      <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:isRunning?52:36,color:isRunning?T.text:elapsed>0?evClr:T.muted,letterSpacing:2,lineHeight:1}}>{fmtTime(elapsed)}</div>
-      <div style={{display:"flex",gap:5}}>
-        {!isDone&&!isRunning?<button onClick={startTimer} style={{padding:"6px 16px",background:evClr,color:T.bg,border:"none",borderRadius:3,cursor:"pointer",fontSize:13,fontWeight:900,fontFamily:"inherit",letterSpacing:2}}>{elapsed>0?"GO":"START"}</button>:!isDone?<button onClick={pauseTimer} style={{padding:"6px 16px",background:"transparent",color:evClr,border:"1.5px solid "+evClr,borderRadius:3,cursor:"pointer",fontSize:13,fontWeight:900,fontFamily:"inherit",letterSpacing:2}}>STOP</button>:null}
-        <button onClick={function(){setConfirmModal({title:"Reset this race?",message:"All splits and the timer will be cleared. This cannot be undone.",confirmLabel:"Reset",destructive:true,onConfirm:function(){resetRace();}});}} style={{padding:"6px 10px",background:"transparent",color:T.muted,border:"1px solid "+T.border,borderRadius:3,cursor:"pointer",fontSize:10,fontWeight:700,fontFamily:"inherit"}}>Reset</button>
-      </div>
-    </div>
-    <div style={{padding:"6px"}}>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4}}>
-        {runners.map(function(ath,athIdx){var sp=(race.splits||{})[ath.id]||[];var last=sp[sp.length-1];var flash=flashMap[ath.id];var hasSp=sp.length>0;var isFin=!!finishedMap[ath.id];
-          var isDnf=!!(race.dnf||{})[ath.id];
-          var isActiveLeg=isRelay&&athIdx===activeLeg;
-          var canClick=isDnf?false:isRelay?isActiveLeg&&(isRunning||elapsed>0)&&!isDone:(isRunning||elapsed>0)&&!isDone&&!isFin;
-          /* Incomplete = has any placeholder split, OR is finished but split count is below expected */
-          var hasPlaceholder=sp.some(function(s){return s&&s.missed;});
-          var perRunner=isRelay?splitsPerLeg:splitsToFinish;
-          var isIncomplete=!isDnf&&(hasPlaceholder||(isFin&&perRunner>0&&sp.length<perRunner));
-          var lastIsPlaceholder=last&&last.missed;
-          var showActions=!isReady&&(isRunning||elapsed>0||isDone);
-          var p=paces[ath.name]||{};
-          var hidePaces=isRunning||elapsed>0;
-          return(<div key={ath.id} style={{position:"relative",width:"100%"}}
-            draggable={isReady} onDragStart={function(e){if(!isReady)return;setDragIdx(athIdx);e.dataTransfer.effectAllowed="move";}}
-            onDragOver={function(e){if(!isReady||dragIdx===null)return;e.preventDefault();e.dataTransfer.dropEffect="move";}}
-            onDrop={function(e){if(!isReady||dragIdx===null)return;e.preventDefault();moveRunner(dragIdx,athIdx);setDragIdx(null);}}
-            onDragEnd={function(){setDragIdx(null);}}>
-            {isReady?<span onClick={function(e){e.stopPropagation();removeRunner(ath.id);}} style={{position:"absolute",top:2,right:2,zIndex:2,width:18,height:18,borderRadius:"50%",background:"#ef444433",color:"#ef4444",border:"none",cursor:"pointer",fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>{"\u00D7"}</span>:null}
-            <button
-              onClick={function(){if(longPressRef.current.fired){longPressRef.current.fired=false;return;}if(canClick)recordSplit(ath.id);}}
-              onMouseDown={function(){if(showActions)pressStart(ath.id);}}
-              onMouseUp={pressEnd}
-              onMouseLeave={pressEnd}
-              onTouchStart={function(){if(showActions)pressStart(ath.id);}}
-              onTouchEnd={pressEnd}
-              onTouchCancel={pressEnd}
-              onContextMenu={function(e){e.preventDefault();}}
-              style={{width:"100%",padding:"12px 12px",minHeight:64,background:flash?"#0c1f0e":dragIdx===athIdx?"rgba(255,255,255,0.05)":isDnf?"rgba(239,68,68,0.06)":T.card,border:"1px solid "+(flash?"#2d7a35":isDnf?"#ef444444":isFin?"#27ae6044":hasSp?"#1a2e1a":T.border),borderTop:"3px solid "+(isDnf?"#ef4444":isFin?"#27ae60":flash?"#5ddb6a":hasSp?"#1e4a1e":teamClr+"44"),borderRadius:4,cursor:isReady?"grab":canClick?"pointer":"default",textAlign:"left",userSelect:"none",WebkitUserSelect:"none",WebkitTouchCallout:"none",fontFamily:"inherit",display:"flex",flexDirection:"column",gap:2,opacity:dragIdx===athIdx?0.4:isDnf?0.7:isFin&&!flash?0.6:(isRelay&&!isActiveLeg&&!isFin)?0.4:1}}>
-            {isReady?<div style={{display:"flex",alignItems:"center",gap:4,marginBottom:1}}><span style={{fontSize:10,color:T.muted,letterSpacing:1,cursor:"grab"}}>{"\u2630"}</span>{isRelay?<span style={{fontSize:9,fontWeight:700,color:evClr,padding:"0 4px",borderRadius:2,background:evClr+"18"}}>Leg {athIdx+1}</span>:null}</div>:null}
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:4}}>
-              <span style={{fontSize:18,fontWeight:800,color:flash?"#5ddb6a":isDnf?"#ef4444":isFin?"#27ae60":T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",flex:1,minWidth:0,lineHeight:1.1,textDecoration:isDnf?"line-through":"none"}}>{ath.name}</span>
-              <span style={{fontSize:20,fontWeight:900,lineHeight:1,color:hasSp?(flash?"#5ddb6a":isDnf?"#ef4444":isFin?"#27ae60":T.accent):T.dim,flexShrink:0}}>{sp.length}</span>
-            </div>
-            <div style={{minHeight:24,display:"flex",alignItems:"center",gap:6}}>
-              {last?<div style={{display:"flex",alignItems:"baseline",gap:5}}>
-                <span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:22,fontWeight:800,color:flash?"#5ddb6a":isDnf?"#ef4444":lastIsPlaceholder?"#f0a500":isFin?"#27ae60":T.splitClr}}>{lastIsPlaceholder?"?":fmtSplit(last.split)}</span>
-                <span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:14,fontWeight:700,color:T.timeClr}}>{lastIsPlaceholder?"missed":fmtTime(last.total)}</span>
-              </div>:<span style={{fontSize:10,color:isDnf?"#ef4444":isFin?"#27ae60":isActiveLeg?T.accent:T.dim}}>{isDnf?"\u2717 DNF":isFin?"\u2713 FINISHED":isActiveLeg?"\u25B6 ACTIVE LEG":isRelay&&!isFin?"waiting":canClick?"tap to split":""}</span>}
-              {isIncomplete?<span title="Incomplete: has missed/placeholder splits — fix in Race Results" style={{fontSize:8,fontWeight:800,padding:"1px 5px",borderRadius:3,background:"#f0a50022",color:"#f0a500",border:"1px solid #f0a50066",letterSpacing:0.5,marginLeft:"auto"}}>{"\u26A0 INC"}</span>:null}
-            </div>
-            {!hidePaces&&(p.thrSafe||p.cv||p.vo2Safe)?<div style={{display:"flex",flexWrap:"wrap",gap:3,marginTop:1}}>{p.thrSafe?<PacePill label="T" value={p.thrSafe} color="#f0a500"/>:null}{p.cv?<PacePill label="CV" value={p.cv} color="#4a9eff"/>:null}{p.vo2Safe?<PacePill label="V2" value={p.vo2Safe} color="#e84393"/>:null}</div>:null}
-          </button>
-          {actionFor===ath.id?(<div style={{position:"absolute",inset:0,zIndex:20,background:T.bg,border:"2px solid "+T.accent,borderRadius:4,display:"flex",flexDirection:"column",padding:6,gap:5}}>
-            <div style={{fontSize:10,color:T.muted,textAlign:"center",letterSpacing:1,textTransform:"uppercase"}}>{ath.name}</div>
-            {manualEntry.rid===ath.id?(<div style={{display:"flex",flexDirection:"column",gap:5}}>
-              <input value={manualEntry.value} onChange={function(e){setManualEntry({rid:ath.id,value:e.target.value});}} placeholder="e.g. 1:23.45 or 83.45" autoFocus style={{padding:"8px",background:T.timerBg,border:"1px solid "+T.accent,color:T.text,borderRadius:3,fontSize:13,fontFamily:"'Share Tech Mono',monospace",outline:"none",textAlign:"center"}}/>
-              <div style={{fontSize:9,color:T.muted,textAlign:"center"}}>Cumulative time from race start</div>
-              <div style={{display:"flex",gap:5}}>
-                <button onClick={function(){submitManualEntry(ath.id,manualEntry.value);setManualEntry({rid:null,value:""});setActionFor(null);}} style={{flex:1,padding:"8px",background:T.accent+"22",border:"1px solid "+T.accent+"66",color:T.accent,borderRadius:3,fontSize:12,fontWeight:800,fontFamily:"inherit",cursor:"pointer"}}>Save</button>
-                <button onClick={function(){setManualEntry({rid:null,value:""});}} style={{flex:1,padding:"8px",background:"transparent",border:"1px solid "+T.border,color:T.muted,borderRadius:3,fontSize:12,fontWeight:700,fontFamily:"inherit",cursor:"pointer"}}>Back</button>
-              </div>
-            </div>):(<div style={{display:"flex",flexDirection:"column",gap:5}}>
-              {hasSp?<button onClick={function(){undoSplit(ath.id);setActionFor(null);}} style={{padding:"10px",background:"#f0a50022",border:"1px solid #f0a50066",color:"#f0a500",borderRadius:3,fontSize:13,fontWeight:800,fontFamily:"inherit",cursor:"pointer"}}>{"\u21B6 Undo Last Split"}</button>:null}
-              {!isFin&&!isDnf?<button onClick={function(){markMissedSplit(ath.id);setActionFor(null);}} title="Inserts a placeholder for a split you missed. Fix the time later in Race Results." style={{padding:"10px",background:"#f0a50022",border:"1px dashed #f0a50066",color:"#f0a500",borderRadius:3,fontSize:13,fontWeight:800,fontFamily:"inherit",cursor:"pointer"}}>{"? Mark Missed Split"}</button>:null}
-              {!isFin&&!isDnf?<button onClick={function(){markRunnerDone(ath.id);setActionFor(null);}} title="Closes this runner out at the current clock time. Use when they finished but you missed earlier splits." style={{padding:"10px",background:"#27ae6022",border:"1px solid #27ae6066",color:"#5ddb6a",borderRadius:3,fontSize:13,fontWeight:800,fontFamily:"inherit",cursor:"pointer"}}>{"\u2713 Mark as Done"}</button>:null}
-              <button onClick={function(){setManualEntry({rid:ath.id,value:""});}} style={{padding:"10px",background:T.accent+"22",border:"1px solid "+T.accent+"66",color:T.accent,borderRadius:3,fontSize:13,fontWeight:800,fontFamily:"inherit",cursor:"pointer"}}>{"\u270E Enter Time Manually"}</button>
-              <button onClick={function(){toggleDnf(ath.id);setActionFor(null);}} style={{padding:"10px",background:isDnf?"#27ae6022":"#ef444422",border:"1px solid "+(isDnf?"#27ae6066":"#ef444466"),color:isDnf?"#27ae60":"#ef4444",borderRadius:3,fontSize:13,fontWeight:800,fontFamily:"inherit",cursor:"pointer"}}>{isDnf?"\u2713 Un-mark DNF":"\u2717 Mark DNF"}</button>
-              <button onClick={function(){setActionFor(null);}} style={{padding:"8px",background:"transparent",border:"1px solid "+T.border,color:T.muted,borderRadius:3,fontSize:11,fontWeight:700,fontFamily:"inherit",cursor:"pointer"}}>Cancel</button>
-            </div>)}
-          </div>):null}
-          </div>);
-        })}
-      </div>
-      {isReady?<div style={{marginTop:4,display:"flex",gap:4,alignItems:"center"}}>
-        {!showAdd?<button onClick={function(){setShowAdd(true);}} style={{padding:"4px 10px",background:"transparent",color:T.accent,border:"1px dashed "+T.accent+"66",borderRadius:3,cursor:"pointer",fontSize:11,fontWeight:700,fontFamily:"inherit"}}>+ Add Runner</button>:
-        <div style={{flex:1,display:"flex",gap:4}}><select value="" onChange={function(e){if(e.target.value){addRunner(e.target.value);setShowAdd(false);}}} style={{flex:1,background:T.card,border:"1px solid "+T.accent+"66",color:T.text,padding:"5px 8px",borderRadius:3,fontFamily:"inherit",fontSize:11}}>
-          <option value="">Select runner...</option>
-          {allAthletes.filter(function(a){return!(race.runnerIds||[]).includes(String(a.id));}).map(function(a){return <option key={a.id} value={String(a.id)}>{a.name} ({a.team})</option>;})}
-        </select><button onClick={function(){setShowAdd(false);}} style={{padding:"4px 8px",background:"transparent",color:T.muted,border:"1px solid "+T.border,borderRadius:3,cursor:"pointer",fontSize:10,fontFamily:"inherit"}}>{"\u00D7"}</button></div>}
-      </div>:null}
-      {hasSplits?<div style={{marginTop:8}}><div style={{fontSize:9,letterSpacing:3,color:T.muted,textTransform:"uppercase",marginBottom:4}}>{isRelay?"Relay Legs":"Split Log"}</div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4}}>
-          {runners.filter(function(a){return((race.splits||{})[a.id]||[]).length>0;}).map(function(ath){var sp=(race.splits||{})[ath.id];return(<div key={ath.id} style={{background:T.timerBg,border:"1px solid "+T.border,borderTop:"2px solid "+teamClr+"33",borderRadius:4,padding:"6px 8px"}}>
-            <div style={{fontSize:11,fontWeight:700,color:evClr,marginBottom:3}}>{ath.name}</div>
-            {sp.map(function(s,i){return(<div key={i} style={{display:"flex",justifyContent:"space-between",padding:"1px 0",borderTop:i>0?"1px solid "+T.dim:"none"}}><span style={{fontSize:12,fontWeight:700,color:T.timeClr}}>{"#"+(i+1)}</span><span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:16,fontWeight:800,color:i===sp.length-1?T.splitClr:T.oldSplit}}>{fmtSplit(s.split)}</span><span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:13,fontWeight:700,color:T.timeClr}}>{fmtTime(s.total)}</span></div>);})}
-          </div>);})}
-        </div></div>:null}
-    </div>
-    {confirmModal?(<div onClick={function(){setConfirmModal(null);}} style={{position:"fixed",inset:0,zIndex:1000,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <div onClick={function(e){e.stopPropagation();}} style={{background:T.card,border:"2px solid "+(confirmModal.destructive?"#ef4444":T.accent),borderRadius:8,padding:20,maxWidth:360,width:"100%",boxShadow:"0 24px 80px rgba(0,0,0,0.6)"}}>
-        <div style={{fontSize:18,fontWeight:800,color:confirmModal.destructive?"#ef4444":T.text,marginBottom:8}}>{confirmModal.title||"Confirm"}</div>
-        {confirmModal.message?<div style={{fontSize:13,color:T.muted,marginBottom:18,lineHeight:1.5}}>{confirmModal.message}</div>:null}
-        <div style={{display:"flex",gap:8}}>
-          <button onClick={function(){setConfirmModal(null);}} style={{flex:1,padding:"14px",background:"transparent",border:"1px solid "+T.border,color:T.text,borderRadius:6,fontSize:14,fontWeight:700,fontFamily:"inherit",cursor:"pointer"}}>Cancel</button>
-          <button onClick={function(){var fn=confirmModal.onConfirm;setConfirmModal(null);if(fn)fn();}} style={{flex:1,padding:"14px",background:confirmModal.destructive?"#ef4444":T.accent,border:"none",color:"#fff",borderRadius:6,fontSize:14,fontWeight:900,fontFamily:"inherit",cursor:"pointer",letterSpacing:1,textTransform:"uppercase"}}>{confirmModal.confirmLabel||"Confirm"}</button>
-        </div>
-      </div>
-    </div>):null}
-  </div>);
-}
-
-/* ── MAIN ────────────────────────────────────────────────────────────── */
-export default function SplitTimer(props){
-  var onRaceFinish=props.onRaceFinish;var onDeleteHistory=props.onDeleteHistory;var parentMeets=props.meets||[];var parentRoster=props.roster||[];var raceResults=props.raceResults||[];var cmRole=props.cmRole||"head";var navigateToResultsMeet=props.navigateToResultsMeet;
-  var _scr=useState("setup");var screen=_scr[0];var setScreen=_scr[1];
-  var _mode=useState("meet");var mode=_mode[0];var setMode=_mode[1];
-  var _theme=useState(localStorage.getItem("beacon_theme")||"dark");var theme=_theme[0];var setThemeState=_theme[1];
-  var setTheme=function(t){setThemeState(t);localStorage.setItem("beacon_theme",t);};
-  var _beep=useState(localStorage.getItem("beacon_beep")==="1");var beepOn=_beep[0];var setBeepState=_beep[1];
-  var setBeep=function(v){setBeepState(v);localStorage.setItem("beacon_beep",v?"1":"0");};
-  var T=THEMES[theme]||THEMES.dark;
-  var _ath=useState([]);var allAthletes=_ath[0];var setAllAthletes=_ath[1];
-  var _races=useState([]);var races=_races[0];var setRaces=_races[1];
-  var _sl=useState("400m");var splitLabel=_sl[0];var setSplitLabel=_sl[1];
-  var _cl=useState("");var customLabel=_cl[0];var setCustomLabel=_cl[1];
-  var _woName=useState("");var woName=_woName[0];var setWoName=_woName[1];
-  var _fbPaces=useState({});var fbPaces=_fbPaces[0];var setFbPaces=_fbPaces[1];
-  var _fbStatus=useState("connecting");var fbStatus=_fbStatus[0];var setFbStatus=_fbStatus[1];
-  var _impMeet=useState(null);var importedMeetId=_impMeet[0];var setImportedMeetId=_impMeet[1];
-  var _histOpen=useState(false);var histOpen=_histOpen[0];var setHistOpen=_histOpen[1];
-  var _expRace=useState(null);var expandedRace=_expRace[0];var setExpandedRace=_expRace[1];
-  var _woGroups=useState([]);var woGroups=_woGroups[0];var setWoGroups=_woGroups[1];
-  var _newGrpName=useState("");var newGrpName=_newGrpName[0];var setNewGrpName=_newGrpName[1];
-  var _paceKey=useState("thrSafe");var paceKey=_paceKey[0];var setPaceKey=_paceKey[1];
-  var _paceTol=useState(14);var paceTol=_paceTol[0];var setPaceTol=_paceTol[1];
-  var _ahName=useState("");var ahName=_ahName[0];var setAhName=_ahName[1];
-  var _ahRelay=useState(false);var ahRelay=_ahRelay[0];var setAhRelay=_ahRelay[1];
-  var _ahLegs=useState(4);var ahLegs=_ahLegs[0];var setAhLegs=_ahLegs[1];
-  var _ahDist=useState("");var ahDist=_ahDist[0];var setAhDist=_ahDist[1];
-  var _ahTeam=useState("boys");var ahTeam=_ahTeam[0];var setAhTeam=_ahTeam[1];
-  var _ahRunners=useState([]);var ahRunners=_ahRunners[0];var setAhRunners=_ahRunners[1];
-  var _ahOpen=useState(false);var ahOpen=_ahOpen[0];var setAhOpen=_ahOpen[1];
-  var sessionDate=useRef(new Date().toISOString().slice(0,10)).current;
-
-  useEffect(function(){var l=document.createElement("link");l.href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@400;600;700;800;900&display=swap";l.rel="stylesheet";document.head.appendChild(l);return function(){document.head.removeChild(l);};},[]);
-  useEffect(function(){
-    if(parentRoster.length>0){var clean=parentRoster.filter(function(a){return a.name&&!a.name.toLowerCase().includes("coach");}).map(function(a){return{id:String(a.id),name:a.name,team:a.team||"boys"};});setAllAthletes(clean);var pm={};parentRoster.forEach(function(a){if(a.name&&a.paces)pm[a.name]=a.paces;});setFbPaces(pm);setFbStatus("ok");}
-    else{loadData("roster-v3").then(function(val){var raw=val?JSON.parse(val):null;if(!Array.isArray(raw)){setFbStatus("offline");return;}var pm={};raw.forEach(function(a){if(a.name&&a.paces)pm[a.name]=a.paces;});setFbPaces(pm);setFbStatus("ok");setAllAthletes(raw.filter(function(a){return a.name&&!a.name.toLowerCase().includes("coach");}).map(function(a){return{id:String(a.id),name:a.name,team:a.team||"boys"};}));}).catch(function(){setFbStatus("offline");});}
-  },[parentRoster]);
-  useEffect(function(){try{var saved=localStorage.getItem(STORAGE_KEY);if(!saved)return;var d=JSON.parse(saved);if(d.races&&d.races.length>0){setRaces(d.races);if(d.splitLabel)setSplitLabel(d.splitLabel);if(d.customLabel)setCustomLabel(d.customLabel);if(d.mode)setMode(d.mode);if(d.importedMeetId)setImportedMeetId(d.importedMeetId);setScreen("race");}}catch(e){}},[]);
-  useEffect(function(){if(!races.length)return;try{localStorage.setItem(STORAGE_KEY,JSON.stringify({races:races,splitLabel:splitLabel,customLabel:customLabel,mode:mode,importedMeetId:importedMeetId,savedAt:Date.now()}));}catch(e){}},[races,splitLabel,customLabel,mode,importedMeetId]);
-
-  var rosterMap={};allAthletes.forEach(function(a){rosterMap[String(a.id)]=a;});
-  var label=customLabel.trim()||splitLabel;
-  var boys=allAthletes.filter(function(a){return a.team==="boys";});
-  var girls=allAthletes.filter(function(a){return a.team==="girls";});
-  var updateRace=function(raceId,updates){setRaces(function(prev){return prev.map(function(r){return r.id===raceId?Object.assign({},r,updates):r;});});};
-
-  /* Build result object from a race */
-  var buildRaceResult=function(race){
-    var runners=(race.runnerIds||[]).map(function(rid){var ath=rosterMap[String(rid)];var sp=(race.splits||{})[rid]||[];var ft=sp.length>0?sp[sp.length-1].total:race.elapsed||0;var isDnf=!!(race.dnf||{})[rid];return{id:rid,name:ath?ath.name:"Unknown",team:ath?ath.team:"",splits:sp,finalTime:ft,dnf:isDnf};});
-    var result={meetId:race.meetId||"",meetName:race.meetName||"Session",meetDate:race.meetDate||sessionDate,event:race.event||race.label||label,team:race.team||"",heat:race.heat||0,runners:runners,elapsed:race.elapsed||0,type:mode,splitLabel:race.splitLabel||label,sortKey:(EVT_ORDER[race.event]!==undefined?EVT_ORDER[race.event]:9)*1000+(race.team==="boys"?0:100)+(race.heat||1)};
-    if(race.relay)result.relay=true;
-    if(race.distanceM)result.distanceM=race.distanceM;
-    return result;
-  };
-  var saveOneRace=function(race){
-    if(race.saved)return;var result=buildRaceResult(race);
-    if(onRaceFinish)onRaceFinish(result);
-    updateRace(race.id,{saved:true});
-  };
-  var matchesMode=function(r){var rType=r.type||(r.meetId?"meet":null);return rType===mode;};
-  var saveAllUnsaved=function(){
-    var unsaved=races.filter(function(r){return matchesMode(r)&&r.status==="done"&&!r.saved&&Object.keys(r.splits||{}).length>0;});
-    unsaved.sort(function(a,b){return(buildRaceResult(a).sortKey||0)-(buildRaceResult(b).sortKey||0);});
-    unsaved.forEach(function(race){var result=buildRaceResult(race);if(onRaceFinish)onRaceFinish(result);});
-    setRaces(function(prev){return prev.map(function(r){return matchesMode(r)&&r.status==="done"&&!r.saved&&Object.keys(r.splits||{}).length>0?Object.assign({},r,{saved:true}):r;});});
-  };
-  var clearSession=function(){
-    /* Only clear races matching the current mode; preserve other modes' races */
-    setRaces(function(prev){return prev.filter(function(r){return!matchesMode(r);});});
-    if(mode==="meet")setImportedMeetId(null);
+  const clearSession = () => {
+    setRaces((prev) => prev.filter((r) => !matchesMode(r)));
+    if (mode === "meet") setImportedMeetId(null);
     setScreen("setup");
   };
 
-  var parsePace=function(s){if(!s)return null;var clean=s.replace(/\/mi$/,"").trim();var pts=clean.split(":");if(pts.length!==2)return null;var m=parseInt(pts[0]);var sc=parseInt(pts[1]);if(isNaN(m)||isNaN(sc))return null;return m*60+sc;};
-  var fmtPaceSec=function(s){var m=Math.floor(s/60);var sc=Math.round(s%60);return m+":"+(sc<10?"0":"")+sc;};
-  var importPaceGroups=function(){var withPace=allAthletes.map(function(a){var p=fbPaces[a.name];return{ath:a,sec:parsePace(p&&p[paceKey])};}).filter(function(x){return x.sec!==null;}).sort(function(a,b){return a.sec-b.sec;});var used={};var groups=[];for(var i=0;i<withPace.length;i++){if(used[withPace[i].ath.id])continue;var grp=[withPace[i]];used[withPace[i].ath.id]=true;for(var j=i+1;j<withPace.length;j++){if(used[withPace[j].ath.id])continue;if(withPace[j].sec-grp[grp.length-1].sec<=paceTol){grp.push(withPace[j]);used[withPace[j].ath.id]=true;}}var avg=Math.round(grp.reduce(function(s,x){return s+x.sec;},0)/grp.length);groups.push({id:"pg_"+Date.now()+"_"+i,name:fmtPaceSec(avg)+"/mi",color:GROUP_COLORS[groups.length%GROUP_COLORS.length],runnerIds:grp.map(function(x){return String(x.ath.id);})});}setWoGroups(groups);};
-
-  /* Resolve coach assignment for a specific team within an event, with backward compat */
-  var resolveTeamCoaches=function(evtData,team){
-    if(evtData&&evtData.coaches&&evtData.coaches[team])return evtData.coaches[team];
-    if(evtData&&evtData.assignedCoaches&&evtData.assignedCoaches.length>0)return evtData.assignedCoaches;
-    return ["head","asst"];
+  const parsePace = (s) => {
+    if (!s) return null;
+    const clean = s.replace(/\/mi$/, "").trim();
+    const pts = clean.split(":");
+    if (pts.length !== 2) return null;
+    const m = parseInt(pts[0]);
+    const sc = parseInt(pts[1]);
+    if (isNaN(m) || isNaN(sc)) return null;
+    return m * 60 + sc;
   };
-  var importMeetEvents=function(meet){if(!meet||!meet.lineup)return;var athTeam={};allAthletes.forEach(function(a){athTeam[String(a.id)]=a.team;});var newRaces=[];var ts=Date.now();
-    var customEvts=meet.customEvents||[];
-    var ceMap={};customEvts.forEach(function(c){ceMap[c.name]=c;});
-    Object.entries(meet.lineup).forEach(function(entry){var evtKey=entry[0];var evtData=entry[1];var allIds=(evtData.runners||[]).map(function(r){return String(r);});if(!allIds.length)return;
-      var ce=ceMap[evtKey];
-      var evtIsRelay=evtKey==="4x800"||(ce&&ce.relay);
-      var evtLegs=evtKey==="4x800"?4:(ce&&ce.relay?ce.legs||4:0);
-      var evtDistM=ce?ce.distanceM||0:0;
-      var runnerAssign=evtData.runnerAssign||{};
-      var numHeats=evtIsRelay?1:Math.max(1,evtData.heats||1);var heatAssign=evtData.heatAssign||{};
-      /* For relays the split is per-leg distance; other events default to session label */
-      var defaultSplit=evtIsRelay?(evtLegs>0&&evtDistM>0?Math.round(evtDistM/evtLegs)+"m":(evtKey==="4x800"?"800m":label)):label;
-      ["boys","girls"].forEach(function(team){
-        var teamCoaches=resolveTeamCoaches(evtData,team);
-        if(teamCoaches.indexOf(cmRole)===-1)return;
-        var isShared=teamCoaches.length===2;
-        var teamIds=allIds.filter(function(r){return athTeam[r]===team;});
-        if(!teamIds.length)return;
-        if(isShared){teamIds=teamIds.filter(function(rid){return(runnerAssign[rid]||"head")===cmRole;});if(!teamIds.length)return;}
-        for(var hi=0;hi<numHeats;hi++){var heatNum=hi+1;
-          var heatIds=numHeats===1?teamIds:teamIds.filter(function(rid){return(heatAssign[rid]||1)===heatNum;});
-          if(!heatIds.length)continue;
-          var heatLabel=numHeats>1?" H"+heatNum:"";
-          var teamLabel=team==="boys"?"Boys":"Girls";
-          var raceObj={id:"r_"+evtKey+"_"+team[0]+"_h"+heatNum+"_"+(ts++),event:evtKey,team:team,label:evtKey+" "+teamLabel+heatLabel,approxTime:evtData.approxTime||"",runnerIds:heatIds,splits:{},elapsed:0,status:"ready",finished:{},meetName:meet.name||"Meet",meetId:meet.id||"",meetDate:meet.date||"",heat:heatNum,splitLabel:defaultSplit,assignedCoaches:teamCoaches,shared:isShared,type:"meet"};
-          if(evtIsRelay)raceObj.relay=true;
-          if(evtLegs)raceObj.legs=evtLegs;
-          if(evtDistM)raceObj.distanceM=evtDistM;
+
+  const fmtPaceSec = (s) => {
+    const m = Math.floor(s / 60);
+    const sc = Math.round(s % 60);
+    return m + ":" + (sc < 10 ? "0" : "") + sc;
+  };
+
+  const importPaceGroups = () => {
+    const withPace = allAthletes
+      .map((a) => {
+        const p = fbPaces[a.name];
+        return { ath: a, sec: parsePace(p && p[paceKey]) };
+      })
+      .filter((x) => x.sec !== null)
+      .sort((a, b) => a.sec - b.sec);
+    const used = {};
+    const groups = [];
+    for (let i = 0; i < withPace.length; i++) {
+      if (used[withPace[i].ath.id]) continue;
+      const grp = [withPace[i]];
+      used[withPace[i].ath.id] = true;
+      for (let j = i + 1; j < withPace.length; j++) {
+        if (used[withPace[j].ath.id]) continue;
+        if (withPace[j].sec - grp[grp.length - 1].sec <= paceTol) {
+          grp.push(withPace[j]);
+          used[withPace[j].ath.id] = true;
+        }
+      }
+      const avg = Math.round(grp.reduce((s, x) => s + x.sec, 0) / grp.length);
+      groups.push({
+        id: "pg_" + Date.now() + "_" + i,
+        name: fmtPaceSec(avg) + "/mi",
+        color: GROUP_COLORS[groups.length % GROUP_COLORS.length],
+        runnerIds: grp.map((x) => String(x.ath.id)),
+      });
+    }
+    setWoGroups(groups);
+  };
+
+  const resolveTeamCoaches = (evtData, team) => {
+    if (evtData && evtData.coaches && evtData.coaches[team]) return evtData.coaches[team];
+    if (evtData && evtData.assignedCoaches && evtData.assignedCoaches.length > 0) return evtData.assignedCoaches;
+    return ["head", "asst"];
+  };
+
+  const importMeetEvents = (meet) => {
+    if (!meet || !meet.lineup) return;
+    const athTeam = {};
+    allAthletes.forEach((a) => {
+      athTeam[String(a.id)] = a.team;
+    });
+    const newRaces = [];
+    let ts = Date.now();
+    const customEvts = meet.customEvents || [];
+    const ceMap = {};
+    customEvts.forEach((c) => {
+      ceMap[c.name] = c;
+    });
+    Object.entries(meet.lineup).forEach(([evtKey, evtData]) => {
+      const allIds = (evtData.runners || []).map((r) => String(r));
+      if (!allIds.length) return;
+      const ce = ceMap[evtKey];
+      const evtIsRelay = evtKey === "4x800" || (ce && ce.relay);
+      const evtLegs = evtKey === "4x800" ? 4 : ce && ce.relay ? ce.legs || 4 : 0;
+      const evtDistM = ce ? ce.distanceM || 0 : 0;
+      const runnerAssign = evtData.runnerAssign || {};
+      const numHeats = evtIsRelay ? 1 : Math.max(1, evtData.heats || 1);
+      const heatAssign = evtData.heatAssign || {};
+      const defaultSplit = evtIsRelay
+        ? evtLegs > 0 && evtDistM > 0
+          ? Math.round(evtDistM / evtLegs) + "m"
+          : evtKey === "4x800"
+            ? "800m"
+            : label
+        : label;
+      ["boys", "girls"].forEach((team) => {
+        const teamCoaches = resolveTeamCoaches(evtData, team);
+        if (teamCoaches.indexOf(cmRole) === -1) return;
+        const isShared = teamCoaches.length === 2;
+        let teamIds = allIds.filter((r) => athTeam[r] === team);
+        if (!teamIds.length) return;
+        if (isShared) {
+          teamIds = teamIds.filter((rid) => (runnerAssign[rid] || "head") === cmRole);
+          if (!teamIds.length) return;
+        }
+        for (let hi = 0; hi < numHeats; hi++) {
+          const heatNum = hi + 1;
+          const heatIds = numHeats === 1 ? teamIds : teamIds.filter((rid) => (heatAssign[rid] || 1) === heatNum);
+          if (!heatIds.length) continue;
+          const heatLabel = numHeats > 1 ? " H" + heatNum : "";
+          const teamLabel = team === "boys" ? "Boys" : "Girls";
+          const raceObj = {
+            id: "r_" + evtKey + "_" + team[0] + "_h" + heatNum + "_" + ts++,
+            event: evtKey,
+            team,
+            label: evtKey + " " + teamLabel + heatLabel,
+            approxTime: evtData.approxTime || "",
+            runnerIds: heatIds,
+            splits: {},
+            elapsed: 0,
+            status: "ready",
+            finished: {},
+            meetName: meet.name || "Meet",
+            meetId: meet.id || "",
+            meetDate: meet.date || "",
+            heat: heatNum,
+            splitLabel: defaultSplit,
+            assignedCoaches: teamCoaches,
+            shared: isShared,
+            type: "meet",
+          };
+          if (evtIsRelay) raceObj.relay = true;
+          if (evtLegs) raceObj.legs = evtLegs;
+          if (evtDistM) raceObj.distanceM = evtDistM;
           newRaces.push(raceObj);
         }
       });
     });
-    newRaces.sort(function(a,b){var ea=EVT_ORDER[a.event]!==undefined?EVT_ORDER[a.event]:9;var eb=EVT_ORDER[b.event]!==undefined?EVT_ORDER[b.event]:9;if(ea!==eb)return ea-eb;if(a.team!==b.team)return a.team==="boys"?-1:1;return(a.heat||1)-(b.heat||1);});
-    /* Replace any existing meet races but preserve workout/open races */
-    setRaces(function(prev){return prev.filter(function(r){var t=r.type||(r.meetId?"meet":null);return t!=="meet";}).concat(newRaces);});
-    setImportedMeetId(meet.id||meet.name);};
-
-  var startWorkout=function(){var name=woName.trim()||"Workout";var newRaces=woGroups.map(function(g,gi){return{id:"wo_"+Date.now()+"_"+gi,event:name,team:"",label:g.name,color:g.color,runnerIds:g.runnerIds,splits:{},elapsed:0,status:"ready",finished:{},meetName:name,meetDate:sessionDate,type:"workout",splitLabel:label};});
-    /* Replace any existing workout races but preserve meet/open races */
-    setRaces(function(prev){return prev.filter(function(r){return r.type!=="workout";}).concat(newRaces);});
+    newRaces.sort((a, b) => {
+      const ea = EVT_ORDER[a.event] !== undefined ? EVT_ORDER[a.event] : 9;
+      const eb = EVT_ORDER[b.event] !== undefined ? EVT_ORDER[b.event] : 9;
+      if (ea !== eb) return ea - eb;
+      if (a.team !== b.team) return a.team === "boys" ? -1 : 1;
+      return (a.heat || 1) - (b.heat || 1);
+    });
+    setRaces((prev) =>
+      prev
+        .filter((r) => {
+          const t = r.type || (r.meetId ? "meet" : null);
+          return t !== "meet";
+        })
+        .concat(newRaces)
+    );
+    setImportedMeetId(meet.id || meet.name);
   };
-  var resetAll=function(){
-    /* Only clear races matching the current mode */
-    setRaces(function(prev){return prev.filter(function(r){var rType=r.type||(r.meetId?"meet":null);return rType!==mode;});});
-    if(mode==="meet")setImportedMeetId(null);
+
+  const startWorkout = () => {
+    const name = woName.trim() || "Workout";
+    const newRaces = woGroups.map((g, gi) => ({
+      id: "wo_" + Date.now() + "_" + gi,
+      event: name,
+      team: "",
+      label: g.name,
+      color: g.color,
+      runnerIds: g.runnerIds,
+      splits: {},
+      elapsed: 0,
+      status: "ready",
+      finished: {},
+      meetName: name,
+      meetDate: sessionDate,
+      type: "workout",
+      splitLabel: label,
+    }));
+    setRaces((prev) => prev.filter((r) => r.type !== "workout").concat(newRaces));
   };
 
-  /* Filter meets: only show today and future, with lineups */
-  var today=new Date().toISOString().slice(0,10);
-  var meetsWithLineups=(parentMeets.length>0?parentMeets:[]).filter(function(m){return m&&m.lineup&&m.date>=today&&Object.values(m.lineup).some(function(e){return(e.runners||[]).length>0;});});
-  /* Sort by date asc so next meet is first */
-  meetsWithLineups.sort(function(a,b){return(a.date||"").localeCompare(b.date||"");});
+  const resetAll = () => {
+    setRaces((prev) =>
+      prev.filter((r) => {
+        const rType = r.type || (r.meetId ? "meet" : null);
+        return rType !== mode;
+      })
+    );
+    if (mode === "meet") setImportedMeetId(null);
+  };
 
-  /* Filter the local races array by the current mode so each tab only shows
-     race cards relevant to that mode. Meet race objects don't carry an explicit
-     type — they're identified by having a meetId. */
-  var modeRaces=races.filter(function(r){var rType=r.type||(r.meetId?"meet":null);return rType===mode;});
-  /* Filter raceResults to only the current mode's type (legacy results without
-     a type default to "meet" for backward compat). */
-  var modeFilteredResults=raceResults.filter(function(r){var t=r.type||"meet";return t===mode;});
-  /* Group filtered results by session (meet/workout/open). */
-  var histBySession={};modeFilteredResults.forEach(function(r){
-    var key=(r.meetName||"Session")+"\u2014"+(r.meetDate||"");
-    if(!histBySession[key]){histBySession[key]={
-      name:r.meetName||"Session",
-      date:r.meetDate||"",
-      type:r.type||"meet",
-      /* meetKey matches App.jsx race results grouping: r.meetId || r.meetName */
-      meetKey:r.meetId||r.meetName||"Unknown",
-      races:[],
-      headCount:0,
-      asstCount:0
-    };}
-    histBySession[key].races.push(r);
-    if(r.savedBy==="asst")histBySession[key].asstCount++;
-    else histBySession[key].headCount++;
-  });
-  var histKeys=Object.keys(histBySession).sort(function(a,b){return(histBySession[b].date||"").localeCompare(histBySession[a].date||"");});
-  /* Count any unsaved done races in the timer that match each session AND match
-     the current mode (so we don't show unsaved meet races on the workout panel). */
-  var unsavedByMeet={};races.forEach(function(r){
-    if(r.status==="done"&&!r.saved&&Object.keys(r.splits||{}).length>0){
-      var rType=r.type||(r.meetId?"meet":mode);
-      if(rType!==mode)return;
-      var key=(r.meetName||"Session")+"\u2014"+(r.meetDate||"");
-      unsavedByMeet[key]=(unsavedByMeet[key]||0)+1;
-    }
-  });
+  const today = new Date().toISOString().slice(0, 10);
+  const meetsWithLineups = useMemo(() => {
+    const filtered = (parentMeets.length > 0 ? parentMeets : []).filter(
+      (m) => m && m.lineup && m.date >= today && Object.values(m.lineup).some((e) => (e.runners || []).length > 0)
+    );
+    filtered.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+    return filtered;
+  }, [parentMeets, today]);
 
-  /* Check if all races done */
-  var allSaved=modeRaces.length>0&&modeRaces.every(function(r){return r.saved||(!r.splits||Object.keys(r.splits).length===0);});
-  var anyHasSplits=modeRaces.some(function(r){return Object.keys(r.splits||{}).length>0;});
+  const modeRaces = useMemo(
+    () =>
+      races.filter((r) => {
+        const rType = r.type || (r.meetId ? "meet" : null);
+        return rType === mode;
+      }),
+    [races, mode]
+  );
+
+  const modeFilteredResults = useMemo(
+    () => raceResults.filter((r) => (r.type || "meet") === mode),
+    [raceResults, mode]
+  );
+
+  const { histBySession, histKeys } = useMemo(() => {
+    const bySession = {};
+    modeFilteredResults.forEach((r) => {
+      const key = (r.meetName || "Session") + "\u2014" + (r.meetDate || "");
+      if (!bySession[key]) {
+        bySession[key] = {
+          name: r.meetName || "Session",
+          date: r.meetDate || "",
+          type: r.type || "meet",
+          meetKey: r.meetId || r.meetName || "Unknown",
+          races: [],
+          headCount: 0,
+          asstCount: 0,
+        };
+      }
+      bySession[key].races.push(r);
+      if (r.savedBy === "asst") bySession[key].asstCount++;
+      else bySession[key].headCount++;
+    });
+    const keys = Object.keys(bySession).sort((a, b) => (bySession[b].date || "").localeCompare(bySession[a].date || ""));
+    return { histBySession: bySession, histKeys: keys };
+  }, [modeFilteredResults]);
+
+  const unsavedByMeet = useMemo(() => {
+    const counts = {};
+    races.forEach((r) => {
+      if (r.status !== "done" || r.saved || Object.keys(r.splits || {}).length === 0) return;
+      const rType = r.type || (r.meetId ? "meet" : mode);
+      if (rType !== mode) return;
+      const key = (r.meetName || "Session") + "\u2014" + (r.meetDate || "");
+      counts[key] = (counts[key] || 0) + 1;
+    });
+    return counts;
+  }, [races, mode]);
+
+  const allSaved =
+    modeRaces.length > 0 && modeRaces.every((r) => r.saved || !r.splits || Object.keys(r.splits).length === 0);
+  const anyHasSplits = modeRaces.some((r) => Object.keys(r.splits || {}).length > 0);
 
   /* ── SETUP ── */
-  if(screen==="setup"){return(<div style={{background:T.bg,minHeight:"100vh",fontFamily:"'Barlow Condensed',sans-serif",color:T.text}}>
-    <div style={{padding:"12px 14px",borderBottom:"1px solid "+T.border,display:"flex",alignItems:"center",gap:10}}>
-      <div style={{width:3,height:26,background:T.accent,borderRadius:2}}/><div><div style={{fontSize:9,letterSpacing:4,color:T.accent,textTransform:"uppercase"}}>Concordia Beacons</div><div style={{fontSize:20,fontWeight:800,lineHeight:1}}>Split Timer</div></div>
-      <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:8}}>
-        <select value={theme} onChange={function(e){setTheme(e.target.value);}} style={{background:T.card,border:"1px solid "+T.border,color:T.text,padding:"3px 8px",borderRadius:3,fontFamily:"inherit",fontSize:10}}>
-          {Object.keys(THEMES).map(function(k){return <option key={k} value={k}>{THEMES[k].name}</option>;})}
-        </select>
-        <div style={{display:"flex",alignItems:"center",gap:4}}><div style={{width:6,height:6,borderRadius:"50%",background:fbStatus==="ok"?"#27ae60":fbStatus==="connecting"?"#f0a500":T.muted}}/><span style={{fontSize:9,color:T.muted,letterSpacing:1}}>{fbStatus==="ok"?"LIVE":"..."}</span></div>
-      </div>
-    </div>
-    <div style={{padding:"16px 14px",maxWidth:600,margin:"0 auto"}}>
-      {/* Mode toggle */}
-      <div style={{display:"flex",borderBottom:"2px solid "+T.border,marginBottom:16}}>
-        {[{k:"meet",l:"Meet Races"},{k:"workout",l:"Workout"},{k:"open",l:"Open Timer"}].map(function(m){return(<button key={m.k} onClick={function(){setMode(m.k);}} style={{padding:"8px 16px",background:"none",border:"none",borderBottom:"2px solid "+(mode===m.k?T.accent:"transparent"),color:mode===m.k?T.accent:T.muted,cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:-2}}>{m.l}</button>);})}
-      </div>
-      {/* Split distance */}
-      <div style={{marginBottom:16}}><div style={{fontSize:9,letterSpacing:4,color:T.accent,textTransform:"uppercase",marginBottom:6}}>Split Distance</div>
-        <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:6}}>{PRESET_DISTANCES.map(function(d){var on=splitLabel===d&&!customLabel.trim();return(<button key={d} onClick={function(){setSplitLabel(d);setCustomLabel("");}} style={{padding:"4px 10px",borderRadius:3,cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700,background:on?T.accent:"transparent",color:on?T.bg:T.muted,border:"1px solid "+(on?T.accent:T.dim)}}>{d}</button>);})}</div>
-        <input value={customLabel} onChange={function(e){setCustomLabel(e.target.value);}} placeholder="Custom label..." style={{width:"100%",boxSizing:"border-box",background:T.card,border:"1px solid "+(customLabel.trim()?T.accent:T.border),color:T.text,padding:"6px 12px",borderRadius:3,fontSize:13,fontFamily:"inherit",outline:"none"}}/>
-      </div>
-
-      {/* ── MEET MODE ── */}
-      {mode==="meet"?(<div>
-        <div style={{fontSize:9,letterSpacing:4,color:T.accent,textTransform:"uppercase",marginBottom:8}}>Upcoming Meets with Lineups</div>
-        {meetsWithLineups.length===0?<div style={{fontSize:12,color:T.muted,fontStyle:"italic",padding:"12px",background:T.card,borderRadius:4,border:"1px solid "+T.border}}>No upcoming meets with lineups. Assign runners on Meet Schedule first.</div>:
-        <div style={{display:"flex",flexDirection:"column",gap:6}}>
-          {meetsWithLineups.map(function(meet){var isA=importedMeetId===(meet.id||meet.name);var evts=Object.entries(meet.lineup||{}).filter(function(e){return(e[1].runners||[]).length>0;});var isNext=meetsWithLineups[0]&&(meetsWithLineups[0].id||meetsWithLineups[0].name)===(meet.id||meet.name);
-            return(<div key={meet.id||meet.name} style={{background:T.card,border:"1px solid "+(isA?"#2d7a35":isNext?T.accent+"44":T.border),borderRadius:4,padding:"10px 12px"}}>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                <div><div style={{display:"flex",alignItems:"center",gap:6}}><div style={{fontSize:14,fontWeight:800,color:T.text}}>{meet.name}</div>{isNext?<span style={{fontSize:9,padding:"1px 6px",borderRadius:3,background:T.accent+"22",color:T.accent,fontWeight:700}}>NEXT</span>:null}</div><div style={{fontSize:10,color:T.muted}}>{meet.date||""} — {evts.map(function(e){return e[0];}).join(", ")}</div></div>
-                <button onClick={function(){importMeetEvents(meet);}} style={{padding:"6px 14px",background:isA?"#1a3a1a":T.accent,color:isA?"#5ddb6a":T.bg,border:"1px solid "+(isA?"#2d7a35":T.accent),borderRadius:3,cursor:"pointer",fontSize:12,fontWeight:900,fontFamily:"inherit",letterSpacing:1,textTransform:"uppercase"}}>{isA?"\u2713 Imported":"Import"}</button>
-              </div>
-            </div>);})}
-        </div>}
-        {/* Ad-hoc event creation */}
-        <div style={{marginTop:12,background:T.card,border:"1px solid "+T.border,borderLeft:"3px solid #a855f7",borderRadius:4,padding:"12px 14px"}}>
-          <div onClick={function(){setAhOpen(!ahOpen);}} style={{cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <div style={{fontSize:13,fontWeight:800,color:T.text}}>+ Add Event Manually</div>
-            <span style={{fontSize:10,color:T.muted}}>{ahOpen?"[-]":"[+]"}</span>
+  if (screen === "setup") {
+    return (
+      <div style={{ background: T.bg, minHeight: "100vh", fontFamily: "'Barlow Condensed',sans-serif", color: T.text }}>
+        <div style={{ padding: "12px 14px", borderBottom: "1px solid " + T.border, display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 3, height: 26, background: T.accent, borderRadius: 2 }} />
+          <div>
+            <div style={{ fontSize: 9, letterSpacing: 4, color: T.accent, textTransform: "uppercase" }}>Concordia Beacons</div>
+            <div style={{ fontSize: 20, fontWeight: 800, lineHeight: 1 }}>Split Timer</div>
           </div>
-          {ahOpen?<div style={{marginTop:10}}>
-            <div style={{fontSize:10,color:T.muted,marginBottom:8}}>Add a race not in the imported lineup (e.g. 4x400, open 400).</div>
-            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8,alignItems:"center"}}>
-              <input value={ahName} onChange={function(e){setAhName(e.target.value);}} placeholder="Event name (e.g. 4x400)" style={{flex:"1 1 100px",background:T.timerBg,border:"1px solid "+T.border,color:T.text,padding:"6px 10px",borderRadius:3,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
-              <label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:T.muted,cursor:"pointer"}}>
-                <input type="checkbox" checked={ahRelay} onChange={function(){setAhRelay(!ahRelay);setAhRunners([]);}}/> Relay
-              </label>
-              {ahRelay?<div style={{display:"flex",alignItems:"center",gap:3}}>
-                <span style={{fontSize:10,color:T.muted}}>Legs:</span>
-                <input type="number" min="2" max="10" value={ahLegs} onChange={function(e){setAhLegs(parseInt(e.target.value)||4);setAhRunners([]);}} style={{width:40,background:T.timerBg,border:"1px solid "+T.border,color:T.text,padding:"3px 5px",borderRadius:3,fontSize:11,textAlign:"center",fontFamily:"inherit"}}/>
-              </div>:null}
-              <div style={{display:"flex",alignItems:"center",gap:3}}>
-                <span style={{fontSize:10,color:T.muted}}>Dist (m):</span>
-                <input type="number" min="0" value={ahDist} onChange={function(e){setAhDist(e.target.value);}} placeholder="e.g. 1600" style={{width:65,background:T.timerBg,border:"1px solid "+T.border,color:T.text,padding:"3px 5px",borderRadius:3,fontSize:11,textAlign:"center",fontFamily:"inherit"}}/>
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+            <select value={theme} onChange={(e) => setTheme(e.target.value)} style={{ background: T.card, border: "1px solid " + T.border, color: T.text, padding: "3px 8px", borderRadius: 3, fontFamily: "inherit", fontSize: 10 }}>
+              {Object.keys(THEMES).map((k) => (
+                <option key={k} value={k}>{THEMES[k].name}</option>
+              ))}
+            </select>
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <div style={{ width: 6, height: 6, borderRadius: "50%", background: fbStatus === "ok" ? "#27ae60" : fbStatus === "connecting" ? "#f0a500" : T.muted }} />
+              <span style={{ fontSize: 9, color: T.muted, letterSpacing: 1 }}>{fbStatus === "ok" ? "LIVE" : "..."}</span>
+              {IS_COACH_BUILD && cloudStatus !== "idle" ? (
+                <span title={cloudStatus === "restored" ? "Restored from cloud" : cloudStatus === "synced" ? "Saved to cloud" : cloudStatus === "syncing" ? "Syncing to cloud..." : "Offline — writes queued"} style={{ fontSize: 9, color: cloudStatus === "offline" ? "#ef4444" : cloudStatus === "syncing" ? "#f0a500" : "#5ddb6a", letterSpacing: 1, fontWeight: 700 }}>
+                  {cloudStatus === "restored" ? "RESTORED" : cloudStatus === "synced" ? "CLOUD" : cloudStatus === "syncing" ? "SYNC" : "OFFLINE"}
+                </span>
+              ) : null}
+            </div>
+          </div>
+        </div>
+        <div style={{ padding: "16px 14px", maxWidth: 600, margin: "0 auto" }}>
+          {/* Mode toggle */}
+          <div style={{ display: "flex", borderBottom: "2px solid " + T.border, marginBottom: 16 }}>
+            {[{ k: "meet", l: "Meet Races" }, { k: "workout", l: "Workout" }, { k: "open", l: "Open Timer" }].map((m) => (
+              <button key={m.k} onClick={() => setMode(m.k)} style={{ padding: "8px 16px", background: "none", border: "none", borderBottom: "2px solid " + (mode === m.k ? T.accent : "transparent"), color: mode === m.k ? T.accent : T.muted, cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", marginBottom: -2 }}>
+                {m.l}
+              </button>
+            ))}
+          </div>
+          {/* Split distance */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 9, letterSpacing: 4, color: T.accent, textTransform: "uppercase", marginBottom: 6 }}>Split Distance</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 6 }}>
+              {PRESET_DISTANCES.map((d) => {
+                const on = splitLabel === d && !customLabel.trim();
+                return (
+                  <button key={d} onClick={() => { setSplitLabel(d); setCustomLabel(""); }} style={{ padding: "4px 10px", borderRadius: 3, cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 700, background: on ? T.accent : "transparent", color: on ? T.bg : T.muted, border: "1px solid " + (on ? T.accent : T.dim) }}>
+                    {d}
+                  </button>
+                );
+              })}
+            </div>
+            <input value={customLabel} onChange={(e) => setCustomLabel(e.target.value)} placeholder="Custom label..." style={{ width: "100%", boxSizing: "border-box", background: T.card, border: "1px solid " + (customLabel.trim() ? T.accent : T.border), color: T.text, padding: "6px 12px", borderRadius: 3, fontSize: 13, fontFamily: "inherit", outline: "none" }} />
+          </div>
+
+          {/* ── MEET MODE ── */}
+          {mode === "meet" ? (
+            <div>
+              <div style={{ fontSize: 9, letterSpacing: 4, color: T.accent, textTransform: "uppercase", marginBottom: 8 }}>Upcoming Meets with Lineups</div>
+              {meetsWithLineups.length === 0 ? (
+                <div style={{ fontSize: 12, color: T.muted, fontStyle: "italic", padding: "12px", background: T.card, borderRadius: 4, border: "1px solid " + T.border }}>
+                  No upcoming meets with lineups. Assign runners on Meet Schedule first.
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {meetsWithLineups.map((meet) => {
+                    const isA = importedMeetId === (meet.id || meet.name);
+                    const evts = Object.entries(meet.lineup || {}).filter((e) => (e[1].runners || []).length > 0);
+                    const isNext = meetsWithLineups[0] && (meetsWithLineups[0].id || meetsWithLineups[0].name) === (meet.id || meet.name);
+                    return (
+                      <div key={meet.id || meet.name} style={{ background: T.card, border: "1px solid " + (isA ? "#2d7a35" : isNext ? T.accent + "44" : T.border), borderRadius: 4, padding: "10px 12px" }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                          <div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <div style={{ fontSize: 14, fontWeight: 800, color: T.text }}>{meet.name}</div>
+                              {isNext ? (
+                                <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 3, background: T.accent + "22", color: T.accent, fontWeight: 700 }}>NEXT</span>
+                              ) : null}
+                            </div>
+                            <div style={{ fontSize: 10, color: T.muted }}>{meet.date || ""} — {evts.map((e) => e[0]).join(", ")}</div>
+                          </div>
+                          <button onClick={() => importMeetEvents(meet)} style={{ padding: "6px 14px", background: isA ? "#1a3a1a" : T.accent, color: isA ? "#5ddb6a" : T.bg, border: "1px solid " + (isA ? "#2d7a35" : T.accent), borderRadius: 3, cursor: "pointer", fontSize: 12, fontWeight: 900, fontFamily: "inherit", letterSpacing: 1, textTransform: "uppercase" }}>
+                            {isA ? "\u2713 Imported" : "Import"}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {/* Ad-hoc event creation */}
+              <div style={{ marginTop: 12, background: T.card, border: "1px solid " + T.border, borderLeft: "3px solid #a855f7", borderRadius: 4, padding: "12px 14px" }}>
+                <div onClick={() => setAhOpen(!ahOpen)} style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: T.text }}>+ Add Event Manually</div>
+                  <span style={{ fontSize: 10, color: T.muted }}>{ahOpen ? "[-]" : "[+]"}</span>
+                </div>
+                {ahOpen ? (
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ fontSize: 10, color: T.muted, marginBottom: 8 }}>Add a race not in the imported lineup (e.g. 4x400, open 400).</div>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8, alignItems: "center" }}>
+                      <input value={ahName} onChange={(e) => setAhName(e.target.value)} placeholder="Event name (e.g. 4x400)" style={{ flex: "1 1 100px", background: T.timerBg, border: "1px solid " + T.border, color: T.text, padding: "6px 10px", borderRadius: 3, fontSize: 12, fontFamily: "inherit", outline: "none" }} />
+                      <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: T.muted, cursor: "pointer" }}>
+                        <input type="checkbox" checked={ahRelay} onChange={() => { setAhRelay(!ahRelay); setAhRunners([]); }} /> Relay
+                      </label>
+                      {ahRelay ? (
+                        <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                          <span style={{ fontSize: 10, color: T.muted }}>Legs:</span>
+                          <input type="number" min="2" max="10" value={ahLegs} onChange={(e) => { setAhLegs(parseInt(e.target.value) || 4); setAhRunners([]); }} style={{ width: 40, background: T.timerBg, border: "1px solid " + T.border, color: T.text, padding: "3px 5px", borderRadius: 3, fontSize: 11, textAlign: "center", fontFamily: "inherit" }} />
+                        </div>
+                      ) : null}
+                      <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                        <span style={{ fontSize: 10, color: T.muted }}>Dist (m):</span>
+                        <input type="number" min="0" value={ahDist} onChange={(e) => setAhDist(e.target.value)} placeholder="e.g. 1600" style={{ width: 65, background: T.timerBg, border: "1px solid " + T.border, color: T.text, padding: "3px 5px", borderRadius: 3, fontSize: 11, textAlign: "center", fontFamily: "inherit" }} />
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                      {[{ k: "boys", l: "Boys", c: "#4a9eff" }, { k: "girls", l: "Girls", c: "#ff7eb3" }].map((t) => (
+                        <button key={t.k} onClick={() => { setAhTeam(t.k); setAhRunners([]); }} style={{ padding: "4px 12px", borderRadius: 3, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", background: ahTeam === t.k ? t.c + "22" : "transparent", color: ahTeam === t.k ? t.c : T.muted, border: "1px solid " + (ahTeam === t.k ? t.c : T.dim) }}>
+                          {t.l}
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{ marginBottom: 8 }}>
+                      <div style={{ fontSize: 10, color: T.muted, marginBottom: 4 }}>Select runners{ahRelay ? " (max " + ahLegs + " for relay)" : ""}:</div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                        {allAthletes.filter((a) => a.team === ahTeam).map((a) => {
+                          const isIn = ahRunners.includes(String(a.id));
+                          const atCap = ahRelay && ahRunners.length >= ahLegs && !isIn;
+                          return (
+                            <button key={a.id} disabled={atCap} onClick={() => {
+                              if (isIn) setAhRunners(ahRunners.filter((x) => x !== String(a.id)));
+                              else setAhRunners(ahRunners.concat([String(a.id)]));
+                            }} style={{ padding: "3px 8px", borderRadius: 3, fontSize: 11, fontWeight: isIn ? 700 : 500, cursor: atCap ? "not-allowed" : "pointer", fontFamily: "inherit", background: isIn ? (ahTeam === "boys" ? "#4a9eff" : "#ff7eb3") + "18" : "transparent", border: "1px solid " + (isIn ? (ahTeam === "boys" ? "#4a9eff" : "#ff7eb3") + "44" : T.dim), color: atCap ? T.dim : isIn ? T.text : T.muted, opacity: atCap ? 0.4 : 1 }}>
+                              {isIn ? "\u2713 " : ""}{a.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <button disabled={!ahName.trim() || ahRunners.length === 0} onClick={() => {
+                      const distM = parseInt(ahDist) || 0;
+                      const legs = ahRelay ? Math.max(1, ahLegs) : 0;
+                      const splitDist = ahRelay && legs > 0 && distM > 0 ? Math.round(distM / legs) + "m" : label;
+                      const raceObj = {
+                        id: "ah_" + ahName.trim() + "_" + ahTeam + "_" + Date.now(),
+                        event: ahName.trim(),
+                        team: ahTeam,
+                        label: ahName.trim() + " " + (ahTeam === "boys" ? "Boys" : "Girls"),
+                        runnerIds: ahRunners.slice(),
+                        splits: {},
+                        elapsed: 0,
+                        status: "ready",
+                        finished: {},
+                        meetName: importedMeetId || "Meet",
+                        meetDate: sessionDate,
+                        type: "meet",
+                        splitLabel: splitDist,
+                      };
+                      if (ahRelay) { raceObj.relay = true; raceObj.legs = legs; }
+                      if (distM) raceObj.distanceM = distM;
+                      setRaces((prev) => prev.concat([raceObj]));
+                      setAhName(""); setAhRelay(false); setAhLegs(4); setAhDist(""); setAhRunners([]);
+                    }} style={{ padding: "8px 16px", borderRadius: 4, background: ahName.trim() && ahRunners.length > 0 ? "#a855f7" : "rgba(255,255,255,0.06)", border: "none", color: ahName.trim() && ahRunners.length > 0 ? "#fff" : T.muted, fontSize: 12, fontWeight: 900, cursor: ahName.trim() && ahRunners.length > 0 ? "pointer" : "not-allowed", fontFamily: "inherit", letterSpacing: 1, textTransform: "uppercase" }}>
+                      Add Race Card
+                    </button>
+                  </div>
+                ) : null}
               </div>
             </div>
-            <div style={{display:"flex",gap:6,marginBottom:8}}>
-              {[{k:"boys",l:"Boys",c:"#4a9eff"},{k:"girls",l:"Girls",c:"#ff7eb3"}].map(function(t){return <button key={t.k} onClick={function(){setAhTeam(t.k);setAhRunners([]);}} style={{padding:"4px 12px",borderRadius:3,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",background:ahTeam===t.k?t.c+"22":"transparent",color:ahTeam===t.k?t.c:T.muted,border:"1px solid "+(ahTeam===t.k?t.c:T.dim)}}>{t.l}</button>;})}
+          ) : null}
+
+          {/* ── WORKOUT MODE ── */}
+          {mode === "workout" ? (
+            <div>
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 9, letterSpacing: 4, color: T.accent, textTransform: "uppercase", marginBottom: 6 }}>Workout Name</div>
+                <input value={woName} onChange={(e) => setWoName(e.target.value)} placeholder="e.g. 4x400 @ Threshold" style={{ width: "100%", boxSizing: "border-box", background: T.card, border: "1px solid " + (woName.trim() ? T.accent : T.border), color: T.text, padding: "8px 12px", borderRadius: 3, fontSize: 14, fontFamily: "inherit", outline: "none" }} />
+              </div>
+              <div style={{ background: T.card, border: "1px solid " + T.border, borderLeft: "3px solid #4a9eff", borderRadius: 4, padding: "12px 14px", marginBottom: 12 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: T.text, marginBottom: 6 }}>Import Pace Groups</div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+                  <select value={paceKey} onChange={(e) => setPaceKey(e.target.value)} style={{ background: T.timerBg, border: "1px solid " + T.border, color: T.text, padding: "5px 8px", borderRadius: 3, fontFamily: "inherit", fontSize: 12 }}>
+                    {PACE_KEYS.map((p) => (<option key={p.k} value={p.k}>{p.l}</option>))}
+                  </select>
+                  <select value={paceTol} onChange={(e) => setPaceTol(parseInt(e.target.value))} style={{ background: T.timerBg, border: "1px solid " + T.border, color: T.text, padding: "5px 8px", borderRadius: 3, fontFamily: "inherit", fontSize: 12 }}>
+                    {[2, 4, 6, 8, 10, 12, 14, 16, 18, 20].map((t) => (<option key={t} value={t}>{t}s</option>))}
+                  </select>
+                  <button onClick={importPaceGroups} style={{ padding: "5px 12px", background: "#4a9eff", color: T.bg, border: "none", borderRadius: 3, cursor: "pointer", fontSize: 12, fontWeight: 900, fontFamily: "inherit" }}>Generate</button>
+                </div>
+              </div>
+              <div style={{ background: T.card, border: "1px solid " + T.border, borderLeft: "3px solid " + T.accent, borderRadius: 4, padding: "12px 14px", marginBottom: 12 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: T.text, marginBottom: 6 }}>Manual Groups</div>
+                <div style={{ display: "flex", gap: 5, marginBottom: 8 }}>
+                  <input value={newGrpName} onChange={(e) => setNewGrpName(e.target.value)} onKeyDown={(e) => {
+                    if (e.key === "Enter" && newGrpName.trim()) {
+                      setWoGroups((prev) => prev.concat([{ id: "mg_" + Date.now(), name: newGrpName.trim(), color: GROUP_COLORS[prev.length % GROUP_COLORS.length], runnerIds: [] }]));
+                      setNewGrpName("");
+                    }
+                  }} placeholder="Group name..." style={{ flex: 1, background: T.timerBg, border: "1px solid " + T.border, color: T.text, padding: "6px 10px", borderRadius: 3, fontSize: 12, fontFamily: "inherit", outline: "none" }} />
+                  <button onClick={() => {
+                    if (newGrpName.trim()) {
+                      setWoGroups((prev) => prev.concat([{ id: "mg_" + Date.now(), name: newGrpName.trim(), color: GROUP_COLORS[prev.length % GROUP_COLORS.length], runnerIds: [] }]));
+                      setNewGrpName("");
+                    }
+                  }} style={{ padding: "6px 12px", background: T.accent, color: T.bg, border: "none", borderRadius: 3, cursor: "pointer", fontSize: 12, fontWeight: 900, fontFamily: "inherit" }}>+ Group</button>
+                </div>
+              </div>
+              {woGroups.map((g) => {
+                const members = g.runnerIds.map((rid) => rosterMap[rid]).filter(Boolean);
+                const available = allAthletes.filter((a) => !g.runnerIds.includes(String(a.id)));
+                return (
+                  <div key={g.id} style={{ background: T.card, border: "1px solid " + T.border, borderLeft: "3px solid " + g.color, borderRadius: 4, padding: "10px 12px", marginBottom: 6 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <div style={{ width: 8, height: 8, borderRadius: 2, background: g.color }} />
+                        <span style={{ fontSize: 14, fontWeight: 800, color: T.text }}>{g.name}</span>
+                        <span style={{ fontSize: 10, color: T.muted }}>{members.length}</span>
+                      </div>
+                      <button onClick={() => {
+                        if (confirm("Remove group " + g.name + "?")) setWoGroups((prev) => prev.filter((x) => x.id !== g.id));
+                      }} style={{ background: "none", border: "none", color: T.muted, cursor: "pointer", fontSize: 11, fontFamily: "inherit" }}>{"\u00D7"}</button>
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 6 }}>
+                      {members.map((a) => (
+                        <span key={a.id} style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "2px 7px", background: g.color + "18", border: "1px solid " + g.color + "44", borderRadius: 3, fontSize: 11, fontWeight: 700, color: T.text }}>
+                          {a.name}
+                          <button onClick={() => {
+                            setWoGroups((prev) => prev.map((x) => (x.id === g.id ? { ...x, runnerIds: x.runnerIds.filter((r) => r !== String(a.id)) } : x)));
+                          }} style={{ background: "none", border: "none", color: g.color, cursor: "pointer", fontSize: 12, padding: 0 }}>{"\u00D7"}</button>
+                        </span>
+                      ))}
+                    </div>
+                    <select value="" onChange={(e) => {
+                      if (e.target.value) {
+                        const rid = e.target.value;
+                        setWoGroups((prev) => prev.map((x) => (x.id === g.id ? { ...x, runnerIds: x.runnerIds.concat([rid]) } : x)));
+                      }
+                    }} style={{ width: "100%", background: T.timerBg, border: "1px solid " + T.border, color: T.muted, padding: "4px 8px", borderRadius: 3, fontFamily: "inherit", fontSize: 11 }}>
+                      <option value="">+ Add runner...</option>
+                      {available.map((a) => (<option key={a.id} value={String(a.id)}>{a.name} ({a.team})</option>))}
+                    </select>
+                  </div>
+                );
+              })}
             </div>
-            <div style={{marginBottom:8}}>
-              <div style={{fontSize:10,color:T.muted,marginBottom:4}}>Select runners{ahRelay?" (max "+ahLegs+" for relay)":""}:</div>
-              <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-                {allAthletes.filter(function(a){return a.team===ahTeam;}).map(function(a){
-                  var isIn=ahRunners.includes(String(a.id));
-                  var atCap=ahRelay&&ahRunners.length>=ahLegs&&!isIn;
-                  return <button key={a.id} disabled={atCap} onClick={function(){
-                    if(isIn)setAhRunners(ahRunners.filter(function(x){return x!==String(a.id);}));
-                    else setAhRunners(ahRunners.concat([String(a.id)]));
-                  }} style={{padding:"3px 8px",borderRadius:3,fontSize:11,fontWeight:isIn?700:500,cursor:atCap?"not-allowed":"pointer",fontFamily:"inherit",background:isIn?(ahTeam==="boys"?"#4a9eff":"#ff7eb3")+"18":"transparent",border:"1px solid "+(isIn?(ahTeam==="boys"?"#4a9eff":"#ff7eb3")+"44":T.dim),color:atCap?T.dim:isIn?T.text:T.muted,opacity:atCap?0.4:1}}>{isIn?"\u2713 ":""}{a.name}</button>;
+          ) : null}
+
+          {/* ── OPEN MODE ── */}
+          {mode === "open" ? (
+            <div>
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 9, letterSpacing: 4, color: T.accent, textTransform: "uppercase", marginBottom: 6 }}>Session Label</div>
+                <input value={woName} onChange={(e) => setWoName(e.target.value)} placeholder="e.g. Practice, Time Trial..." style={{ width: "100%", boxSizing: "border-box", background: T.card, border: "1px solid " + (woName.trim() ? T.accent : T.border), color: T.text, padding: "8px 12px", borderRadius: 3, fontSize: 14, fontFamily: "inherit", outline: "none" }} />
+              </div>
+              <div style={{ background: T.card, border: "1px solid " + T.border, borderLeft: "3px solid " + T.accent, borderRadius: 4, padding: "12px 14px", marginBottom: 12 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: T.text, marginBottom: 8 }}>Select Runners</div>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  {[{ label: "Boys", list: boys, clr: "#4a9eff" }, { label: "Girls", list: girls, clr: "#ff7eb3" }].map((grp) => {
+                    const openR = races.find((r) => r.type === "open");
+                    const selected = (openR && openR.runnerIds) || [];
+                    return (
+                      <div key={grp.label} style={{ flex: 1, minWidth: 140 }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: grp.clr, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>{grp.label}</div>
+                        {grp.list.map((a) => {
+                          const isIn = selected.includes(String(a.id));
+                          return (
+                            <button key={a.id} onClick={() => {
+                              setRaces((prev) => {
+                                const others = prev.filter((r) => r.type !== "open");
+                                const existing = prev.find((r) => r.type === "open");
+                                const base = existing || {
+                                  id: "open_" + Date.now(),
+                                  event: woName.trim() || "Open",
+                                  team: "",
+                                  label: woName.trim() || "Open Timer",
+                                  runnerIds: [],
+                                  splits: {},
+                                  elapsed: 0,
+                                  status: "ready",
+                                  finished: {},
+                                  meetName: woName.trim() || "Open Timer",
+                                  meetDate: sessionDate,
+                                  type: "open",
+                                };
+                                let ids = (base.runnerIds || []).slice();
+                                if (isIn) ids = ids.filter((x) => x !== String(a.id));
+                                else ids.push(String(a.id));
+                                return others.concat([{ ...base, runnerIds: ids, event: woName.trim() || "Open", label: woName.trim() || "Open Timer", meetName: woName.trim() || "Open Timer" }]);
+                              });
+                            }} style={{ display: "block", width: "100%", textAlign: "left", padding: "4px 8px", marginBottom: 2, borderRadius: 3, cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: isIn ? 700 : 500, background: isIn ? grp.clr + "18" : "transparent", border: "1px solid " + (isIn ? grp.clr + "44" : T.dim), color: isIn ? T.text : T.muted }}>
+                              {isIn ? "\u2713 " : ""}{a.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+                <button onClick={() => {
+                  const allIds = allAthletes.map((a) => String(a.id));
+                  const newOpen = {
+                    id: "open_" + Date.now(),
+                    event: woName.trim() || "Open",
+                    team: "",
+                    label: woName.trim() || "Open Timer",
+                    runnerIds: allIds,
+                    splits: {},
+                    elapsed: 0,
+                    status: "ready",
+                    finished: {},
+                    meetName: woName.trim() || "Open Timer",
+                    meetDate: sessionDate,
+                    type: "open",
+                  };
+                  setRaces((prev) => prev.filter((r) => r.type !== "open").concat([newOpen]));
+                }} style={{ marginTop: 8, padding: "4px 10px", background: "transparent", color: T.muted, border: "1px solid " + T.dim, borderRadius: 3, cursor: "pointer", fontSize: 10, fontFamily: "inherit" }}>Select All</button>
+              </div>
+            </div>
+          ) : null}
+
+          {/* Race preview */}
+          {modeRaces.length > 0 ? (
+            <div style={{ marginTop: 16, marginBottom: 12 }}>
+              <div style={{ fontSize: 9, letterSpacing: 4, color: T.accent, textTransform: "uppercase", marginBottom: 6 }}>
+                {mode === "workout" ? "Workout Groups" : mode === "open" ? "Open Timer Session" : "Race Cards"} ({modeRaces.length}){" "}
+                <span style={{ fontSize: 8, color: T.muted, fontStyle: "italic", letterSpacing: 0, textTransform: "none" }}>tap to expand, drag to reorder runners</span>
+              </div>
+              {modeRaces.map((r) => {
+                const evClr = EVENT_COLORS[r.event] || r.color || T.accent;
+                const isExp = expandedRace === r.id;
+                const rRunners = (r.runnerIds || []).map((rid) => rosterMap[rid] || rosterMap[String(rid)]).filter(Boolean);
+                const previewMoveRunner = (fromI, toI) => {
+                  if (fromI === toI) return;
+                  const ids = (r.runnerIds || []).slice();
+                  const item = ids.splice(fromI, 1)[0];
+                  ids.splice(toI, 0, item);
+                  updateRace(r.id, { runnerIds: ids });
+                };
+                const previewRemoveRunner = (rid) => {
+                  const ids = (r.runnerIds || []).filter((x) => x !== rid);
+                  updateRace(r.id, { runnerIds: ids });
+                };
+                const previewAddRunner = (rid) => {
+                  if ((r.runnerIds || []).includes(rid)) return;
+                  updateRace(r.id, { runnerIds: (r.runnerIds || []).concat([rid]) });
+                };
+                return (
+                  <div key={r.id} style={{ marginBottom: 4, background: T.card, border: "1px solid " + (isExp ? evClr + "44" : T.border), borderLeft: "3px solid " + evClr, borderRadius: 4, overflow: "hidden" }}>
+                    <div onClick={() => setExpandedRace(isExp ? null : r.id)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 10px", cursor: "pointer" }}>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: evClr }}>{r.label || r.event}</span>
+                      {r.team ? <span style={{ fontSize: 10, fontWeight: 700, color: TEAM_COLORS[r.team] || evClr }}>{r.team}</span> : null}
+                      <span style={{ fontSize: 10, color: T.muted, flex: 1 }}>{rRunners.length} runners</span>
+                      <span style={{ fontSize: 10, color: T.muted }}>{isExp ? "\u25B2" : "\u25BC"}</span>
+                    </div>
+                    {isExp ? (
+                      <div style={{ padding: "4px 10px 8px", borderTop: "1px solid " + T.border }}>
+                        {rRunners.map((ath, ai) => (
+                          <div key={ath.id} draggable onDragStart={(e) => { e.dataTransfer.setData("text/plain", String(ai)); e.dataTransfer.effectAllowed = "move"; }} onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }} onDrop={(e) => { e.preventDefault(); const from = parseInt(e.dataTransfer.getData("text/plain")); if (!isNaN(from)) previewMoveRunner(from, ai); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 4px", marginBottom: 2, borderRadius: 3, background: T.timerBg, border: "1px solid " + T.border, cursor: "grab" }}>
+                            <span style={{ fontSize: 10, color: T.muted }}>{"\u2630"}</span>
+                            {isRelayRace(r) ? <span style={{ fontSize: 9, fontWeight: 700, color: evClr, padding: "0 4px", borderRadius: 2, background: evClr + "18" }}>Leg {ai + 1}</span> : null}
+                            <span style={{ fontSize: 12, fontWeight: 700, color: T.text, flex: 1 }}>{ath.name}</span>
+                            <span style={{ fontSize: 9, color: TEAM_COLORS[ath.team] || T.muted }}>{ath.team}</span>
+                            <button onClick={(e) => { e.stopPropagation(); previewRemoveRunner(ath.id); }} style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: 12, padding: "0 2px", fontFamily: "inherit" }}>{"\u00D7"}</button>
+                          </div>
+                        ))}
+                        <select value="" onChange={(e) => { if (e.target.value) previewAddRunner(e.target.value); }} style={{ width: "100%", marginTop: 4, background: T.timerBg, border: "1px dashed " + T.accent + "44", color: T.muted, padding: "4px 8px", borderRadius: 3, fontFamily: "inherit", fontSize: 11 }}>
+                          <option value="">+ Add runner...</option>
+                          {allAthletes.filter((a) => !(r.runnerIds || []).includes(String(a.id))).map((a) => (<option key={a.id} value={String(a.id)}>{a.name} ({a.team})</option>))}
+                        </select>
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+              <button onClick={() => { if (confirm("Clear all race cards?")) resetAll(); }} style={{ marginTop: 4, padding: "3px 8px", background: "transparent", color: T.muted, border: "1px solid " + T.dim, borderRadius: 3, cursor: "pointer", fontSize: 10, fontFamily: "inherit" }}>Clear</button>
+            </div>
+          ) : null}
+
+          {/* Begin */}
+          <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
+            {mode === "meet" ? (
+              <button onClick={() => { if (modeRaces.length) setScreen("race"); }} disabled={!modeRaces.length} style={{ flex: 1, padding: "13px", borderRadius: 3, cursor: modeRaces.length ? "pointer" : "not-allowed", background: modeRaces.length ? T.accent : T.card, color: modeRaces.length ? T.bg : T.muted, border: "1px solid " + (modeRaces.length ? T.accent : T.border), fontSize: 15, fontWeight: 900, fontFamily: "inherit", letterSpacing: 3, textTransform: "uppercase" }}>
+                {modeRaces.length ? "Begin \u2192" : "Import a meet"}
+              </button>
+            ) : null}
+            {mode === "workout" ? (
+              <button onClick={() => {
+                if (woGroups.length > 0) { startWorkout(); setScreen("race"); }
+                else if (modeRaces.length > 0) { setScreen("race"); }
+              }} disabled={!woGroups.length && !modeRaces.length} style={{ flex: 1, padding: "13px", borderRadius: 3, cursor: woGroups.length || modeRaces.length ? "pointer" : "not-allowed", background: woGroups.length || modeRaces.length ? T.accent : T.card, color: woGroups.length || modeRaces.length ? T.bg : T.muted, border: "1px solid " + (woGroups.length || modeRaces.length ? T.accent : T.border), fontSize: 15, fontWeight: 900, fontFamily: "inherit", letterSpacing: 3, textTransform: "uppercase" }}>
+                {modeRaces.length ? "Resume Workout \u2192" : woGroups.length ? "Start Workout \u2192" : "Create groups"}
+              </button>
+            ) : null}
+            {mode === "open" ? (() => {
+              const ok = modeRaces.length > 0 && (modeRaces[0].runnerIds || []).length > 0;
+              return (
+                <button onClick={() => { if (ok) setScreen("race"); }} disabled={!ok} style={{ flex: 1, padding: "13px", borderRadius: 3, cursor: ok ? "pointer" : "not-allowed", background: ok ? T.accent : T.card, color: ok ? T.bg : T.muted, border: "1px solid " + (ok ? T.accent : T.border), fontSize: 15, fontWeight: 900, fontFamily: "inherit", letterSpacing: 3, textTransform: "uppercase" }}>
+                  {ok ? "Start Timer \u2192" : "Select runners"}
+                </button>
+              );
+            })() : null}
+          </div>
+
+          {/* ── HISTORY ── */}
+          <div style={{ marginTop: 24 }}>
+            <button onClick={() => setHistOpen(!histOpen)} style={{ width: "100%", padding: "10px 14px", background: T.card, border: "1px solid " + T.border, borderRadius: 4, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontFamily: "inherit" }}>
+              <span style={{ fontSize: 13, fontWeight: 800, color: T.accent, letterSpacing: 1 }}>
+                {mode === "workout" ? "Workout History" : mode === "open" ? "Open Timer History" : "Saved Meets"} ({histKeys.length})
+              </span>
+              <span style={{ fontSize: 10, color: T.muted }}>{histOpen ? "[-]" : "[+]"}</span>
+            </button>
+            {histOpen ? (
+              <div style={{ marginTop: 8 }}>
+                <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                  <label style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", background: "#3498DB18", border: "1px dashed #3498DB66", borderRadius: 3, cursor: "pointer", fontSize: 11, fontWeight: 700, color: "#3498DB", fontFamily: "inherit" }}>
+                    {"\u2B07 Import JSON"}
+                    <input
+                      type="file"
+                      accept="application/json,.json"
+                      style={{ display: "none" }}
+                      onChange={(e) => {
+                        const file = e.target.files && e.target.files[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                          try {
+                            const parsed = JSON.parse(ev.target.result);
+                            if (!Array.isArray(parsed)) {
+                              alert("Expected a JSON array of race results.");
+                              return;
+                            }
+                            const dedupKey = (r) =>
+                              (r.meetId || r.meetName || "") + "|" + (r.meetDate || "") + "|" + (r.event || "") + "|" + (r.team || "") + "|" + (r.heat || 0);
+                            const existing = new Set(raceResults.map(dedupKey));
+                            let added = 0;
+                            let skipped = 0;
+                            parsed.forEach((r) => {
+                              if (!r || typeof r !== "object") return;
+                              if (existing.has(dedupKey(r))) {
+                                skipped++;
+                                return;
+                              }
+                              existing.add(dedupKey(r));
+                              if (onRaceFinish) onRaceFinish(r);
+                              added++;
+                            });
+                            alert("Imported " + added + " race(s). Skipped " + skipped + " duplicate(s).");
+                          } catch (err) {
+                            alert("Failed to parse JSON: " + err.message);
+                          }
+                          e.target.value = "";
+                        };
+                        reader.readAsText(file);
+                      }}
+                    />
+                  </label>
+                </div>
+                {histKeys.length === 0 ? (
+                  <div style={{ fontSize: 12, color: T.muted, fontStyle: "italic", padding: "12px" }}>
+                    {mode === "workout" ? "No saved workouts yet." : mode === "open" ? "No saved open timer sessions yet." : "No saved meets yet."}
+                  </div>
+                ) : null}
+                {histKeys.map((key) => {
+                  const sess = histBySession[key];
+                  const unsaved = unsavedByMeet[key] || 0;
+                  return (
+                    <div key={key} style={{ marginBottom: 12, background: T.card, border: "1px solid " + T.border, borderRadius: 4, overflow: "hidden" }}>
+                      <div style={{ padding: "8px 12px", borderBottom: "1px solid " + T.border, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: T.text, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                            <span>{sess.name}</span>
+                            {unsaved > 0 ? (
+                              <span title={unsaved + " race(s) in the timer haven't been saved yet"} style={{ fontSize: 8, padding: "1px 5px", borderRadius: 3, background: "#f0a50022", color: "#f0a500", border: "1px solid #f0a50066", fontWeight: 800, letterSpacing: 0.5 }}>
+                                {"\u26A0 " + unsaved + " UNSAVED"}
+                              </span>
+                            ) : null}
+                          </div>
+                          <div style={{ fontSize: 10, color: T.muted, display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginTop: 1 }}>
+                            <span>{sess.date}</span>
+                            <span>{"\u00B7"}</span>
+                            <span>{sess.races.length} race{sess.races.length !== 1 ? "s" : ""}</span>
+                            {sess.headCount > 0 || sess.asstCount > 0 ? <span>{"\u00B7"}</span> : null}
+                            {sess.headCount > 0 ? <span style={{ color: "#5ddb6a" }}>{sess.headCount} head</span> : null}
+                            {sess.headCount > 0 && sess.asstCount > 0 ? <span style={{ color: T.muted }}>{","}</span> : null}
+                            {sess.asstCount > 0 ? <span style={{ color: "#3498DB" }}>{sess.asstCount} asst</span> : null}
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", gap: 4 }}>
+                          {mode === "meet" && navigateToResultsMeet ? (
+                            <button onClick={() => navigateToResultsMeet(sess.meetKey)} title="Open this meet in the Race Results tab" style={{ background: "#27ae6018", border: "1px solid #27ae6044", color: "#27ae60", borderRadius: 3, padding: "3px 8px", cursor: "pointer", fontSize: 10, fontWeight: 700, fontFamily: "inherit" }}>View in Results</button>
+                          ) : null}
+                          <button onClick={() => {
+                            const rows = [["Race", "Place", "Athlete", "Team", "Split #", "Split Time", "Total Time"]];
+                            sess.races.forEach((race) => {
+                              const evLabel = (race.event || "") + (race.team ? " " + race.team : "");
+                              const runners = (race.runners || []).slice().sort((a, b) => (a.finalTime || 999999) - (b.finalTime || 999999));
+                              runners.forEach((r, ri) => {
+                                const sp = r.splits || [];
+                                if (!sp.length) rows.push([evLabel, ri + 1, r.name, r.team || "", "", "", ""]);
+                                else sp.forEach((s, si) => rows.push([si === 0 ? evLabel : "", si === 0 ? ri + 1 : "", si === 0 ? r.name : "", si === 0 ? r.team || "" : "", si + 1, fmtSplit(s.split), fmtTime(s.total)]));
+                              });
+                            });
+                            const csv = rows.map((r) => r.map((v) => '"' + v + '"').join(",")).join("\n");
+                            const el = document.createElement("a");
+                            el.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+                            el.download = "results_" + sess.name.replace(/\s+/g, "_") + "_" + (sess.date || "").replace(/\s+/g, "") + ".csv";
+                            el.click();
+                          }} style={{ background: T.accent + "18", border: "1px solid " + T.accent + "44", color: T.accent, borderRadius: 3, padding: "3px 8px", cursor: "pointer", fontSize: 10, fontWeight: 700, fontFamily: "inherit" }}>CSV</button>
+                          <button onClick={() => {
+                            const payload = JSON.stringify(sess.races, null, 2);
+                            const el = document.createElement("a");
+                            el.href = URL.createObjectURL(new Blob([payload], { type: "application/json" }));
+                            el.download = "results_" + sess.name.replace(/\s+/g, "_") + "_" + (sess.date || "").replace(/\s+/g, "") + ".json";
+                            el.click();
+                          }} title="Export as JSON — preserves all data for cross-device merge" style={{ background: "#a855f718", border: "1px solid #a855f744", color: "#a855f7", borderRadius: 3, padding: "3px 8px", cursor: "pointer", fontSize: 10, fontWeight: 700, fontFamily: "inherit" }}>JSON</button>
+                          <button onClick={() => {
+                            if (confirm("Delete " + sess.name + "?")) {
+                              if (onDeleteHistory) {
+                                const keep = raceResults.filter((r) => !((r.meetName || "Session") + "\u2014" + (r.meetDate || "") === key));
+                                onDeleteHistory(keep);
+                              }
+                            }
+                          }} style={{ background: "rgba(239,68,68,0.1)", border: "none", color: "#ef4444", borderRadius: 3, padding: "3px 8px", cursor: "pointer", fontSize: 10, fontWeight: 700, fontFamily: "inherit" }}>Delete</button>
+                        </div>
+                      </div>
+                      {sess.races.slice().sort((a, b) => (a.sortKey || 0) - (b.sortKey || 0)).map((race) => {
+                        const evClr = EVENT_COLORS[race.event] || T.accent;
+                        const isRelay = race.event === "4x800" || !!race.relay;
+                        const runners = isRelay
+                          ? (race.runners || []).slice()
+                          : (race.runners || []).slice().sort((a, b) => (a.finalTime || 999999) - (b.finalTime || 999999));
+                        const maxSplits = runners.reduce((m, r) => Math.max(m, (r.splits || []).length), 0);
+                        const teamTotal = isRelay ? runners.reduce((m, r) => (r.finalTime > m ? r.finalTime : m), 0) : 0;
+                        return (
+                          <div key={race.id || race.event + race.team} style={{ padding: "8px 12px", borderBottom: "1px solid " + T.dim }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                              <span style={{ fontSize: 12, fontWeight: 800, color: evClr }}>{race.event}</span>
+                              {race.team ? <span style={{ fontSize: 10, fontWeight: 700, color: TEAM_COLORS[race.team] || evClr }}>{race.team}</span> : null}
+                              {race.heat > 1 ? <span style={{ fontSize: 9, color: T.muted }}>H{race.heat}</span> : null}
+                              {race.savedBy ? (
+                                <span style={{ fontSize: 8, padding: "1px 4px", borderRadius: 2, background: race.savedBy === "asst" ? "#3498DB18" : "#27ae6018", color: race.savedBy === "asst" ? "#3498DB" : "#27ae60" }}>
+                                  {race.savedBy === "asst" ? "Asst" : "Head"}
+                                </span>
+                              ) : null}
+                              <button onClick={() => {
+                                if (confirm("Delete this race?")) {
+                                  if (onDeleteHistory) {
+                                    const keep = raceResults.filter((r2) => r2.id !== race.id);
+                                    onDeleteHistory(keep);
+                                  }
+                                }
+                              }} style={{ marginLeft: "auto", background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: 10, padding: 0 }}>x</button>
+                            </div>
+                            {isRelay ? (
+                              <div>
+                                {runners.map((r, ri) => {
+                                  const sps = r.splits || [];
+                                  const lastSp = sps.length > 0 ? sps[sps.length - 1] : null;
+                                  const legSumMs = sps.reduce((a, s) => a + (s.split || 0), 0);
+                                  const hasMulti = sps.length > 1;
+                                  return (
+                                    <div key={r.id || ri} style={{ display: "flex", alignItems: "center", gap: 6, padding: "2px 0" }}>
+                                      <span style={{ width: 36, fontSize: 10, fontWeight: 700, color: evClr, textAlign: "center" }}>Leg {ri + 1}</span>
+                                      <span style={{ flex: 1, fontSize: 11, fontWeight: 600, color: T.text }}>{r.name}</span>
+                                      <span style={{ fontSize: 13, fontWeight: 700, color: T.splitClr || T.text, fontFamily: "'Share Tech Mono',monospace", width: 65, textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", lineHeight: 1.1 }} title={hasMulti ? sps.map((s) => fmtSplit(s.split)).join(" / ") : ""}>
+                                        <span>{lastSp ? fmtSplit(legSumMs) : "--"}</span>
+                                        {hasMulti ? <span style={{ fontSize: 8, color: T.muted, opacity: 0.7 }}>{sps.map((s) => fmtSplit(s.split)).join("/")}</span> : null}
+                                      </span>
+                                      <span style={{ fontSize: 13, fontWeight: 700, color: T.timeClr, fontFamily: "'Share Tech Mono',monospace", minWidth: 65, textAlign: "right" }}>{lastSp ? fmtTime(lastSp.total) : "--"}</span>
+                                    </div>
+                                  );
+                                })}
+                                <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 6px", marginTop: 3, borderRadius: 3, background: evClr + "15", border: "1px solid " + evClr + "55" }}>
+                                  <span style={{ width: 36, fontSize: 10, fontWeight: 900, color: evClr, textAlign: "center", letterSpacing: 1 }}>TOTAL</span>
+                                  <span style={{ flex: 1, fontSize: 10, color: T.muted }}>4x800 Team</span>
+                                  <span style={{ width: 65, fontSize: 10, color: T.muted, textAlign: "center" }}>{"\u2014"}</span>
+                                  <span style={{ fontSize: 14, fontWeight: 900, color: evClr, fontFamily: "'Share Tech Mono',monospace", minWidth: 65, textAlign: "right" }}>{teamTotal ? fmtTime(teamTotal) : "--"}</span>
+                                </div>
+                              </div>
+                            ) : (
+                              runners.map((r, ri) => {
+                                const sps = r.splits || [];
+                                return (
+                                  <div key={r.id || ri} style={{ display: "flex", alignItems: "center", gap: 6, padding: "2px 0" }}>
+                                    <span style={{ width: 18, fontSize: 10, fontWeight: 700, color: ri === 0 ? evClr : T.muted, textAlign: "center" }}>{ri + 1}</span>
+                                    <span style={{ flex: 1, fontSize: 11, fontWeight: ri === 0 ? 700 : 500, color: ri === 0 ? evClr : T.muted }}>{r.name}</span>
+                                    {maxSplits > 0
+                                      ? Array.from({ length: maxSplits }, (_, si) => {
+                                          const s = sps[si];
+                                          return (
+                                            <span key={si} style={{ fontSize: 13, fontWeight: 700, color: T.oldSplit || T.timeClr, fontFamily: "'Share Tech Mono',monospace", width: 55, textAlign: "center" }}>
+                                              {s ? fmtSplit(s.split) : ""}
+                                            </span>
+                                          );
+                                        })
+                                      : null}
+                                    <span style={{ fontSize: 14, fontWeight: 800, color: ri === 0 ? "#5ddb6a" : T.timeClr, fontFamily: "'Share Tech Mono',monospace", minWidth: 65, textAlign: "right" }}>
+                                      {r.finalTime ? fmtTime(r.finalTime) : "--"}
+                                    </span>
+                                  </div>
+                                );
+                              })
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
                 })}
               </div>
-            </div>
-            <button disabled={!ahName.trim()||ahRunners.length===0} onClick={function(){
-              var distM=parseInt(ahDist)||0;
-              var legs=ahRelay?Math.max(1,ahLegs):0;
-              var splitDist=ahRelay&&legs>0&&distM>0?Math.round(distM/legs)+"m":label;
-              var raceObj={id:"ah_"+ahName.trim()+"_"+ahTeam+"_"+Date.now(),event:ahName.trim(),team:ahTeam,label:ahName.trim()+" "+(ahTeam==="boys"?"Boys":"Girls"),runnerIds:ahRunners.slice(),splits:{},elapsed:0,status:"ready",finished:{},meetName:importedMeetId||"Meet",meetDate:sessionDate,type:"meet",splitLabel:splitDist};
-              if(ahRelay){raceObj.relay=true;raceObj.legs=legs;}
-              if(distM)raceObj.distanceM=distM;
-              setRaces(function(prev){return prev.concat([raceObj]);});
-              setAhName("");setAhRelay(false);setAhLegs(4);setAhDist("");setAhRunners([]);
-            }} style={{padding:"8px 16px",borderRadius:4,background:ahName.trim()&&ahRunners.length>0?"#a855f7":"rgba(255,255,255,0.06)",border:"none",color:ahName.trim()&&ahRunners.length>0?"#fff":T.muted,fontSize:12,fontWeight:900,cursor:ahName.trim()&&ahRunners.length>0?"pointer":"not-allowed",fontFamily:"inherit",letterSpacing:1,textTransform:"uppercase"}}>Add Race Card</button>
-          </div>:null}
-        </div>
-      </div>):null}
-
-      {/* ── WORKOUT MODE ── */}
-      {mode==="workout"?(<div>
-        <div style={{marginBottom:12}}><div style={{fontSize:9,letterSpacing:4,color:T.accent,textTransform:"uppercase",marginBottom:6}}>Workout Name</div>
-          <input value={woName} onChange={function(e){setWoName(e.target.value);}} placeholder="e.g. 4x400 @ Threshold" style={{width:"100%",boxSizing:"border-box",background:T.card,border:"1px solid "+(woName.trim()?T.accent:T.border),color:T.text,padding:"8px 12px",borderRadius:3,fontSize:14,fontFamily:"inherit",outline:"none"}}/>
-        </div>
-        <div style={{background:T.card,border:"1px solid "+T.border,borderLeft:"3px solid #4a9eff",borderRadius:4,padding:"12px 14px",marginBottom:12}}>
-          <div style={{fontSize:13,fontWeight:800,color:T.text,marginBottom:6}}>Import Pace Groups</div>
-          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
-            <select value={paceKey} onChange={function(e){setPaceKey(e.target.value);}} style={{background:T.timerBg,border:"1px solid "+T.border,color:T.text,padding:"5px 8px",borderRadius:3,fontFamily:"inherit",fontSize:12}}>{PACE_KEYS.map(function(p){return <option key={p.k} value={p.k}>{p.l}</option>;})}</select>
-            <select value={paceTol} onChange={function(e){setPaceTol(parseInt(e.target.value));}} style={{background:T.timerBg,border:"1px solid "+T.border,color:T.text,padding:"5px 8px",borderRadius:3,fontFamily:"inherit",fontSize:12}}>{[2,4,6,8,10,12,14,16,18,20].map(function(t){return <option key={t} value={t}>{t}s</option>;})}</select>
-            <button onClick={importPaceGroups} style={{padding:"5px 12px",background:"#4a9eff",color:T.bg,border:"none",borderRadius:3,cursor:"pointer",fontSize:12,fontWeight:900,fontFamily:"inherit"}}>Generate</button>
+            ) : null}
           </div>
         </div>
-        <div style={{background:T.card,border:"1px solid "+T.border,borderLeft:"3px solid "+T.accent,borderRadius:4,padding:"12px 14px",marginBottom:12}}>
-          <div style={{fontSize:13,fontWeight:800,color:T.text,marginBottom:6}}>Manual Groups</div>
-          <div style={{display:"flex",gap:5,marginBottom:8}}>
-            <input value={newGrpName} onChange={function(e){setNewGrpName(e.target.value);}} onKeyDown={function(e){if(e.key==="Enter"&&newGrpName.trim()){setWoGroups(function(prev){return prev.concat([{id:"mg_"+Date.now(),name:newGrpName.trim(),color:GROUP_COLORS[prev.length%GROUP_COLORS.length],runnerIds:[]}]);});setNewGrpName("");}}} placeholder="Group name..." style={{flex:1,background:T.timerBg,border:"1px solid "+T.border,color:T.text,padding:"6px 10px",borderRadius:3,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
-            <button onClick={function(){if(newGrpName.trim()){setWoGroups(function(prev){return prev.concat([{id:"mg_"+Date.now(),name:newGrpName.trim(),color:GROUP_COLORS[prev.length%GROUP_COLORS.length],runnerIds:[]}]);});setNewGrpName("");}}} style={{padding:"6px 12px",background:T.accent,color:T.bg,border:"none",borderRadius:3,cursor:"pointer",fontSize:12,fontWeight:900,fontFamily:"inherit"}}>+ Group</button>
-          </div>
-        </div>
-        {woGroups.map(function(g){var members=g.runnerIds.map(function(rid){return rosterMap[rid];}).filter(Boolean);var available=allAthletes.filter(function(a){return!g.runnerIds.includes(String(a.id));});
-          return(<div key={g.id} style={{background:T.card,border:"1px solid "+T.border,borderLeft:"3px solid "+g.color,borderRadius:4,padding:"10px 12px",marginBottom:6}}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}><div style={{display:"flex",alignItems:"center",gap:6}}><div style={{width:8,height:8,borderRadius:2,background:g.color}}/><span style={{fontSize:14,fontWeight:800,color:T.text}}>{g.name}</span><span style={{fontSize:10,color:T.muted}}>{members.length}</span></div><button onClick={function(){if(confirm("Remove group "+g.name+"?"))setWoGroups(function(prev){return prev.filter(function(x){return x.id!==g.id;});});}} style={{background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:11,fontFamily:"inherit"}}>{"\u00D7"}</button></div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>{members.map(function(a){return(<span key={a.id} style={{display:"inline-flex",alignItems:"center",gap:3,padding:"2px 7px",background:g.color+"18",border:"1px solid "+g.color+"44",borderRadius:3,fontSize:11,fontWeight:700,color:T.text}}>{a.name}<button onClick={function(){setWoGroups(function(prev){return prev.map(function(x){return x.id===g.id?Object.assign({},x,{runnerIds:x.runnerIds.filter(function(r){return r!==String(a.id);})}):x;});});}} style={{background:"none",border:"none",color:g.color,cursor:"pointer",fontSize:12,padding:0}}>{"\u00D7"}</button></span>);})}</div>
-            <select value="" onChange={function(e){if(e.target.value){var rid=e.target.value;setWoGroups(function(prev){return prev.map(function(x){return x.id===g.id?Object.assign({},x,{runnerIds:x.runnerIds.concat([rid])}):x;});});}}} style={{width:"100%",background:T.timerBg,border:"1px solid "+T.border,color:T.muted,padding:"4px 8px",borderRadius:3,fontFamily:"inherit",fontSize:11}}>
-              <option value="">+ Add runner...</option>{available.map(function(a){return <option key={a.id} value={String(a.id)}>{a.name} ({a.team})</option>;})}
-            </select>
-          </div>);
-        })}
-      </div>):null}
-
-      {/* ── OPEN MODE ── */}
-      {mode==="open"?(<div>
-        <div style={{marginBottom:12}}><div style={{fontSize:9,letterSpacing:4,color:T.accent,textTransform:"uppercase",marginBottom:6}}>Session Label</div>
-          <input value={woName} onChange={function(e){setWoName(e.target.value);}} placeholder="e.g. Practice, Time Trial..." style={{width:"100%",boxSizing:"border-box",background:T.card,border:"1px solid "+(woName.trim()?T.accent:T.border),color:T.text,padding:"8px 12px",borderRadius:3,fontSize:14,fontFamily:"inherit",outline:"none"}}/>
-        </div>
-        <div style={{background:T.card,border:"1px solid "+T.border,borderLeft:"3px solid "+T.accent,borderRadius:4,padding:"12px 14px",marginBottom:12}}>
-          <div style={{fontSize:13,fontWeight:800,color:T.text,marginBottom:8}}>Select Runners</div>
-          <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-            {[{label:"Boys",list:boys,clr:"#4a9eff"},{label:"Girls",list:girls,clr:"#ff7eb3"}].map(function(grp){var openR=races.find(function(r){return r.type==="open";});var selected=(openR&&openR.runnerIds)||[];return(<div key={grp.label} style={{flex:1,minWidth:140}}>
-              <div style={{fontSize:10,fontWeight:700,color:grp.clr,textTransform:"uppercase",letterSpacing:1,marginBottom:4}}>{grp.label}</div>
-              {grp.list.map(function(a){var isIn=selected.includes(String(a.id));return(<button key={a.id} onClick={function(){setRaces(function(prev){
-                var others=prev.filter(function(r){return r.type!=="open";});
-                var existing=prev.find(function(r){return r.type==="open";});
-                var base=existing||{id:"open_"+Date.now(),event:woName.trim()||"Open",team:"",label:woName.trim()||"Open Timer",runnerIds:[],splits:{},elapsed:0,status:"ready",finished:{},meetName:woName.trim()||"Open Timer",meetDate:sessionDate,type:"open"};
-                var ids=(base.runnerIds||[]).slice();
-                if(isIn)ids=ids.filter(function(x){return x!==String(a.id);});else ids.push(String(a.id));
-                return others.concat([Object.assign({},base,{runnerIds:ids,event:woName.trim()||"Open",label:woName.trim()||"Open Timer",meetName:woName.trim()||"Open Timer"})]);
-              });}} style={{display:"block",width:"100%",textAlign:"left",padding:"4px 8px",marginBottom:2,borderRadius:3,cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:isIn?700:500,background:isIn?grp.clr+"18":"transparent",border:"1px solid "+(isIn?grp.clr+"44":T.dim),color:isIn?T.text:T.muted}}>{isIn?"\u2713 ":""}{a.name}</button>);})}
-            </div>);})}
-          </div>
-          <button onClick={function(){var allIds=allAthletes.map(function(a){return String(a.id);});var newOpen={id:"open_"+Date.now(),event:woName.trim()||"Open",team:"",label:woName.trim()||"Open Timer",runnerIds:allIds,splits:{},elapsed:0,status:"ready",finished:{},meetName:woName.trim()||"Open Timer",meetDate:sessionDate,type:"open"};setRaces(function(prev){return prev.filter(function(r){return r.type!=="open";}).concat([newOpen]);});}} style={{marginTop:8,padding:"4px 10px",background:"transparent",color:T.muted,border:"1px solid "+T.dim,borderRadius:3,cursor:"pointer",fontSize:10,fontFamily:"inherit"}}>Select All</button>
-        </div>
-      </div>):null}
-
-      {/* Race preview — only show races that match the current mode */}
-      {modeRaces.length>0?<div style={{marginTop:16,marginBottom:12}}><div style={{fontSize:9,letterSpacing:4,color:T.accent,textTransform:"uppercase",marginBottom:6}}>{mode==="workout"?"Workout Groups":mode==="open"?"Open Timer Session":"Race Cards"} ({modeRaces.length}) <span style={{fontSize:8,color:T.muted,fontStyle:"italic",letterSpacing:0,textTransform:"none"}}>tap to expand, drag to reorder runners</span></div>
-        {modeRaces.map(function(r){var evClr=EVENT_COLORS[r.event]||r.color||T.accent;var isExp=expandedRace===r.id;var rRunners=(r.runnerIds||[]).map(function(rid){return rosterMap[rid]||rosterMap[String(rid)];}).filter(Boolean);
-          var previewMoveRunner=function(fromI,toI){if(fromI===toI)return;var ids=(r.runnerIds||[]).slice();var item=ids.splice(fromI,1)[0];ids.splice(toI,0,item);updateRace(r.id,{runnerIds:ids});};
-          var previewRemoveRunner=function(rid){var ids=(r.runnerIds||[]).filter(function(x){return x!==rid;});updateRace(r.id,{runnerIds:ids});};
-          var previewAddRunner=function(rid){if((r.runnerIds||[]).includes(rid))return;updateRace(r.id,{runnerIds:(r.runnerIds||[]).concat([rid])});};
-          return(<div key={r.id} style={{marginBottom:4,background:T.card,border:"1px solid "+(isExp?evClr+"44":T.border),borderLeft:"3px solid "+evClr,borderRadius:4,overflow:"hidden"}}>
-          <div onClick={function(){setExpandedRace(isExp?null:r.id);}} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 10px",cursor:"pointer"}}>
-            <span style={{fontSize:13,fontWeight:800,color:evClr}}>{r.label||r.event}</span>
-            {r.team?<span style={{fontSize:10,fontWeight:700,color:TEAM_COLORS[r.team]||evClr}}>{r.team}</span>:null}
-            <span style={{fontSize:10,color:T.muted,flex:1}}>{rRunners.length} runners</span>
-            <span style={{fontSize:10,color:T.muted}}>{isExp?"\u25B2":"\u25BC"}</span>
-          </div>
-          {isExp?<div style={{padding:"4px 10px 8px",borderTop:"1px solid "+T.border}}>
-            {rRunners.map(function(ath,ai){return(<div key={ath.id} draggable onDragStart={function(e){e.dataTransfer.setData("text/plain",String(ai));e.dataTransfer.effectAllowed="move";}} onDragOver={function(e){e.preventDefault();e.dataTransfer.dropEffect="move";}} onDrop={function(e){e.preventDefault();var from=parseInt(e.dataTransfer.getData("text/plain"));if(!isNaN(from))previewMoveRunner(from,ai);}} style={{display:"flex",alignItems:"center",gap:6,padding:"3px 4px",marginBottom:2,borderRadius:3,background:T.timerBg,border:"1px solid "+T.border,cursor:"grab"}}>
-              <span style={{fontSize:10,color:T.muted}}>{"\u2630"}</span>
-              {isRelayRace(r)?<span style={{fontSize:9,fontWeight:700,color:evClr,padding:"0 4px",borderRadius:2,background:evClr+"18"}}>Leg {ai+1}</span>:null}
-              <span style={{fontSize:12,fontWeight:700,color:T.text,flex:1}}>{ath.name}</span>
-              <span style={{fontSize:9,color:TEAM_COLORS[ath.team]||T.muted}}>{ath.team}</span>
-              <button onClick={function(e){e.stopPropagation();previewRemoveRunner(ath.id);}} style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:12,padding:"0 2px",fontFamily:"inherit"}}>{"\u00D7"}</button>
-            </div>);})}
-            <select value="" onChange={function(e){if(e.target.value)previewAddRunner(e.target.value);}} style={{width:"100%",marginTop:4,background:T.timerBg,border:"1px dashed "+T.accent+"44",color:T.muted,padding:"4px 8px",borderRadius:3,fontFamily:"inherit",fontSize:11}}>
-              <option value="">+ Add runner...</option>
-              {allAthletes.filter(function(a){return!(r.runnerIds||[]).includes(String(a.id));}).map(function(a){return <option key={a.id} value={String(a.id)}>{a.name} ({a.team})</option>;})}
-            </select>
-          </div>:null}
-        </div>);})}
-        <button onClick={function(){if(confirm("Clear all race cards?"))resetAll();}} style={{marginTop:4,padding:"3px 8px",background:"transparent",color:T.muted,border:"1px solid "+T.dim,borderRadius:3,cursor:"pointer",fontSize:10,fontFamily:"inherit"}}>Clear</button>
-      </div>:null}
-
-      {/* Begin */}
-      <div style={{marginTop:12,display:"flex",gap:8}}>
-        {mode==="meet"?<button onClick={function(){if(modeRaces.length)setScreen("race");}} disabled={!modeRaces.length} style={{flex:1,padding:"13px",borderRadius:3,cursor:modeRaces.length?"pointer":"not-allowed",background:modeRaces.length?T.accent:T.card,color:modeRaces.length?T.bg:T.muted,border:"1px solid "+(modeRaces.length?T.accent:T.border),fontSize:15,fontWeight:900,fontFamily:"inherit",letterSpacing:3,textTransform:"uppercase"}}>{modeRaces.length?"Begin \u2192":"Import a meet"}</button>:null}
-        {mode==="workout"?<button onClick={function(){if(woGroups.length>0){startWorkout();setScreen("race");}else if(modeRaces.length>0){setScreen("race");}}} disabled={!woGroups.length&&!modeRaces.length} style={{flex:1,padding:"13px",borderRadius:3,cursor:(woGroups.length||modeRaces.length)?"pointer":"not-allowed",background:(woGroups.length||modeRaces.length)?T.accent:T.card,color:(woGroups.length||modeRaces.length)?T.bg:T.muted,border:"1px solid "+((woGroups.length||modeRaces.length)?T.accent:T.border),fontSize:15,fontWeight:900,fontFamily:"inherit",letterSpacing:3,textTransform:"uppercase"}}>{modeRaces.length?"Resume Workout \u2192":woGroups.length?"Start Workout \u2192":"Create groups"}</button>:null}
-        {mode==="open"?(function(){var ok=modeRaces.length>0&&(modeRaces[0].runnerIds||[]).length>0;return <button onClick={function(){if(ok)setScreen("race");}} disabled={!ok} style={{flex:1,padding:"13px",borderRadius:3,cursor:ok?"pointer":"not-allowed",background:ok?T.accent:T.card,color:ok?T.bg:T.muted,border:"1px solid "+(ok?T.accent:T.border),fontSize:15,fontWeight:900,fontFamily:"inherit",letterSpacing:3,textTransform:"uppercase"}}>{ok?"Start Timer \u2192":"Select runners"}</button>;})():null}
       </div>
-
-      {/* ── HISTORY ── */}
-      <div style={{marginTop:24}}>
-        <button onClick={function(){setHistOpen(!histOpen);}} style={{width:"100%",padding:"10px 14px",background:T.card,border:"1px solid "+T.border,borderRadius:4,cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",fontFamily:"inherit"}}>
-          <span style={{fontSize:13,fontWeight:800,color:T.accent,letterSpacing:1}}>{mode==="workout"?"Workout History":mode==="open"?"Open Timer History":"Saved Meets"} ({histKeys.length})</span>
-          <span style={{fontSize:10,color:T.muted}}>{histOpen?"[-]":"[+]"}</span>
-        </button>
-        {histOpen?<div style={{marginTop:8}}>
-          {histKeys.length===0?<div style={{fontSize:12,color:T.muted,fontStyle:"italic",padding:"12px"}}>{mode==="workout"?"No saved workouts yet.":mode==="open"?"No saved open timer sessions yet.":"No saved meets yet."}</div>:null}
-          {histKeys.map(function(key){var sess=histBySession[key];var unsaved=unsavedByMeet[key]||0;return(<div key={key} style={{marginBottom:12,background:T.card,border:"1px solid "+T.border,borderRadius:4,overflow:"hidden"}}>
-            <div style={{padding:"8px 12px",borderBottom:"1px solid "+T.border,display:"flex",justifyContent:"space-between",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-              <div style={{minWidth:0,flex:1}}>
-                <div style={{fontSize:13,fontWeight:700,color:T.text,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-                  <span>{sess.name}</span>
-                  {unsaved>0?<span title={unsaved+" race(s) in the timer haven't been saved yet"} style={{fontSize:8,padding:"1px 5px",borderRadius:3,background:"#f0a50022",color:"#f0a500",border:"1px solid #f0a50066",fontWeight:800,letterSpacing:0.5}}>{"\u26A0 "+unsaved+" UNSAVED"}</span>:null}
-                </div>
-                <div style={{fontSize:10,color:T.muted,display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginTop:1}}>
-                  <span>{sess.date}</span>
-                  <span>{"\u00B7"}</span>
-                  <span>{sess.races.length} race{sess.races.length!==1?"s":""}</span>
-                  {sess.headCount>0||sess.asstCount>0?<span>{"\u00B7"}</span>:null}
-                  {sess.headCount>0?<span style={{color:"#5ddb6a"}}>{sess.headCount} head</span>:null}
-                  {sess.headCount>0&&sess.asstCount>0?<span style={{color:T.muted}}>{","}</span>:null}
-                  {sess.asstCount>0?<span style={{color:"#3498DB"}}>{sess.asstCount} asst</span>:null}
-                </div>
-              </div>
-              <div style={{display:"flex",gap:4}}>
-              {mode==="meet"&&navigateToResultsMeet?<button onClick={function(){navigateToResultsMeet(sess.meetKey);}} title="Open this meet in the Race Results tab" style={{background:"#27ae6018",border:"1px solid #27ae6044",color:"#27ae60",borderRadius:3,padding:"3px 8px",cursor:"pointer",fontSize:10,fontWeight:700,fontFamily:"inherit"}}>View in Results</button>:null}
-              <button onClick={function(){
-                var rows=[["Race","Place","Athlete","Team","Split #","Split Time","Total Time"]];
-                sess.races.forEach(function(race){var evLabel=(race.event||"")+(race.team?" "+race.team:"");var runners=(race.runners||[]).slice().sort(function(a,b){return(a.finalTime||999999)-(b.finalTime||999999);});runners.forEach(function(r,ri){var sp=r.splits||[];if(!sp.length){rows.push([evLabel,ri+1,r.name,r.team||"","","",""]);}else{sp.forEach(function(s,si){rows.push([si===0?evLabel:"",si===0?ri+1:"",si===0?r.name:"",si===0?r.team||"":"",si+1,fmtSplit(s.split),fmtTime(s.total)]);});}});});
-                var csv=rows.map(function(r){return r.map(function(v){return'"'+v+'"';}).join(",");}).join("\n");
-                var el=document.createElement("a");el.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));el.download="results_"+sess.name.replace(/\s+/g,"_")+"_"+(sess.date||"").replace(/\s+/g,"")+".csv";el.click();
-              }} style={{background:T.accent+"18",border:"1px solid "+T.accent+"44",color:T.accent,borderRadius:3,padding:"3px 8px",cursor:"pointer",fontSize:10,fontWeight:700,fontFamily:"inherit"}}>CSV</button>
-              <button onClick={function(){if(confirm("Delete "+sess.name+"?")){if(onDeleteHistory){var keep=raceResults.filter(function(r){return!((r.meetName||"Session")+"\u2014"+(r.meetDate||"")===key);});onDeleteHistory(keep);}}}} style={{background:"rgba(239,68,68,0.1)",border:"none",color:"#ef4444",borderRadius:3,padding:"3px 8px",cursor:"pointer",fontSize:10,fontWeight:700,fontFamily:"inherit"}}>Delete</button>
-              </div>
-            </div>
-            {sess.races.slice().sort(function(a,b){return(a.sortKey||0)-(b.sortKey||0);}).map(function(race){
-              var evClr=EVENT_COLORS[race.event]||T.accent;
-              var isRelay=race.event==="4x800"||!!race.relay;
-              /* Relay: preserve leg order. Standard: sort by finalTime. */
-              var runners=isRelay?(race.runners||[]).slice():(race.runners||[]).slice().sort(function(a,b){return(a.finalTime||999999)-(b.finalTime||999999);});
-              var maxSplits=runners.reduce(function(m,r){return Math.max(m,(r.splits||[]).length);},0);
-              var teamTotal=isRelay?runners.reduce(function(m,r){return r.finalTime>m?r.finalTime:m;},0):0;
-              return(<div key={race.id||race.event+race.team} style={{padding:"8px 12px",borderBottom:"1px solid "+T.dim}}>
-              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}><span style={{fontSize:12,fontWeight:800,color:evClr}}>{race.event}</span>{race.team?<span style={{fontSize:10,fontWeight:700,color:TEAM_COLORS[race.team]||evClr}}>{race.team}</span>:null}{race.heat>1?<span style={{fontSize:9,color:T.muted}}>H{race.heat}</span>:null}{race.savedBy?<span style={{fontSize:8,padding:"1px 4px",borderRadius:2,background:race.savedBy==="asst"?"#3498DB18":"#27ae6018",color:race.savedBy==="asst"?"#3498DB":"#27ae60"}}>{race.savedBy==="asst"?"Asst":"Head"}</span>:null}<button onClick={function(){if(confirm("Delete this race?")){if(onDeleteHistory){var keep=raceResults.filter(function(r2){return r2.id!==race.id;});onDeleteHistory(keep);}}}} style={{marginLeft:"auto",background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:10,padding:0}}>x</button></div>
-              {isRelay?(<div>
-                {runners.map(function(r,ri){
-                  var sps=r.splits||[];
-                  var lastSp=sps.length>0?sps[sps.length-1]:null;
-                  var legSumMs=sps.reduce(function(a,s){return a+(s.split||0);},0);
-                  var hasMulti=sps.length>1;
-                  return(<div key={r.id||ri} style={{display:"flex",alignItems:"center",gap:6,padding:"2px 0"}}>
-                  <span style={{width:36,fontSize:10,fontWeight:700,color:evClr,textAlign:"center"}}>Leg {ri+1}</span>
-                  <span style={{flex:1,fontSize:11,fontWeight:600,color:T.text}}>{r.name}</span>
-                  <span style={{fontSize:13,fontWeight:700,color:T.splitClr||T.text,fontFamily:"'Share Tech Mono',monospace",width:65,textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",lineHeight:1.1}} title={hasMulti?sps.map(function(s){return fmtSplit(s.split);}).join(" / "):""}>
-                    <span>{lastSp?fmtSplit(legSumMs):"--"}</span>
-                    {hasMulti?<span style={{fontSize:8,color:T.muted,opacity:0.7}}>{sps.map(function(s){return fmtSplit(s.split);}).join("/")}</span>:null}
-                  </span>
-                  <span style={{fontSize:13,fontWeight:700,color:T.timeClr,fontFamily:"'Share Tech Mono',monospace",minWidth:65,textAlign:"right"}}>{lastSp?fmtTime(lastSp.total):"--"}</span>
-                </div>);})}
-                <div style={{display:"flex",alignItems:"center",gap:6,padding:"4px 6px",marginTop:3,borderRadius:3,background:evClr+"15",border:"1px solid "+evClr+"55"}}>
-                  <span style={{width:36,fontSize:10,fontWeight:900,color:evClr,textAlign:"center",letterSpacing:1}}>TOTAL</span>
-                  <span style={{flex:1,fontSize:10,color:T.muted}}>4x800 Team</span>
-                  <span style={{width:65,fontSize:10,color:T.muted,textAlign:"center"}}>{"\u2014"}</span>
-                  <span style={{fontSize:14,fontWeight:900,color:evClr,fontFamily:"'Share Tech Mono',monospace",minWidth:65,textAlign:"right"}}>{teamTotal?fmtTime(teamTotal):"--"}</span>
-                </div>
-              </div>):runners.map(function(r,ri){var sps=r.splits||[];return(<div key={r.id||ri} style={{display:"flex",alignItems:"center",gap:6,padding:"2px 0"}}>
-                <span style={{width:18,fontSize:10,fontWeight:700,color:ri===0?evClr:T.muted,textAlign:"center"}}>{ri+1}</span>
-                <span style={{flex:1,fontSize:11,fontWeight:ri===0?700:500,color:ri===0?evClr:T.muted}}>{r.name}</span>
-                {maxSplits>0?Array.from({length:maxSplits},function(_,si){var s=sps[si];return <span key={si} style={{fontSize:13,fontWeight:700,color:T.oldSplit||T.timeClr,fontFamily:"'Share Tech Mono',monospace",width:55,textAlign:"center"}}>{s?fmtSplit(s.split):""}</span>;}):null}
-                <span style={{fontSize:14,fontWeight:800,color:ri===0?"#5ddb6a":T.timeClr,fontFamily:"'Share Tech Mono',monospace",minWidth:65,textAlign:"right"}}>{r.finalTime?fmtTime(r.finalTime):"--"}</span>
-              </div>);})}
-            </div>);})}
-          </div>);})}
-        </div>:null}
-      </div>
-    </div>
-  </div>);}
+    );
+  }
 
   /* ── RACE SCREEN ── */
-  return(<div style={{background:T.bg,minHeight:"100vh",fontFamily:"'Barlow Condensed',sans-serif",color:T.text}}>
-    <div style={{padding:"10px 14px",borderBottom:"1px solid "+T.border,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,background:T.bg,zIndex:10}}>
-      <div style={{display:"flex",alignItems:"center",gap:8}}>
-        <button onClick={function(){setScreen("setup");}} style={{background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:10,fontFamily:"inherit",letterSpacing:2,textTransform:"uppercase",padding:0}}>{"\u2190"} Setup</button>
-        <span style={{fontSize:12,fontWeight:800,color:T.accent,letterSpacing:2,textTransform:"uppercase"}}>{label}</span>
+  return (
+    <div style={{ background: T.bg, minHeight: "100vh", fontFamily: "'Barlow Condensed',sans-serif", color: T.text }}>
+      <div style={{ padding: "10px 14px", borderBottom: "1px solid " + T.border, display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, background: T.bg, zIndex: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button onClick={() => setScreen("setup")} style={{ background: "none", border: "none", color: T.muted, cursor: "pointer", fontSize: 10, fontFamily: "inherit", letterSpacing: 2, textTransform: "uppercase", padding: 0 }}>{"\u2190"} Setup</button>
+          <span style={{ fontSize: 12, fontWeight: 800, color: T.accent, letterSpacing: 2, textTransform: "uppercase" }}>{label}</span>
+        </div>
+        <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
+          <button onClick={() => setBeep(!beepOn)} title={beepOn ? "Beep on" : "Beep off"} style={{ padding: "6px 10px", background: beepOn ? T.accent + "22" : "transparent", color: beepOn ? T.accent : T.muted, border: "1px solid " + (beepOn ? T.accent + "66" : T.border), borderRadius: 3, cursor: "pointer", fontSize: 14, fontFamily: "inherit", lineHeight: 1 }}>
+            {beepOn ? "\uD83D\uDD0A" : "\uD83D\uDD07"}
+          </button>
+          {anyHasSplits && !allSaved ? (
+            <button onClick={saveAllUnsaved} style={{ padding: "6px 14px", background: "#3498DB", color: T.bg, border: "none", borderRadius: 3, cursor: "pointer", fontSize: 12, fontWeight: 900, fontFamily: "inherit", letterSpacing: 1, textTransform: "uppercase" }}>Save All</button>
+          ) : null}
+          {allSaved && anyHasSplits ? (
+            <button onClick={clearSession} style={{ padding: "6px 14px", background: "#27ae60", color: T.bg, border: "none", borderRadius: 3, cursor: "pointer", fontSize: 12, fontWeight: 900, fontFamily: "inherit", letterSpacing: 1, textTransform: "uppercase" }}>Done - Clear</button>
+          ) : null}
+        </div>
       </div>
-      <div style={{display:"flex",gap:5,alignItems:"center"}}>
-        <button onClick={function(){setBeep(!beepOn);}} title={beepOn?"Beep on":"Beep off"} style={{padding:"6px 10px",background:beepOn?T.accent+"22":"transparent",color:beepOn?T.accent:T.muted,border:"1px solid "+(beepOn?T.accent+"66":T.border),borderRadius:3,cursor:"pointer",fontSize:14,fontFamily:"inherit",lineHeight:1}}>{beepOn?"\uD83D\uDD0A":"\uD83D\uDD07"}</button>
-        {anyHasSplits&&!allSaved?<button onClick={saveAllUnsaved} style={{padding:"6px 14px",background:"#3498DB",color:T.bg,border:"none",borderRadius:3,cursor:"pointer",fontSize:12,fontWeight:900,fontFamily:"inherit",letterSpacing:1,textTransform:"uppercase"}}>Save All</button>:null}
-        {allSaved&&anyHasSplits?<button onClick={clearSession} style={{padding:"6px 14px",background:"#27ae60",color:T.bg,border:"none",borderRadius:3,cursor:"pointer",fontSize:12,fontWeight:900,fontFamily:"inherit",letterSpacing:1,textTransform:"uppercase"}}>Done - Clear</button>:null}
+      <div style={{ padding: "8px 10px" }}>
+        {modeRaces.map((race) => (
+          <RaceCard
+            key={race.id}
+            race={race}
+            rosterMap={rosterMap}
+            paces={fbPaces}
+            onUpdateRace={updateRace}
+            onSaveRace={saveOneRace}
+            splitLabel={label}
+            T={T}
+            allAthletes={allAthletes}
+            beepOn={beepOn}
+          />
+        ))}
       </div>
     </div>
-    <div style={{padding:"8px 10px"}}>
-      {modeRaces.map(function(race){return <RaceCard key={race.id} race={race} rosterMap={rosterMap} paces={fbPaces} onUpdateRace={updateRace} onSaveRace={saveOneRace} splitLabel={label} T={T} allAthletes={allAthletes} beepOn={beepOn}/>;})}</div>
-  </div>);
+  );
 }
