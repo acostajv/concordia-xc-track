@@ -348,6 +348,9 @@ export default function App(){
   var _rrEditVal=useState("");var rrEditVal=_rrEditVal[0];var setRrEditVal=_rrEditVal[1];
   var _rrNameEdit=useState(null);var rrNameEdit=_rrNameEdit[0];var setRrNameEdit=_rrNameEdit[1];
   var _rrShowPace=useState(true);var rrShowPace=_rrShowPace[0];var setRrShowPace=_rrShowPace[1];
+  /* Collapsed meet bars on Race Results. Default collapsed=true for all but
+     the newest meet so the page isn't a wall of results. Keyed by meet key. */
+  var _rrCollapsed=useState({});var rrCollapsed=_rrCollapsed[0];var setRrCollapsed=_rrCollapsed[1];
   var _raffleUsed=useState({});var raffleUsed=_raffleUsed[0];var setRaffleUsed=_raffleUsed[1];
   var _raffleMonthlyUsed=useState({});var raffleMonthlyUsed=_raffleMonthlyUsed[0];var setRaffleMonthlyUsed=_raffleMonthlyUsed[1];
   var _raffleWinner=useState(null);var raffleWinner=_raffleWinner[0];var setRaffleWinner=_raffleWinner[1];
@@ -3330,9 +3333,16 @@ export default function App(){
 
       {/* ══════ RESULTS TAB ══════ */}
       {view==="results"?(<div>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4,gap:6,flexWrap:"wrap"}}>
           <div style={{fontSize:16,fontWeight:800,color:_tp}}>Race Results</div>
-          <button onClick={function(){setRrShowPace(!rrShowPace);}} style={{padding:"4px 10px",fontSize:10,fontWeight:700,borderRadius:4,background:rrShowPace?C.greenLight+"22":"transparent",color:rrShowPace?C.greenLight:_tm,border:"1px solid "+(rrShowPace?C.greenLight+"55":C.bd),cursor:"pointer"}}>{rrShowPace?"\u2713 Show Paces":"Show Paces"}</button>
+          <div style={{display:"flex",gap:4}}>
+            <button onClick={function(){
+              var all={};raceResults.forEach(function(r){var mk=r.meetId||r.meetName||"Unknown";all[mk]=false;});
+              setRrCollapsed(all);
+            }} style={{padding:"4px 10px",fontSize:10,fontWeight:700,borderRadius:4,background:"transparent",color:_tm,border:"1px solid "+C.bd,cursor:"pointer"}}>Expand All</button>
+            <button onClick={function(){setRrCollapsed({});}} style={{padding:"4px 10px",fontSize:10,fontWeight:700,borderRadius:4,background:"transparent",color:_tm,border:"1px solid "+C.bd,cursor:"pointer"}}>Collapse All</button>
+            <button onClick={function(){setRrShowPace(!rrShowPace);}} style={{padding:"4px 10px",fontSize:10,fontWeight:700,borderRadius:4,background:rrShowPace?C.greenLight+"22":"transparent",color:rrShowPace?C.greenLight:_tm,border:"1px solid "+(rrShowPace?C.greenLight+"55":C.bd),cursor:"pointer"}}>{rrShowPace?"\u2713 Show Paces":"Show Paces"}</button>
+          </div>
         </div>
         <div style={{fontSize:11,color:_tm,marginBottom:16}}>Times from meets, recorded by the split timer.</div>
         {raceResults.length===0?<div style={{textAlign:"center",padding:"40px 20px"}}><div style={{fontSize:14,color:_tm,fontStyle:"italic"}}>No race results yet. Use the Split Timer during a meet to record times.</div></div>:null}
@@ -3356,13 +3366,27 @@ export default function App(){
               if(ea!==eb)return ea-eb;
               return a.team==="boys"?-1:1;
             });
-            return(<div key={mk} id={"rr-meet-"+String(mk).replace(/[^a-z0-9]/gi,"_")} style={{marginBottom:20,scrollMarginTop:80}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,paddingBottom:6,borderBottom:"1px solid "+C.bd}}>
-                <div>
-                  <div style={{fontSize:14,fontWeight:700,color:_tp}}>{meetGroup.name}</div>
-                  {meetGroup.date?<div style={{fontSize:11,color:_tm}}>{(function(){var p=meetGroup.date.split("-");return parseInt(p[1])+"/"+parseInt(p[2])+"/"+p[0];})()}</div>:null}
+            /* Collapsed by default (undefined === collapsed). User must click
+               to expand. Summary shows race + runner counts so the bar is
+               informative without expansion. */
+            var isCollapsed=rrCollapsed[mk]!==false;
+            var totalRunners=meetGroup.races.reduce(function(a,r){return a+(r.runners||[]).length;},0);
+            var meetDateLabel=meetGroup.date?(function(){var p=meetGroup.date.split("-");return parseInt(p[1])+"/"+parseInt(p[2])+"/"+p[0];})():"";
+            return(<div key={mk} id={"rr-meet-"+String(mk).replace(/[^a-z0-9]/gi,"_")} style={{marginBottom:isCollapsed?6:20,scrollMarginTop:80,border:"1px solid "+C.bd,borderRadius:6,overflow:"hidden",background:isCollapsed?"rgba(255,255,255,0.02)":"transparent"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 12px",borderBottom:isCollapsed?"none":"1px solid "+C.bd,cursor:"pointer",gap:8}}
+                onClick={function(){setRrCollapsed(Object.assign({},rrCollapsed,{[mk]:!isCollapsed?true:false}));}}>
+                <div style={{display:"flex",alignItems:"center",gap:10,minWidth:0,flex:1}}>
+                  <span style={{fontSize:12,color:_tm,width:10,textAlign:"center"}}>{isCollapsed?"\u25B6":"\u25BC"}</span>
+                  <div style={{minWidth:0,flex:1}}>
+                    <div style={{fontSize:14,fontWeight:700,color:_tp,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{meetGroup.name}</div>
+                    <div style={{fontSize:11,color:_tm}}>
+                      {meetDateLabel?meetDateLabel+" \u00B7 ":""}
+                      {meetGroup.races.length} race{meetGroup.races.length!==1?"s":""}
+                      {" \u00B7 "}{totalRunners} runner{totalRunners!==1?"s":""}
+                    </div>
+                  </div>
                 </div>
-                <div style={{display:"flex",gap:4}}>
+                <div style={{display:"flex",gap:4}} onClick={function(e){e.stopPropagation();}}>
                 <button onClick={function(){
                   var rows=[["Race","Place","Athlete","Team","Split #","Split Time","Final Time"]];
                   meetGroup.races.forEach(function(race){var evLabel=(race.event||"")+(race.team?" "+race.team:"");var runners=(race.runners||[]).slice().sort(function(a,b){if(a.dnf&&!b.dnf)return 1;if(!a.dnf&&b.dnf)return -1;return(a.finalTime||999999)-(b.finalTime||999999);});runners.forEach(function(r,ri){var sp=r.splits||[];var finalCell=r.dnf?"DNF":r.finalTime?fmtTime(r.finalTime):"";if(!sp.length){rows.push([evLabel,r.dnf?"DNF":ri+1,r.name,r.team||"","","",finalCell]);}else{sp.forEach(function(s,si){rows.push([si===0?evLabel:"",si===0?(r.dnf?"DNF":ri+1):"",si===0?r.name:"",si===0?r.team||"":"",si+1,fmtSplit(s.split),si===sp.length-1?finalCell:""]);});}});});
@@ -3372,7 +3396,7 @@ export default function App(){
                 {cm?<button onClick={function(){if(confirm("Delete all results for "+meetGroup.name+"?")){upRR(raceResults.filter(function(r){return(r.meetId||r.meetName)!==mk;}));}}} style={{background:"rgba(239,68,68,0.1)",border:"none",color:"#ef4444",borderRadius:4,padding:"3px 8px",cursor:"pointer",fontSize:10}}>Delete Meet</button>:null}
                 </div>
               </div>
-              {meetGroup.races.map(function(race){
+              {isCollapsed?null:<div style={{padding:"8px 10px"}}>{meetGroup.races.map(function(race){
                 var evClr={"800":"#F39C12","1600":"#D4A017","3200":"#27ae60","4x800":"#a855f7"}[race.event]||"#4a9eff";
                 var tClr=race.team==="boys"?C.greenLight:C.gold;
                 var isRelay=race.event==="4x800"||!!race.relay;
@@ -3523,7 +3547,7 @@ export default function App(){
                     </div>)}
                   </div>
                 </div>);
-              })}
+              })}</div>}
             </div>);
           });
         })()}
