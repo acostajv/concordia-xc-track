@@ -3390,11 +3390,17 @@ export default function App(){
                 /* Total race distance in meters (for the Final column pace) */
                 var raceM=SPLIT_M[race.event]||(race.distanceM||0)||(splitM*maxSplits)||0;
                 var mkEditableFor=function(r,ri){
+                  /* `ri` is the sorted-display index; the race.runners array is
+                     in original recording order. Resolve by id so edits land on
+                     the runner the coach clicked, not on whoever shares that
+                     slot in the unsorted list. */
+                  var trueIdx=(race.runners||[]).findIndex(function(x){return x.id===r.id;});
+                  if(trueIdx<0)trueIdx=ri;
                   var editKey=function(si,md){return race.id+"|"+ri+"|"+si+"|"+md;};
                   return function(displayStr,editMs,splitIndex,md){
                     var ek=editKey(splitIndex,md);
                     if(rrEdit===ek){return(<input value={rrEditVal} onChange={function(e){setRrEditVal(e.target.value);}}
-                      onBlur={function(){var ms=parseTimeToMs(rrEditVal);if(ms!==null&&ms!==editMs){updateRaceResult(race.id,ri,splitIndex,ms,md);}setRrEdit(null);}}
+                      onBlur={function(){var ms=parseTimeToMs(rrEditVal);if(ms!==null&&ms!==editMs){updateRaceResult(race.id,trueIdx,splitIndex,ms,md);}setRrEdit(null);}}
                       onKeyDown={function(e){if(e.key==="Enter"){e.target.blur();}if(e.key==="Escape"){setRrEdit(null);}}}
                       autoFocus style={{width:splitIndex===-1?70:60,fontSize:splitIndex===-1?13:11,fontFamily:"monospace",fontWeight:700,textAlign:splitIndex===-1?"right":"center",background:lt?"#fff8e0":"#1a1a0a",color:lt?"#333":"#ffd700",border:"1px solid #f0a50066",borderRadius:3,padding:"1px 3px",outline:"none"}}/>);}
                     if(!cm)return null;
@@ -3402,12 +3408,15 @@ export default function App(){
                   };
                 };
                 var mkNameCell=function(r,nameStyle,ri){
+                  /* Same sorted-vs-unsorted-index fix as mkEditableFor. */
+                  var trueIdx=(race.runners||[]).findIndex(function(x){return x.id===r.id;});
+                  if(trueIdx<0)trueIdx=ri;
                   var nk=race.id+"|"+ri+"|name";
                   if(rrNameEdit===nk){
                     var inRoster=roster.some(function(a){return a.id===r.id;});
                     var sortedRoster=roster.slice().sort(function(a,b){return(a.name||"").localeCompare(b.name||"");});
                     return(<select value={r.id} autoFocus
-                      onChange={function(e){var nid=e.target.value;if(nid&&nid!==r.id){var ath=roster.find(function(a){return a.id===nid;});if(ath)updateRaceRunner(race.id,ri,ath);}setRrNameEdit(null);}}
+                      onChange={function(e){var nid=e.target.value;if(nid&&nid!==r.id){var ath=roster.find(function(a){return a.id===nid;});if(ath)updateRaceRunner(race.id,trueIdx,ath);}setRrNameEdit(null);}}
                       onBlur={function(){setRrNameEdit(null);}}
                       onKeyDown={function(e){if(e.key==="Escape")setRrNameEdit(null);}}
                       style={Object.assign({},nameStyle,{background:lt?"#fff8e0":"#1a1a0a",color:lt?"#333":"#ffd700",border:"1px solid #f0a50066",borderRadius:3,padding:"1px 4px",outline:"none",cursor:"pointer",fontFamily:"inherit"})}>
