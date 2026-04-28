@@ -785,14 +785,15 @@ function RaceCard(props) {
           ) : null}
         </div>
         <div style={{ display: "flex", gap: 5 }}>
-          {!isDone && !isRunning ? (
-            <button onClick={startTimer} style={{ padding: "6px 16px", background: evClr, color: T.bg, border: "none", borderRadius: 3, cursor: "pointer", fontSize: 13, fontWeight: 900, fontFamily: "inherit", letterSpacing: 2 }}>{elapsed > 0 ? "GO" : "START"}</button>
-          ) : !isDone ? (
-            <button onClick={pauseTimer} style={{ padding: "6px 16px", background: "transparent", color: evClr, border: "1.5px solid " + evClr, borderRadius: 3, cursor: "pointer", fontSize: 13, fontWeight: 900, fontFamily: "inherit", letterSpacing: 2 }}>STOP</button>
+          {isRunning && !isDone ? (
+            <button onClick={pauseTimer} style={{ padding: "6px 16px", background: "transparent", color: evClr, border: "1.5px solid " + evClr, borderRadius: 3, cursor: "pointer", fontSize: 13, fontWeight: 900, fontFamily: "inherit", letterSpacing: 2, touchAction: "manipulation" }}>STOP</button>
           ) : null}
-          <button onClick={() => setConfirmModal({ title: "Reset this race?", message: "All splits and the timer will be cleared. This cannot be undone.", confirmLabel: "Reset", destructive: true, onConfirm: () => resetRace() })} style={{ padding: "6px 10px", background: "transparent", color: T.muted, border: "1px solid " + T.border, borderRadius: 3, cursor: "pointer", fontSize: 10, fontWeight: 700, fontFamily: "inherit" }}>Reset</button>
+          <button onClick={() => setConfirmModal({ title: "Reset this race?", message: "All splits and the timer will be cleared. This cannot be undone.", confirmLabel: "Reset", destructive: true, onConfirm: () => resetRace() })} style={{ padding: "6px 10px", background: "transparent", color: T.muted, border: "1px solid " + T.border, borderRadius: 3, cursor: "pointer", fontSize: 10, fontWeight: 700, fontFamily: "inherit", touchAction: "manipulation" }}>Reset</button>
         </div>
       </div>
+      {!isDone && !isRunning ? (
+        <button onClick={startTimer} style={{ display: "block", width: "100%", padding: "20px 16px", background: evClr, color: T.bg, border: "none", borderRadius: 0, cursor: "pointer", fontSize: 22, fontWeight: 900, fontFamily: "inherit", letterSpacing: 4, touchAction: "manipulation" }}>{elapsed > 0 ? "GO" : "START"}</button>
+      ) : null}
       <div style={{ padding: "6px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
           {runners.map((ath, athIdx) => {
@@ -877,6 +878,7 @@ function RaceCard(props) {
                     userSelect: "none",
                     WebkitUserSelect: "none",
                     WebkitTouchCallout: "none",
+                    touchAction: "manipulation",
                     fontFamily: "inherit",
                     display: "flex",
                     flexDirection: "column",
